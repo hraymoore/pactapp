@@ -1,0 +1,54 @@
+<div ng-show="showView">
+<div class="card mt-3">
+	<div class="card-header bg-dark text-warning">
+		<h4>Search For Contracts</h4>
+		<button class="btn btn-warning" ng-click="getAllContracts()">Refresh Contracts</button>
+	<form class="form-inline" action="/action_page.php">
+    	<input class="form-control mr-sm-2" type="text" placeholder="Search">
+    	<button class="btn btn-warning" type="submit">Search Contracts</button>
+  </form>
+		
+	</div>
+	<div class="card-body">
+		<table class="table table-hover">
+			<thead class="thead-dark">
+				<tr>
+					<th>Contract ID #</th>
+					<th>Title</th>
+					<th>Genre</th>
+					<th>Upload Date</th>
+					<th>Update Date</th>					
+				</tr>
+			</thead>
+			<tbody>
+				<tr ng-repeat="contract in contracts" ng-click="gotoUpdateView(contract.id)">
+					<td>{{contract.id}}</td>
+					<td>{{contract.title}}</td>
+					<td>{{contract.genre}}</td>
+					<td>{{contract.releaseYear}}</td>
+					<td>{{contract.uploadDateTime | date:'longDate'}}</td>	
+					<td>{{contract.updateDateTime | date:'shortDate'}}</td>					
+				</tr>
+			</tbody>		
+		</table>	
+	</div>
+	
+</div>
+</div>
+
+<style>
+	.myspinner {
+		height: 100vh;
+		display:flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+	}
+</style>
+
+<div ng-show="!showView" class="myspinner">
+	<div class="spinner-border text-warning" style="width: 3rem; height: 3rem;"></div>
+	<br>
+	<p>Retrieving Contracts...</p>
+</div>
+	

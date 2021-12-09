@@ -1,0 +1,68 @@
+<div class="row">
+	<div class="col-sm-7">
+		<div class="card bg-light">
+			<div class="card-header text-center">
+				<h3>Update Contract</h3>
+				<h5 class="text-success text-center" ng-bind="updateStatus"></h5>
+			</div>			
+		
+			<div class="card-body">
+			<form name="updateForm">
+				<div class="form-group">
+					<label for="title" class="font-weight-bold">Title:</label>
+					<input ng-model="contract.title" required ng-minlength="2" name="title"
+						type="text" class="form-control" id="title">
+						<span class="text danger" ng-if="!updateForm.title.$valid">
+							required and must be at least 2 characters
+						</span>
+				</div>
+				<div class="form-group">
+					<label for="genre" class="font-weight-bold">Genre:</label>
+					<select ng-options="value for value in genres"
+						ng-model="contract.genre" class="form-control" id="genre">
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="releaseYear" class="font-weight-bold">Release Year:</label>
+					<input ng-model="contract.releaseYear" max="2025" min="1935" required name="releaseYear"
+						type="number" class="form-control" id="releaseYear">
+						<span class="text-danger" ng-if="!updateForm.releaseYear.$valid"> 
+						required and must be between 1935 and 2025, inclusive
+						</span>
+				</div>
+				<div>
+					<span class="font-weight-bold">Contract ID:</span> <span
+						ng-bind="contract.id" id="id"></span>
+				</div>
+				<div>
+					<span class="font-weight-bold">Upload Date:</span> <span
+						ng-bind="contract.createDateTime" id="upload"></span>
+				</div>
+				<div>
+					<span class="font-weight-bold">Update Date:</span> <span
+						ng-bind="contract.updateDateTime" id="update"></span>
+				</div>
+			</form>
+			</div>
+			<div class="card-footer text-center">
+				<button type="button" class="btn btn-success" ng-disabled="updateForm.$invalid || disableUpdate"
+					ng-click="updateContract()">
+					Update
+				</button>
+				<button type="button" class="btn btn-danger"
+					ng-click="deleteContract()" ng-disabled="disableUpdate">
+					Delete
+				</button>
+				<button type="button" class="btn btn-info"
+				ng-click="goToSearchView()">
+				Cancel
+				</button>
+			</div>
+		</div>
+	</div>
+	<div class="col-sm-5">		
+		<div class="pt-5">
+		<img class="img-fluid rounded-circle" src="./images/handshake.jpeg">
+		</div>
+	</div>
+	</div>

@@ -1,0 +1,53 @@
+<html>
+<meta charset="utf-8"/>
+<head>
+	<title>Pact App Store</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1"> 
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+	<!-- jQuery library -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<!-- Popper JS -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+	<!-- Latest compiled JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular-route.js"></script>
+
+	<script src ="./js/pact.js"></script>
+	<script src="./js/searchController.js"></script>
+	<script src="./js/uploadController.js"></script>
+	<script src="./js/updateController.js"></script>
+	
+	<link rel="stylesheet" href="./css/pact.css"></link>
+
+</head>
+<body ng-app="pactapp">
+	<nav class="navbar navbar-expand-sm bg-dark navbar-dark text-warning">
+			<div class="navbar-brand"> <a href="#!main">Pact Store</a></div>
+			<!-- Collapse button -->
+	  		<button class="navbar-toggler toggler-example" type="button" data-toggle="collapse" data-target="#navbarSupportedContent1"
+	    		aria-controls="navbarSupportedContent1" 
+	    		aria-expanded="false" 
+	    		aria-label="Toggle navigation">
+	    		<span class="navbar-toggler-icon"></span>
+	    	</button>
+			<!-- Collapsible content -->
+	  		<div class="collapse navbar-collapse" id="navbarSupportedContent1">
+				<ul class="navbar-nav">
+					<li class="nav-item "><a class="nav-link text-warning" href="#!search">Search</a></li>
+					<li class="nav-item "><a class="nav-link text-warning" href="#!upload">Upload</a></li>
+				</ul>
+				<ul class="navbar-nav ml-auto">
+					<li class="nav-item "><a class="nav-link text-warning" href="#!stack">Stack</a></li>
+					<li class="nav-item "><a class="nav-link text-warning" href="#!resume">Resume</a></li>			
+				</ul>
+			</div>
+		</nav>
+
+    <div class="container">
+    	<div ng-view></div>
+    </div>
+
+</body>
+</html>

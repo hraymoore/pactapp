@@ -1,0 +1,69 @@
+<style>
+	body { 
+	  background: url(images/movie_reel.jpg) no-repeat center center fixed; 
+	  -webkit-background-size: cover;
+	  -moz-background-size: cover;
+	  -o-background-size: cover;
+	  background-size: cover;
+	}
+</style>
+<div class="p-3 mb-2 bg-dark text-dark">.
+<div class="row pt-3">
+	<div class="col-sm-3">			
+	</div>
+	<div class="col-sm-6">
+		<div class="card">
+			<div class="card-header bg-dark text-center text-warning">
+				<h3>Upload Contract</h3>
+				<h5 class="text-warning" ng-bind="uploadStatus"></h5>
+			</div>			
+			<div class="card-body">
+				<form name="uploadForm">
+				<div>
+				 	<label for="formFileMultiple" class="form-label">Upload multiple documents</label>
+					<input class="form-control" type="file" id="formFileMultiple" multiple />
+				</div>
+			
+				<div class="form-group">
+					<label for="title" class="font-weight-bold">Title:</label>
+					<input ng-model="contract.title" required ng-minlength="2" name="title"
+						type="text" class="form-control" id="title">					
+					<span ng-show="uploadForm.title.$touched && uploadForm.title.$invalid"
+						class="text-danger">
+						required and must be at least two characters.
+					</span>					
+				</div>
+				<div class="form-group">
+					<label for="genre" class="font-weight-bold">Type</label>
+					<select ng-options="value for value in genres" required name="genre"
+						ng-model="contract.genre" class="form-control" id="genre">
+					</select>
+					<span ng-show="createForm.genre.$touched && createForm.genre.$invalid"
+						class="text-danger">
+						required
+					</span>	
+				</div>
+				<div class="form-group">
+					<label for="releaseYear" class="font-weight-bold">Release Year:</label>
+					<input ng-model="contract.releaseYear" max="2025" min="1935" required
+						type="number" class="form-control" id="releaseYear" name="releaseYear">					
+					<span ng-show="createForm.releaseYear.$touched && createForm.releaseYear.$invalid"
+						class="text-danger">
+						required and must be between 1935 and 2020, inclusive
+					</span>	
+				</div>				
+			</form>
+		</div>
+		<div class="card-footer text-center">
+			<button type="button" class="btn btn-success"
+				ng-disabled="createForm.$invalid || disableCreate"
+				ng-click="uploadContract()">Upload</button>			
+			<button type="button" class="btn btn-info"
+				ng-click="clear()">Clear</button>
+		</div>
+		</div>
+	</div>
+	<div class="col-sm-3">			
+	</div>
+</div>
+</div>

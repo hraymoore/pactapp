@@ -56,16 +56,23 @@ swapped in without touching the routes above it.
 
 ## 4. Mobile app plan
 
-Web ships first; native mobile is the next milestone.
-
-- **Framework:** React Native (Expo) — shares the same REST API and data
-  model as the web client.
-- **Phase 1 (view + sign):** profile login, contract list, read-only view,
-  signing via the same token-based flow as web.
-- **Phase 2 (edit + notify):** full editor, push notifications, biometric
-  login.
-- **Phase 3 (AI on the go):** Pact AI drafting and analysis for
-  Professional/Enterprise mobile users, offline draft caching.
+- **Now — Android via Trusted Web Activity:** the web app is already an
+  installable PWA (`website/manifest.json`, `website/sw.js`, icons). Wrap
+  it with Bubblewrap (config already in `android/twa-manifest.json`) to get
+  onto the Google Play Store fastest, reusing the full web app instead of a
+  parallel codebase. See `docs/ANDROID-PLAYSTORE.md` for the exact steps —
+  it needs contrapact.net live, a signing key only you hold, and a Google
+  Play Developer account.
+- **Later — native React Native (Expo) app**, once the TWA proves the
+  product and you want capabilities a TWA can't give you (background push,
+  true offline drafting, biometric login, deeper OS integration):
+  - **Phase 1 (view + sign):** profile login, contract list, read-only
+    view, signing via the same token-based flow as web.
+  - **Phase 2 (edit + notify):** full editor, push notifications,
+    biometric login.
+  - **Phase 3 (AI on the go):** Pact AI drafting and analysis for
+    Professional/Enterprise mobile users, offline draft caching.
+  - iOS follows the same React Native codebase once built.
 
 ## 5. Tier structure (implemented in `pricing.html`, enforced server-side)
 

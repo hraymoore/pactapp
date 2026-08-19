@@ -1,0 +1,13 @@
+# Android / Bubblewrap build output and signing key — never commit a
+# signing key; losing or leaking it means the Play Store app identity
+# can never be updated again.
+android/*.keystore
+android/app/
+android/build/
+android/.gradle/
+android/*.aab
+android/*.apk
+
+# OS / editor cruft
+.DS_Store
+*.swp

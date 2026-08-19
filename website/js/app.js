@@ -127,6 +127,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireNavToggle();
   wireReveal();
 
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("[pact] service worker failed:", err));
+  }
+
   const logoutBtn = document.querySelector("[data-logout]");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async (e) => {

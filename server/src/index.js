@@ -12,6 +12,10 @@ seedTemplates(db);
 
 const app = express();
 app.disable("x-powered-by");
+// Behind a reverse proxy (Render/Railway/Fly/nginx) in production, so
+// req.protocol and req.secure reflect the original client connection —
+// needed for secure cookies and correct https:// URLs in signing links.
+if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
 
 const WEBSITE_DIR = path.join(__dirname, "..", "..", "website");
 
@@ -26,7 +30,10 @@ app.use("/api/ai", require("./routes/ai"));
 app.use("/api/billing", require("./routes/billing"));
 app.use("/api/identity", require("./routes/identity"));
 
-app.use(express.static(WEBSITE_DIR));
+// dotfiles: "allow" — express.static hides dot-directories by default,
+// which would otherwise 404 /.well-known/assetlinks.json (needed to verify
+// domain ownership for the Android Trusted Web Activity).
+app.use(express.static(WEBSITE_DIR, { dotfiles: "allow" }));
 
 app.use("/api", (req, res) => res.status(404).json({ error: "Not found." }));
 app.use((req, res) => res.status(404).sendFile(path.join(WEBSITE_DIR, "index.html")));

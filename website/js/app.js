@@ -1,31 +1,61 @@
 /* =========================================================
    PACT — client-side app shell
-   NOTE: There is no real backend wired up yet. Profile
-   storage, "signing", and AI panels below are local mocks
-   (localStorage) that stand in for the real identity,
-   e-signature and AI services described in
-   /docs/PRODUCT-PLAN.md. Swap PactAuth.* for real API calls
-   when the backend/third-party integrations are connected.
+   Talks to the real backend in /server over same-origin fetch
+   calls (cookie-based JWT session). See /docs/PRODUCT-PLAN.md
+   for what's live vs. still pluggable (AI/billing/identity
+   fail closed with a clear message until their API keys are
+   set in server/.env).
    ========================================================= */
 
-const PactAuth = {
-  KEY: "pact_profile",
+const PactAPI = {
+  _cache: undefined, // undefined = not yet checked, null = logged out, object = user
 
-  get() {
-    try { return JSON.parse(localStorage.getItem(this.KEY)); }
-    catch (e) { return null; }
+  async me(force) {
+    if (this._cache !== undefined && !force) return this._cache;
+    try {
+      const r = await fetch("/api/auth/me", { credentials: "include" });
+      if (!r.ok) { this._cache = null; return null; }
+      const data = await r.json();
+      this._cache = data.user;
+      return this._cache;
+    } catch (e) {
+      this._cache = null;
+      return null;
+    }
   },
 
-  save(profile) {
-    localStorage.setItem(this.KEY, JSON.stringify(profile));
+  async signup({ name, email, password, tier }) {
+    const r = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name, email, password, tier }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Signup failed.");
+    this._cache = data.user;
+    return data.user;
   },
 
-  logout() {
-    localStorage.removeItem(this.KEY);
-    window.location.href = "index.html";
+  async login({ email, password }) {
+    const r = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Login failed.");
+    this._cache = data.user;
+    return data.user;
   },
 
-  isLoggedIn() { return !!this.get(); },
+  async logout() {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    this._cache = null;
+  },
+
+  isLoggedIn() { return !!this._cache; },
 
   tierMeta(id) {
     const tiers = {
@@ -38,23 +68,41 @@ const PactAuth = {
   },
 
   initials(name) {
-    return (name || "P").trim().split(/\s+/).map(s => s[0]).slice(0,2).join("").toUpperCase();
-  }
+    return (name || "P").trim().split(/\s+/).map(s => s[0]).slice(0, 2).join("").toUpperCase();
+  },
 };
 
-function paintNav() {
-  const profile = PactAuth.get();
+async function apiJson(url, options) {
+  const r = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* no body */ }
+  if (!r.ok) {
+    const err = new Error(data.error || `Request failed (${r.status})`);
+    err.status = r.status;
+    err.payload = data;
+    throw err;
+  }
+  return data;
+}
+
+async function paintNav() {
+  const user = await PactAPI.me();
   const loggedOutEls = document.querySelectorAll("[data-auth='out']");
   const loggedInEls = document.querySelectorAll("[data-auth='in']");
 
-  loggedOutEls.forEach(el => el.style.display = profile ? "none" : "");
-  loggedInEls.forEach(el => el.style.display = profile ? "" : "none");
+  loggedOutEls.forEach(el => el.style.display = user ? "none" : "");
+  loggedInEls.forEach(el => el.style.display = user ? "" : "none");
 
-  if (profile) {
-    document.querySelectorAll("[data-user-avatar]").forEach(el => el.textContent = PactAuth.initials(profile.name));
-    document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = profile.name);
-    document.querySelectorAll("[data-user-tier]").forEach(el => el.textContent = PactAuth.tierMeta(profile.tier).label);
+  if (user) {
+    document.querySelectorAll("[data-user-avatar]").forEach(el => el.textContent = PactAPI.initials(user.name));
+    document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = user.name);
+    document.querySelectorAll("[data-user-tier]").forEach(el => el.textContent = PactAPI.tierMeta(user.tier).label);
   }
+  return user;
 }
 
 function wireNavToggle() {
@@ -74,18 +122,17 @@ function wireReveal() {
   els.forEach(e => io.observe(e));
 }
 
-function lockGatedCards(selector) {
-  const profile = PactAuth.get();
-  document.querySelectorAll(selector).forEach(card => {
-    if (!profile) card.classList.add("locked");
-  });
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  paintNav();
+document.addEventListener("DOMContentLoaded", async () => {
+  await paintNav();
   wireNavToggle();
   wireReveal();
 
   const logoutBtn = document.querySelector("[data-logout]");
-  if (logoutBtn) logoutBtn.addEventListener("click", (e) => { e.preventDefault(); PactAuth.logout(); });
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await PactAPI.logout();
+      window.location.href = "index.html";
+    });
+  }
 });

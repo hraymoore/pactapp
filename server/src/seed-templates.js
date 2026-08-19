@@ -1,8 +1,4 @@
-/* PACT template catalog — sample metadata for the template gallery.
-   In production these render from the template service; each entry
-   here stands in for a real contract document. */
-
-const PACT_TEMPLATES = [
+const TEMPLATE_SEED = [
   { name: "Freelance Services Agreement", genre: "Freelance & Gig", tier: "starter", desc: "Scope, deliverables, payment schedule and IP assignment for independent contractors." },
   { name: "Independent Contractor Agreement", genre: "Freelance & Gig", tier: "starter", desc: "Classifies work relationship, sets milestones and termination terms." },
   { name: "Residential Lease Agreement", genre: "Real Estate", tier: "starter", desc: "State-aware rental terms, deposit handling and maintenance responsibilities." },
@@ -44,4 +40,60 @@ const PACT_TEMPLATES = [
   { name: "International Distribution Agreement", genre: "Enterprise", tier: "business", desc: "Cross-border terms covering compliance, currency and export control." },
 ];
 
-const PACT_GENRES = [...new Set(PACT_TEMPLATES.map(t => t.genre))];
+function buildBody(t) {
+  return [
+    t.name.toUpperCase(),
+    "",
+    `This ${t.name} ("Agreement") is entered into as of [DATE] by and between [PARTY A NAME] ("Party A") and [PARTY B NAME] ("Party B"), together the "Parties."`,
+    "",
+    "1. PURPOSE",
+    t.desc,
+    "",
+    "2. TERM",
+    "This Agreement begins on [START DATE] and continues until [END DATE], or until terminated as provided in this Agreement.",
+    "",
+    "3. OBLIGATIONS",
+    "Each Party agrees to perform the obligations described in this Agreement and any attached schedules or exhibits.",
+    "",
+    "4. PAYMENT",
+    "[Describe payment amounts, method and schedule, if applicable.]",
+    "",
+    "5. CONFIDENTIALITY",
+    "The Parties agree to keep confidential information disclosed under this Agreement private, except as required by law.",
+    "",
+    "6. TERMINATION",
+    "Either Party may terminate this Agreement with [NOTICE PERIOD] written notice, subject to the terms herein.",
+    "",
+    "7. GOVERNING LAW",
+    "This Agreement is governed by the laws of the State of [STATE], without regard to conflict-of-law principles.",
+    "",
+    "8. ENTIRE AGREEMENT",
+    "This Agreement constitutes the entire understanding between the Parties and supersedes all prior discussions.",
+    "",
+    "9. SIGNATURES",
+    "By signing below (or electronically consenting), both Parties agree to be bound by the terms of this Agreement.",
+    "",
+    "[This is a starting-point draft, not legal advice. Customize every bracketed term and have counsel review before use in a high-stakes deal.]",
+  ].join("\n");
+}
+
+function seedTemplates(db) {
+  const count = db.prepare("SELECT COUNT(*) as n FROM templates").get().n;
+  if (count > 0) return;
+  const insert = db.prepare(
+    "INSERT INTO templates (name, genre, min_tier, description, body) VALUES (?, ?, ?, ?, ?)"
+  );
+  db.exec("BEGIN");
+  try {
+    for (const t of TEMPLATE_SEED) {
+      insert.run(t.name, t.genre, t.tier, t.desc, buildBody(t));
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+  console.log(`[pact] seeded ${TEMPLATE_SEED.length} contract templates`);
+}
+
+module.exports = { seedTemplates, TEMPLATE_SEED };

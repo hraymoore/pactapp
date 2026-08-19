@@ -59,10 +59,10 @@
           <h2 style="margin-bottom:4px;">Your Contracts</h2>
           <p style="margin:0;">Everything here is scoped to your profile only.</p>
         </div>
-        <button class="btn btn-gold" id="newContractBtn">+ New Contract</button>
+        <a href="templates.html" class="btn btn-gold">+ New Contract</a>
       </div>
-
       <div id="contractList"></div>
+      <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
     </section>
 
     <section id="sec-ai" style="display:none;">
@@ -75,10 +75,16 @@
         <a href="pricing.html" class="btn btn-gold">Upgrade Now</a>
       </div>
 
+      <div id="aiNotConfigured" style="display:none;" class="card">
+        <div class="icon icon-gold">🔌</div>
+        <h3>Pact AI isn't connected yet</h3>
+        <p>Your tier includes Pact AI, but this server doesn't have an <code>ANTHROPIC_API_KEY</code> configured. Add one to <code>server/.env</code> to enable live drafting and analysis — see <code>/docs/PRODUCT-PLAN.md</code>.</p>
+      </div>
+
       <div id="aiUnlocked" style="display:none;">
         <div class="ai-panel">
           <div class="ai-top"><span class="ai-dot"></span><strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ruby-bright);">Pact AI</strong></div>
-          <p style="margin-bottom:14px;">Describe what you need, and Pact AI will draft, edit, or analyze a contract for you.</p>
+          <p style="margin-bottom:14px;">Describe what you need, and Pact AI will draft a contract for you.</p>
           <div class="field"><textarea id="aiPrompt" rows="3" placeholder="e.g. Draft a freelance video editing agreement with a 2-week milestone schedule and a kill fee clause."></textarea></div>
           <button class="btn btn-ruby" id="aiRunBtn">Ask Pact AI</button>
           <div id="aiResponse" style="margin-top:20px;display:none;" class="card"></div>
@@ -87,14 +93,14 @@
     </section>
 
     <section id="sec-audit" style="display:none;">
-      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Audit Trail</h2><p style="margin:0;">Every change made after both parties sign, time-stamped and attributed.</p></div></div>
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Audit Trail</h2><p style="margin:0;">Every change made after both parties sign, time-stamped and attributed — generated server-side, not by your browser.</p></div></div>
       <div class="doc-card">
         <div class="audit-log" id="auditLog"></div>
       </div>
     </section>
 
     <section id="sec-settings" style="display:none;">
-      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile and subscription.</p></div></div>
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile, subscription and identity verification.</p></div></div>
       <div class="grid grid-2">
         <div class="card">
           <h3>Profile</h3>
@@ -105,9 +111,15 @@
         <div class="card">
           <h3>Subscription</h3>
           <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
-          <p style="margin-bottom:18px;">Manage billing, seats and payment method from your tier page.</p>
-          <a href="pricing.html" class="btn btn-ghost-dark btn-sm">Change Tier</a>
+          <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
+          <div class="tag-row" id="tierButtons"></div>
         </div>
+      </div>
+      <div class="card" style="margin-top:24px;">
+        <h3>Identity Verification</h3>
+        <p id="identityStatusText">Checking status…</p>
+        <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
+        <p id="identityNote" style="margin-top:14px;font-size:0.82rem;opacity:0.75;"></p>
       </div>
     </section>
 
@@ -122,7 +134,7 @@
     <h3 id="editorTitle">Contract</h3>
     <div class="field">
       <label>Contract body</label>
-      <div contenteditable="true" id="editorBody" style="min-height:220px;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.92rem;line-height:1.7;"></div>
+      <textarea id="editorBody" rows="12" style="background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.9rem;line-height:1.6;color:var(--silver);width:100%;font-family:var(--font-mono);"></textarea>
     </div>
     <div style="display:flex;gap:10px;">
       <button class="btn btn-gold" id="saveEditBtn">Save Changes</button>
@@ -132,15 +144,199 @@
   </div>
 </div>
 
+<!-- Send modal -->
+<div class="modal-backdrop" id="sendModal">
+  <div class="modal" style="max-width:460px;">
+    <button class="modal-close" id="closeSend">&times;</button>
+    <div class="eyebrow">Send for signature</div>
+    <h3 id="sendTitle">Contract</h3>
+    <div id="sendFields">
+      <div class="field"><label>Counterparty name</label><input id="sendName" type="text" placeholder="Sam Rivera"></div>
+      <div class="field"><label>Counterparty email</label><input id="sendEmail" type="email" placeholder="sam@example.com"></div>
+    </div>
+    <button class="btn btn-gold btn-block" id="confirmSendBtn">Send</button>
+    <div id="sendResult" style="margin-top:16px;display:none;"></div>
+  </div>
+</div>
+
+<!-- Sign modal (owner signing in-app) -->
+<div class="modal-backdrop" id="signModal">
+  <div class="modal" style="max-width:460px;">
+    <button class="modal-close" id="closeSignModal">&times;</button>
+    <div class="eyebrow">Sign contract</div>
+    <h3 id="signModalTitle">Contract</h3>
+    <div class="field">
+      <label>Type your full legal name</label>
+      <input id="ownerTypedSignature" type="text" style="font-family:var(--font-display);font-style:italic;font-size:1.05rem;">
+    </div>
+    <div class="field" style="display:flex;gap:10px;align-items:flex-start;">
+      <input id="ownerConsent" type="checkbox" style="width:auto;margin-top:4px;">
+      <label style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;">I consent to sign this document electronically.</label>
+    </div>
+    <button class="btn btn-gold btn-block" id="confirmSignBtn">Sign</button>
+    <div id="signResult" style="margin-top:16px;display:none;"></div>
+  </div>
+</div>
+
 <script src="js/app.js"></script>
 <script>
-  if (!PactAuth.isLoggedIn()) {
-    window.location.href = "signup.html?next=" + encodeURIComponent(window.location.pathname.split("/").pop());
+  const TIER_ORDER = ["starter", "everyday", "pro", "business"];
+  const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+  let CURRENT_USER = null;
+
+  function statusPill(status) {
+    if (status === "signed") return '<span class="status-pill status-signed">Signed</span>';
+    if (status === "pending") return '<span class="status-pill status-pending">Awaiting Signature</span>';
+    return '<span class="status-pill status-draft">Draft</span>';
   }
-  const profile = PactAuth.get() || { name: "", email: "", tier: "starter", joined: new Date().toISOString() };
-  if (profile.email) {
-    document.getElementById("settingsEmail").textContent = profile.email;
-    document.getElementById("settingsJoined").textContent = new Date(profile.joined).toLocaleDateString();
+
+  function fmt(ts) {
+    if (!ts) return "—";
+    return new Date(ts.replace(" ", "T") + "Z").toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  }
+
+  async function renderContracts() {
+    const { contracts } = await apiJson("/api/contracts");
+    const wrap = document.getElementById("contractList");
+    wrap.innerHTML = "";
+    document.getElementById("emptyState").style.display = contracts.length ? "none" : "";
+
+    contracts.forEach(c => {
+      const mySelf = c.parties.find(p => p.email === CURRENT_USER.email);
+      const iCanSign = mySelf && !mySelf.signed_at && c.parties.length > 1;
+      const row = document.createElement("div");
+      row.className = "contract-row";
+      row.innerHTML = `
+        <div class="name">${c.name}<small>${c.genre || "General"} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div>${statusPill(c.status)}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
+        <div class="row-actions">
+          ${iCanSign ? `<button class="icon-btn" title="Sign" data-sign="${c.id}" data-name="${c.name}">✔</button>` : ""}
+          <button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>
+          <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
+          <button class="icon-btn" title="Send" data-send="${c.id}" data-name="${c.name}">➤</button>
+        </div>`;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEditor(Number(btn.dataset.edit))));
+    wrap.querySelectorAll("[data-download]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `/api/contracts/${btn.dataset.download}/download`;
+    }));
+    wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", () => openSendModal(Number(btn.dataset.send), btn.dataset.name)));
+    wrap.querySelectorAll("[data-sign]").forEach(btn => btn.addEventListener("click", () => openSignModal(Number(btn.dataset.sign), btn.dataset.name)));
+  }
+
+  // ---- editor modal ----
+  let editingId = null;
+  const editorModal = document.getElementById("editorModal");
+  async function openEditor(id) {
+    const { contract } = await apiJson(`/api/contracts/${id}`);
+    editingId = id;
+    document.getElementById("editorTitle").textContent = contract.name;
+    document.getElementById("editorBody").value = contract.body;
+    document.getElementById("editorNote").textContent = contract.status === "signed"
+      ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
+      : "This contract is not yet signed — edits here are unrestricted.";
+    editorModal.classList.add("show");
+  }
+  document.getElementById("closeEditor").addEventListener("click", () => editorModal.classList.remove("show"));
+  document.getElementById("cancelEditBtn").addEventListener("click", () => editorModal.classList.remove("show"));
+  document.getElementById("saveEditBtn").addEventListener("click", async () => {
+    try {
+      await apiJson(`/api/contracts/${editingId}`, {
+        method: "PUT",
+        body: JSON.stringify({ body: document.getElementById("editorBody").value }),
+      });
+      editorModal.classList.remove("show");
+      await renderContracts();
+      await renderAudit();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---- send modal ----
+  let sendingId = null;
+  const sendModal = document.getElementById("sendModal");
+  function openSendModal(id, name) {
+    sendingId = id;
+    document.getElementById("sendTitle").textContent = name;
+    document.getElementById("sendResult").style.display = "none";
+    document.getElementById("sendFields").style.display = "";
+    document.getElementById("confirmSendBtn").style.display = "";
+    sendModal.classList.add("show");
+  }
+  document.getElementById("closeSend").addEventListener("click", () => sendModal.classList.remove("show"));
+  document.getElementById("confirmSendBtn").addEventListener("click", async () => {
+    const counterpartyName = document.getElementById("sendName").value.trim();
+    const counterpartyEmail = document.getElementById("sendEmail").value.trim();
+    try {
+      const data = await apiJson(`/api/contracts/${sendingId}/send`, {
+        method: "POST",
+        body: JSON.stringify({ counterpartyName, counterpartyEmail }),
+      });
+      document.getElementById("sendFields").style.display = "none";
+      document.getElementById("confirmSendBtn").style.display = "none";
+      const result = document.getElementById("sendResult");
+      result.style.display = "";
+      result.innerHTML = data.emailSent
+        ? `<p style="margin:0;">Sent — an email invitation went to the counterparty.</p>`
+        : `<p style="margin-bottom:10px;">${data.emailNote}</p><div class="field"><label>Share this signing link</label><input readonly value="${data.signUrl}" onclick="this.select()"></div>`;
+      await renderContracts();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---- sign modal (owner) ----
+  let signingId = null;
+  const signModal = document.getElementById("signModal");
+  function openSignModal(id, name) {
+    signingId = id;
+    document.getElementById("signModalTitle").textContent = name;
+    document.getElementById("ownerTypedSignature").value = CURRENT_USER.name;
+    document.getElementById("ownerConsent").checked = false;
+    document.getElementById("signResult").style.display = "none";
+    signModal.classList.add("show");
+  }
+  document.getElementById("closeSignModal").addEventListener("click", () => signModal.classList.remove("show"));
+  document.getElementById("confirmSignBtn").addEventListener("click", async () => {
+    const typedSignature = document.getElementById("ownerTypedSignature").value.trim();
+    const consent = document.getElementById("ownerConsent").checked;
+    try {
+      const data = await apiJson(`/api/contracts/${signingId}/sign`, {
+        method: "POST",
+        body: JSON.stringify({ typedSignature, consent }),
+      });
+      const result = document.getElementById("signResult");
+      result.style.display = "";
+      result.innerHTML = `<p style="margin:0;">${data.allSigned ? "Signed — both parties have now executed this contract. It's locked and future edits will be time-stamped." : "Signed — waiting on the other party."}</p>`;
+      await renderContracts();
+      await renderAudit();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---- audit ----
+  async function renderAudit() {
+    const { audit } = await apiJson("/api/contracts/audit");
+    const log = document.getElementById("auditLog");
+    log.innerHTML = "";
+    if (audit.length === 0) {
+      log.innerHTML = "<p style='margin:0;'>No activity yet.</p>";
+      return;
+    }
+    audit.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "audit-item";
+      div.innerHTML = `<strong>${item.contract_name} — ${item.action}${item.detail ? ": " + item.detail : ""}</strong><span>${fmt(item.created_at)}</span>`;
+      log.appendChild(div);
+    });
   }
 
   // ---- nav section switching ----
@@ -149,154 +345,126 @@
       e.preventDefault();
       document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
       a.classList.add("active");
-      ["contracts","ai","audit","settings"].forEach(id => {
+      ["contracts", "ai", "audit", "settings"].forEach(id => {
         document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
       });
     });
   });
 
-  // ---- mock contract data ----
-  const CONTRACTS_KEY = "pact_contracts";
-  function seedContracts() {
-    if (localStorage.getItem(CONTRACTS_KEY)) return;
-    const now = Date.now();
-    const seed = [
-      { id: 1, name: "Freelance Video Editing Agreement", counterparty: "Studio Nine LLC", status: "signed", signedAt: now - 86400000 * 40, body: "This agreement is between Pact Profile Owner and Studio Nine LLC for video editing services, delivered in three milestones with a two-week turnaround per cut." },
-      { id: 2, name: "Commercial Lease — 4th & Main", counterparty: "Harborview Properties", status: "pending", signedAt: null, body: "Lease of retail space at 4th & Main, 36-month term, with a base rent of $4,200/month and annual 3% escalation." },
-      { id: 3, name: "NDA — Q3 Partnership Talks", counterparty: "Larkspur Group", status: "signed", signedAt: now - 86400000 * 12, body: "Mutual non-disclosure agreement covering discussions related to a potential Q3 distribution partnership." },
-      { id: 4, name: "Consulting Agreement — Draft", counterparty: "—", status: "draft", signedAt: null, body: "Draft consulting agreement, scope and fee schedule not yet finalized." },
-    ];
-    localStorage.setItem(CONTRACTS_KEY, JSON.stringify(seed));
-  }
-  function getContracts() { return JSON.parse(localStorage.getItem(CONTRACTS_KEY) || "[]"); }
-  function setContracts(list) { localStorage.setItem(CONTRACTS_KEY, JSON.stringify(list)); }
-
-  const AUDIT_KEY = "pact_audit";
-  function seedAudit() {
-    if (localStorage.getItem(AUDIT_KEY)) return;
-    const now = Date.now();
-    const seed = [
-      { text: "NDA — Q3 Partnership Talks signed by both parties", ts: now - 86400000 * 12 },
-      { text: "Freelance Video Editing Agreement signed by both parties", ts: now - 86400000 * 40 },
-      { text: "Freelance Video Editing Agreement — Section 2 (Milestones) edited by " + (profile ? profile.name : "you"), ts: now - 86400000 * 30 },
-      { text: "Freelance Video Editing Agreement downloaded by " + (profile ? profile.name : "you"), ts: now - 86400000 * 5 },
-    ];
-    localStorage.setItem(AUDIT_KEY, JSON.stringify(seed));
-  }
-  function getAudit() { return JSON.parse(localStorage.getItem(AUDIT_KEY) || "[]"); }
-  function pushAudit(text) {
-    const list = getAudit();
-    list.unshift({ text, ts: Date.now() });
-    localStorage.setItem(AUDIT_KEY, JSON.stringify(list));
-  }
-  function fmt(ts) {
-    return new Date(ts).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  }
-
-  seedContracts();
-  seedAudit();
-
-  function statusPill(status) {
-    if (status === "signed") return '<span class="status-pill status-signed">Signed</span>';
-    if (status === "pending") return '<span class="status-pill status-pending">Awaiting Signature</span>';
-    return '<span class="status-pill status-draft">Draft</span>';
-  }
-
-  function renderContracts() {
-    const wrap = document.getElementById("contractList");
-    wrap.innerHTML = "";
-    getContracts().forEach(c => {
-      const row = document.createElement("div");
-      row.className = "contract-row";
-      row.innerHTML = `
-        <div class="name">${c.name}<small>${c.counterparty !== "—" ? "with " + c.counterparty : "no counterparty yet"}</small></div>
-        <div>${statusPill(c.status)}</div>
-        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.signedAt ? fmt(c.signedAt) : "—"}</div>
-        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.status === "signed" ? "Locked + time-stamped" : "Editable"}</div>
-        <div class="row-actions">
-          <button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>
-          <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
-          <button class="icon-btn" title="Send" data-send="${c.id}">➤</button>
-        </div>`;
-      wrap.appendChild(row);
-    });
-
-    wrap.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEditor(Number(btn.dataset.edit))));
-    wrap.querySelectorAll("[data-download]").forEach(btn => btn.addEventListener("click", () => {
-      const c = getContracts().find(x => x.id === Number(btn.dataset.download));
-      pushAudit(`${c.name} downloaded by ${profile.name}`);
-      alert(`Downloading "${c.name}" as a PDF.\n\n(In production this generates a signed, watermarked PDF export.)`);
-    }));
-    wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", () => {
-      const c = getContracts().find(x => x.id === Number(btn.dataset.send));
-      alert(`Sending "${c.name}" for e-signature.\n\n(In production this routes through secure e-signature infrastructure to the counterparty's verified profile or email.)`);
-    }));
-  }
-
-  document.getElementById("newContractBtn").addEventListener("click", () => {
-    window.location.href = "templates.html";
-  });
-
-  // ---- editor modal ----
-  let editingId = null;
-  const modal = document.getElementById("editorModal");
-  function openEditor(id) {
-    const c = getContracts().find(x => x.id === id);
-    editingId = id;
-    document.getElementById("editorTitle").textContent = c.name;
-    document.getElementById("editorBody").textContent = c.body;
-    document.getElementById("editorNote").textContent = c.status === "signed"
-      ? "This contract is signed. Any change you save will be added to the time-stamped audit trail below."
-      : "This contract is not yet signed — edits here are unrestricted.";
-    modal.classList.add("show");
-  }
-  document.getElementById("closeEditor").addEventListener("click", () => modal.classList.remove("show"));
-  document.getElementById("cancelEditBtn").addEventListener("click", () => modal.classList.remove("show"));
-  document.getElementById("saveEditBtn").addEventListener("click", () => {
-    const list = getContracts();
-    const c = list.find(x => x.id === editingId);
-    c.body = document.getElementById("editorBody").textContent;
-    setContracts(list);
-    if (c.status === "signed") {
-      pushAudit(`${c.name} edited by ${profile.name} (post-signature amendment)`);
-    }
-    modal.classList.remove("show");
-    renderContracts();
-    renderAudit();
-  });
-
-  function renderAudit() {
-    const log = document.getElementById("auditLog");
-    log.innerHTML = "";
-    getAudit().forEach(item => {
-      const div = document.createElement("div");
-      div.className = "audit-item";
-      div.innerHTML = `<strong>${item.text}</strong><span>${fmt(item.ts)}</span>`;
-      log.appendChild(div);
-    });
-  }
-
-  renderContracts();
-  renderAudit();
-
-  // ---- AI gating ----
-  const aiTiers = { pro: true, business: true };
-  if (profile && aiTiers[profile.tier]) {
-    document.getElementById("aiUnlocked").style.display = "";
-  } else {
-    document.getElementById("aiLocked").style.display = "";
-  }
-  const aiBtn = document.getElementById("aiRunBtn");
-  if (aiBtn) aiBtn.addEventListener("click", () => {
-    const prompt = document.getElementById("aiPrompt").value.trim();
-    const respBox = document.getElementById("aiResponse");
-    respBox.style.display = "block";
-    if (!prompt) {
-      respBox.innerHTML = "<p style='margin:0;'>Describe what you'd like Pact AI to draft, edit or analyze first.</p>";
+  // ---- AI ----
+  async function setupAI() {
+    const aiTierOk = ["pro", "business"].includes(CURRENT_USER.tier);
+    if (!aiTierOk) {
+      document.getElementById("aiLocked").style.display = "";
       return;
     }
-    respBox.innerHTML = `<div class="eyebrow">Pact AI (preview)</div><p style="margin:0;">This is a preview build — Pact AI isn't connected to a live model yet. Once wired up, your prompt <em>"${prompt.replace(/</g,"&lt;")}"</em> would return a structured draft or analysis right here, ready to drop into the editor.</p>`;
-  });
+    const { configured } = await apiJson("/api/ai/status");
+    if (!configured) {
+      document.getElementById("aiNotConfigured").style.display = "";
+      return;
+    }
+    document.getElementById("aiUnlocked").style.display = "";
+    document.getElementById("aiRunBtn").addEventListener("click", async () => {
+      const prompt = document.getElementById("aiPrompt").value.trim();
+      const respBox = document.getElementById("aiResponse");
+      respBox.style.display = "block";
+      if (!prompt) {
+        respBox.innerHTML = "<p style='margin:0;'>Describe what you'd like Pact AI to draft first.</p>";
+        return;
+      }
+      respBox.innerHTML = "<p style='margin:0;'>Thinking…</p>";
+      try {
+        const { text } = await apiJson("/api/ai/draft", { method: "POST", body: JSON.stringify({ prompt }) });
+        respBox.innerHTML = `<div class="eyebrow">Pact AI</div><p style="margin:0;white-space:pre-wrap;">${text.replace(/</g, "&lt;")}</p>`;
+      } catch (err) {
+        respBox.innerHTML = `<p style="margin:0;color:var(--ruby-bright);">${err.message}</p>`;
+      }
+    });
+  }
+
+  // ---- settings: billing + identity ----
+  function setupTierButtons() {
+    const wrap = document.getElementById("tierButtons");
+    wrap.innerHTML = "";
+    TIER_ORDER.forEach(t => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-ghost-dark btn-sm";
+      btn.textContent = t === CURRENT_USER.tier ? `Current: ${TIER_LABEL[t]}` : `Switch to ${TIER_LABEL[t]}`;
+      if (t === CURRENT_USER.tier) btn.disabled = true;
+      btn.addEventListener("click", async () => {
+        try {
+          const data = await apiJson("/api/billing/checkout", { method: "POST", body: JSON.stringify({ tier: t }) });
+          if (data.mode === "stripe") {
+            window.location.href = data.url;
+          } else {
+            alert(data.note);
+            window.location.reload();
+          }
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  async function setupIdentity() {
+    const statusText = document.getElementById("identityStatusText");
+    const verifyBtn = document.getElementById("verifyIdentityBtn");
+    const note = document.getElementById("identityNote");
+    try {
+      const { configured, verification } = await apiJson("/api/identity/status");
+      if (!configured) {
+        statusText.textContent = "Identity verification isn't connected yet on this server.";
+        note.textContent = "Pact verifies identity through Stripe Identity — Pact never stores your ID document or SSN directly. Add STRIPE_SECRET_KEY to server/.env to enable it.";
+        return;
+      }
+      if (verification && verification.status === "verified") {
+        statusText.innerHTML = `<span style="color:var(--emerald-bright);">Verified</span> as ${verification.verified_name || CURRENT_USER.name}.`;
+        return;
+      }
+      if (verification && verification.status === "pending") {
+        statusText.textContent = "Verification in progress — check back shortly.";
+      } else {
+        statusText.textContent = "Your identity is not verified yet.";
+      }
+      verifyBtn.style.display = "";
+      note.textContent = "Verification happens on Stripe's secure, hosted page — Pact only receives a pass/fail result, never your document or SSN.";
+      verifyBtn.addEventListener("click", async () => {
+        try {
+          const data = await apiJson("/api/identity/start", { method: "POST", body: JSON.stringify({}) });
+          window.location.href = data.url;
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    } catch (err) {
+      statusText.textContent = "Couldn't load identity verification status.";
+    }
+  }
+
+  // ---- boot ----
+  (async () => {
+    CURRENT_USER = await PactAPI.me();
+    if (!CURRENT_USER) {
+      window.location.href = "signup.html?next=" + encodeURIComponent(window.location.pathname.split("/").pop());
+      return;
+    }
+    document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
+    document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
+
+    await renderContracts();
+    await renderAudit();
+    await setupAI();
+    setupTierButtons();
+    await setupIdentity();
+
+    const openId = new URLSearchParams(window.location.search).get("contract");
+    if (openId) {
+      openEditor(Number(openId));
+      history.replaceState(null, "", window.location.pathname);
+    }
+  })();
 </script>
 </body>
 </html>

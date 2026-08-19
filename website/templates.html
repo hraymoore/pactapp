@@ -71,15 +71,16 @@
   </div>
 </footer>
 
-<script src="js/templates-data.js"></script>
 <script src="js/app.js"></script>
 <script>
   const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
   const TIER_ICON = { starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
+  const TIER_ORDER = ["starter", "everyday", "pro", "business"];
+  let ALL_TEMPLATES = [];
 
-  function renderFilters() {
+  function renderFilters(genres) {
     const row = document.getElementById("filterRow");
-    PACT_GENRES.forEach(g => {
+    genres.forEach(g => {
       const chip = document.createElement("button");
       chip.className = "chip";
       chip.dataset.genre = g;
@@ -94,23 +95,43 @@
     });
   }
 
-  function renderGrid(filter) {
+  async function useTemplate(templateId, user) {
+    if (!user) { window.location.href = "signup.html"; return; }
+    try {
+      const { contract } = await apiJson("/api/contracts", {
+        method: "POST",
+        body: JSON.stringify({ name: "Untitled Contract", templateId }),
+      });
+      window.location.href = `dashboard.html?contract=${contract.id}`;
+    } catch (err) {
+      if (err.status === 403 && err.payload && err.payload.requiredTier) {
+        alert(`${err.message}\n\nUpgrade on the Pricing page to unlock this template.`);
+        window.location.href = "pricing.html";
+      } else {
+        alert(err.message);
+      }
+    }
+  }
+
+  async function renderGrid(filter) {
     const grid = document.getElementById("templateGrid");
     grid.innerHTML = "";
-    const profile = PactAuth.get();
-    const items = filter === "All" ? PACT_TEMPLATES : PACT_TEMPLATES.filter(t => t.genre === filter);
+    const user = await PactAPI.me();
+    const items = filter === "All" ? ALL_TEMPLATES : ALL_TEMPLATES.filter(t => t.genre === filter);
     items.forEach(t => {
+      const locked = !user;
+      const tierBlocked = user && TIER_ORDER.indexOf(user.tier) < TIER_ORDER.indexOf(t.min_tier);
       const card = document.createElement("div");
-      card.className = "card tpl-card reveal in";
+      card.className = "card tpl-card reveal in" + (locked ? " locked" : "");
       card.innerHTML = `
         <div class="tpl-top">
           <span class="tpl-genre">${t.genre}</span>
-          <span class="mini-tag">${TIER_LABEL[t.tier]}+</span>
+          <span class="mini-tag">${TIER_LABEL[t.min_tier]}+</span>
         </div>
-        <div class="icon ${TIER_ICON[t.tier]}">&#128196;</div>
+        <div class="icon ${TIER_ICON[t.min_tier]}">&#128196;</div>
         <h3 style="font-size:1.05rem;">${t.name}</h3>
-        <p style="font-size:0.88rem;">${t.desc}</p>
-        <a href="${profile ? 'dashboard.html' : 'signup.html'}" class="btn btn-ghost-dark btn-sm">${profile ? "Use Template" : "Unlock with a profile"}</a>
+        <p style="font-size:0.88rem;">${t.description}</p>
+        <button class="btn btn-ghost-dark btn-sm" data-use="${t.id}">${tierBlocked ? `Requires ${TIER_LABEL[t.min_tier]}` : "Use Template"}</button>
         <div class="tpl-lock">
           <div class="lock-icon">&#128274;</div>
           <strong>Profile required</strong>
@@ -119,20 +140,29 @@
         </div>`;
       grid.appendChild(card);
     });
+    grid.querySelectorAll("[data-use]").forEach(btn => {
+      btn.addEventListener("click", () => useTemplate(Number(btn.dataset.use), user));
+    });
   }
 
-  renderFilters();
-  renderGrid("All");
+  (async () => {
+    const [{ templates }, { genres }] = await Promise.all([
+      apiJson("/api/templates"),
+      apiJson("/api/templates/genres"),
+    ]);
+    ALL_TEMPLATES = templates;
+    renderFilters(genres);
+    await renderGrid("All");
 
-  const profile = PactAuth.get();
-  const note = document.getElementById("auth-note");
-  if (!profile) {
+    const user = await PactAPI.me();
+    const note = document.getElementById("auth-note");
     note.classList.add("show");
-    note.textContent = "You're browsing as a guest — templates are locked. Create a free profile to open, edit, download or send any contract.";
-  } else {
-    note.classList.add("show");
-    note.style.display = "none";
-  }
+    if (!user) {
+      note.textContent = "You're browsing as a guest — templates are locked. Create a free profile to open, edit, download or send any contract.";
+    } else {
+      note.style.display = "none";
+    }
+  })();
 </script>
 </body>
 </html>

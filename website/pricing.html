@@ -59,7 +59,7 @@
           <li class="no"><span class="chk">–</span> Time-stamped change history</li>
           <li class="no"><span class="chk">–</span> Pact AI</li>
         </ul>
-        <a href="signup.html?tier=starter" class="btn btn-ghost-dark btn-block">Choose Starter</a>
+        <a href="signup.html?tier=starter" data-choose-tier="starter" class="btn btn-ghost-dark btn-block">Choose Starter</a>
       </div>
 
       <div class="tier-card reveal">
@@ -75,7 +75,7 @@
           <li><span class="chk">✓</span> Priority email support</li>
           <li class="no"><span class="chk">–</span> Pact AI drafting &amp; analysis</li>
         </ul>
-        <a href="signup.html?tier=everyday" class="btn btn-ghost-dark btn-block">Choose Everyday</a>
+        <a href="signup.html?tier=everyday" data-choose-tier="everyday" class="btn btn-ghost-dark btn-block">Choose Everyday</a>
       </div>
 
       <div class="tier-card featured reveal">
@@ -92,7 +92,7 @@
           <li><span class="chk">✓</span> Custom branded templates</li>
           <li><span class="chk">✓</span> Priority chat support</li>
         </ul>
-        <a href="signup.html?tier=pro" class="btn btn-gold btn-block">Choose Professional</a>
+        <a href="signup.html?tier=pro" data-choose-tier="pro" class="btn btn-gold btn-block">Choose Professional</a>
       </div>
 
       <div class="tier-card reveal">
@@ -108,7 +108,7 @@
           <li><span class="chk">✓</span> Advanced compliance &amp; audit exports</li>
           <li><span class="chk">✓</span> White-label &amp; custom onboarding</li>
         </ul>
-        <a href="signup.html?tier=business" class="btn btn-ghost-dark btn-block">Choose Enterprise</a>
+        <a href="signup.html?tier=business" data-choose-tier="business" class="btn btn-ghost-dark btn-block">Choose Enterprise</a>
       </div>
 
     </div>
@@ -171,5 +171,32 @@
 </footer>
 
 <script src="js/app.js"></script>
+<script>
+  (async () => {
+    const user = await PactAPI.me();
+    if (!user) return;
+    document.querySelectorAll("[data-choose-tier]").forEach(link => {
+      link.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const tier = link.dataset.chooseTier;
+        if (tier === user.tier) { window.location.href = "dashboard.html"; return; }
+        const original = link.textContent;
+        link.textContent = "Updating…";
+        try {
+          const data = await apiJson("/api/billing/checkout", { method: "POST", body: JSON.stringify({ tier }) });
+          if (data.mode === "stripe") {
+            window.location.href = data.url;
+          } else {
+            alert(data.note);
+            window.location.href = "dashboard.html";
+          }
+        } catch (err) {
+          alert(err.message);
+          link.textContent = original;
+        }
+      });
+    });
+  })();
+</script>
 </body>
 </html>

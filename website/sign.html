@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review &amp; Sign — Pact</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links"></div>
+    <div class="nav-actions">
+      <a href="index.html" class="btn btn-ghost-dark btn-sm">What is Pact?</a>
+    </div>
+  </div>
+</nav>
+
+<div class="auth-shell" style="align-items:flex-start;padding-top:60px;">
+  <div class="auth-card" style="max-width:680px;" id="signCard">
+    <div class="eyebrow" style="justify-content:center;display:flex;">Electronic signature request</div>
+    <h2 class="center" id="contractTitle">Loading contract…</h2>
+    <p class="center" id="fromLine" style="font-size:0.9rem;"></p>
+
+    <div id="loadError" class="alert alert-ruby"></div>
+
+    <div id="signBody" style="display:none;">
+      <div class="doc-card" style="margin:20px 0;">
+        <div class="doc-head"><div class="dots"><span></span><span></span><span></span></div><span class="ts">Contract text</span></div>
+        <pre id="contractBody" style="white-space:pre-wrap;font-family:var(--font-body);font-size:0.9rem;color:var(--silver);margin:0;max-height:340px;overflow:auto;"></pre>
+      </div>
+
+      <div id="alreadySigned" class="alert alert-emerald" style="display:none;"></div>
+
+      <form id="signForm">
+        <div class="field">
+          <label for="typedSignature">Type your full legal name to sign</label>
+          <input id="typedSignature" type="text" required placeholder="e.g. Sam Rivera" style="font-family:var(--font-display);font-style:italic;font-size:1.1rem;">
+        </div>
+        <div class="field" style="display:flex;align-items:flex-start;gap:10px;">
+          <input id="consent" type="checkbox" required style="width:auto;margin-top:4px;">
+          <label for="consent" style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;">I consent to sign this document electronically and understand it carries the same legal weight as a handwritten signature.</label>
+        </div>
+        <button type="submit" class="btn btn-gold btn-block">Sign This Contract</button>
+      </form>
+      <p style="font-size:0.78rem;text-align:center;margin-top:16px;">Your name, IP address and the exact time of signing are recorded as part of Pact's audit trail.</p>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  const token = new URLSearchParams(window.location.search).get("token");
+  const errorBox = document.getElementById("loadError");
+
+  if (!token) {
+    document.getElementById("contractTitle").textContent = "Missing signing link";
+    errorBox.textContent = "This link is missing its signing token. Ask the sender to resend it.";
+    errorBox.classList.add("show");
+  } else {
+    (async () => {
+      try {
+        const r = await fetch(`/api/sign/${token}`);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Unable to load this contract.");
+
+        document.getElementById("contractTitle").textContent = data.contract.name;
+        document.getElementById("fromLine").textContent = `Sent by ${data.owner.name} <${data.owner.email}> to ${data.party.name}`;
+        document.getElementById("contractBody").textContent = data.contract.body;
+        document.getElementById("signBody").style.display = "";
+        document.getElementById("typedSignature").value = data.party.name || "";
+
+        if (data.party.signed_at) {
+          document.getElementById("signForm").style.display = "none";
+          const done = document.getElementById("alreadySigned");
+          done.textContent = `You already signed this contract on ${new Date(data.party.signed_at).toLocaleString()}.`;
+          done.classList.add("show");
+        }
+      } catch (err) {
+        document.getElementById("contractTitle").textContent = "Can't load this contract";
+        errorBox.textContent = err.message;
+        errorBox.classList.add("show");
+      }
+    })();
+
+    document.getElementById("signForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const typedSignature = document.getElementById("typedSignature").value.trim();
+      const consent = document.getElementById("consent").checked;
+      const submitBtn = e.target.querySelector("button[type=submit]");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Signing…";
+      try {
+        const r = await fetch(`/api/sign/${token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ typedSignature, consent }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Signing failed.");
+
+        document.getElementById("signForm").style.display = "none";
+        const done = document.getElementById("alreadySigned");
+        done.textContent = data.allSigned
+          ? "Signed. Both parties have now executed this contract — it's locked, and any future edits will be time-stamped."
+          : "Signed. Waiting on the other party to countersign.";
+        done.classList.add("show");
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add("show");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Sign This Contract";
+      }
+    });
+  }
+</script>
+</body>
+</html>

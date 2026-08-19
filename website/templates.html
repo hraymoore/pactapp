@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Templates — Pact</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html" class="active">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<header class="hero" style="padding:80px 0 50px;">
+  <div class="wrap">
+    <div class="eyebrow">Template library</div>
+    <h1 style="max-width:700px;">Contract templates for every genre of business</h1>
+    <p style="max-width:600px;">Freelance, real estate, HR, technology, construction, creative, hospitality, healthcare, finance and enterprise. Browsing is open to everyone — opening, editing or sending a template requires a Pact profile.</p>
+    <div id="auth-note" class="alert alert-emerald" style="max-width:600px;"></div>
+  </div>
+</header>
+
+<section class="section" style="padding-top:10px;">
+  <div class="wrap">
+    <div class="filter-row" id="filterRow">
+      <button class="chip active" data-genre="All">All Genres</button>
+    </div>
+    <div class="grid grid-3" id="templateGrid"></div>
+  </div>
+</section>
+
+<section class="section section-paper center">
+  <div class="wrap">
+    <h2>Don't see your industry?</h2>
+    <p style="max-width:520px;margin:0 auto 26px;">Everyday, Professional and Enterprise profiles can start from a blank contract or ask Pact AI to draft one from scratch.</p>
+    <a href="signup.html" class="btn btn-gold">Create Your Free Profile</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div><div class="brand" style="margin-bottom:14px;"><span class="mark">P</span> Pact</div><p style="max-width:280px;">The contract platform built for how modern business actually gets agreed to.</p></div>
+      <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
+      <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
+      <div><h4>Legal</h4><a href="#">Terms of Service</a><a href="#">Privacy Policy</a><a href="#">Security</a><a href="#">e-Signature Disclosure</a></div>
+    </div>
+    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
+  </div>
+</footer>
+
+<script src="js/templates-data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+  const TIER_ICON = { starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
+
+  function renderFilters() {
+    const row = document.getElementById("filterRow");
+    PACT_GENRES.forEach(g => {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.dataset.genre = g;
+      chip.textContent = g;
+      row.appendChild(chip);
+    });
+    row.addEventListener("click", (e) => {
+      if (!e.target.classList.contains("chip")) return;
+      row.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      e.target.classList.add("active");
+      renderGrid(e.target.dataset.genre);
+    });
+  }
+
+  function renderGrid(filter) {
+    const grid = document.getElementById("templateGrid");
+    grid.innerHTML = "";
+    const profile = PactAuth.get();
+    const items = filter === "All" ? PACT_TEMPLATES : PACT_TEMPLATES.filter(t => t.genre === filter);
+    items.forEach(t => {
+      const card = document.createElement("div");
+      card.className = "card tpl-card reveal in";
+      card.innerHTML = `
+        <div class="tpl-top">
+          <span class="tpl-genre">${t.genre}</span>
+          <span class="mini-tag">${TIER_LABEL[t.tier]}+</span>
+        </div>
+        <div class="icon ${TIER_ICON[t.tier]}">&#128196;</div>
+        <h3 style="font-size:1.05rem;">${t.name}</h3>
+        <p style="font-size:0.88rem;">${t.desc}</p>
+        <a href="${profile ? 'dashboard.html' : 'signup.html'}" class="btn btn-ghost-dark btn-sm">${profile ? "Use Template" : "Unlock with a profile"}</a>
+        <div class="tpl-lock">
+          <div class="lock-icon">&#128274;</div>
+          <strong>Profile required</strong>
+          <p style="margin:0;font-size:0.82rem;">Create a free Pact profile to open, edit, download or send this template.</p>
+          <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+        </div>`;
+      grid.appendChild(card);
+    });
+  }
+
+  renderFilters();
+  renderGrid("All");
+
+  const profile = PactAuth.get();
+  const note = document.getElementById("auth-note");
+  if (!profile) {
+    note.classList.add("show");
+    note.textContent = "You're browsing as a guest — templates are locked. Create a free profile to open, edit, download or send any contract.";
+  } else {
+    note.classList.add("show");
+    note.style.display = "none";
+  }
+</script>
+</body>
+</html>

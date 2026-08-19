@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Pact</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<div class="dash-shell">
+  <aside class="dash-side">
+    <div class="who">
+      <div class="avatar" data-user-avatar style="width:44px;height:44px;font-size:1rem;">P</div>
+      <div>
+        <strong data-user-name>—</strong>
+        <span class="tier-pill" data-user-tier style="margin-top:4px;display:inline-block;">Starter</span>
+      </div>
+    </div>
+    <div class="dash-nav">
+      <a href="#" class="active" data-section="contracts">📄 Contracts</a>
+      <a href="#" data-section="ai">✨ Pact AI</a>
+      <a href="#" data-section="audit">🕓 Audit Trail</a>
+      <a href="#" data-section="settings">⚙️ Settings</a>
+      <a href="#" data-logout style="margin-top:20px;color:var(--ruby-bright);">↩ Log out</a>
+    </div>
+  </aside>
+
+  <main class="dash-main">
+
+    <section id="sec-contracts">
+      <div class="dash-head">
+        <div>
+          <h2 style="margin-bottom:4px;">Your Contracts</h2>
+          <p style="margin:0;">Everything here is scoped to your profile only.</p>
+        </div>
+        <button class="btn btn-gold" id="newContractBtn">+ New Contract</button>
+      </div>
+
+      <div id="contractList"></div>
+    </section>
+
+    <section id="sec-ai" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Pact AI</h2><p style="margin:0;">Draft, edit and analyze contracts with AI assistance.</p></div></div>
+
+      <div id="aiLocked" style="display:none;" class="card">
+        <div class="icon icon-ruby">🔒</div>
+        <h3>Pact AI is available on Professional and Enterprise</h3>
+        <p>Upgrade your profile to draft from a prompt, get clause-level suggestions, and have Pact AI analyze contracts for risk.</p>
+        <a href="pricing.html" class="btn btn-gold">Upgrade Now</a>
+      </div>
+
+      <div id="aiUnlocked" style="display:none;">
+        <div class="ai-panel">
+          <div class="ai-top"><span class="ai-dot"></span><strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ruby-bright);">Pact AI</strong></div>
+          <p style="margin-bottom:14px;">Describe what you need, and Pact AI will draft, edit, or analyze a contract for you.</p>
+          <div class="field"><textarea id="aiPrompt" rows="3" placeholder="e.g. Draft a freelance video editing agreement with a 2-week milestone schedule and a kill fee clause."></textarea></div>
+          <button class="btn btn-ruby" id="aiRunBtn">Ask Pact AI</button>
+          <div id="aiResponse" style="margin-top:20px;display:none;" class="card"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-audit" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Audit Trail</h2><p style="margin:0;">Every change made after both parties sign, time-stamped and attributed.</p></div></div>
+      <div class="doc-card">
+        <div class="audit-log" id="auditLog"></div>
+      </div>
+    </section>
+
+    <section id="sec-settings" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile and subscription.</p></div></div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Profile</h3>
+          <p><strong>Name:</strong> <span data-user-name>—</span></p>
+          <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
+          <p style="margin-bottom:0;"><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
+        </div>
+        <div class="card">
+          <h3>Subscription</h3>
+          <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
+          <p style="margin-bottom:18px;">Manage billing, seats and payment method from your tier page.</p>
+          <a href="pricing.html" class="btn btn-ghost-dark btn-sm">Change Tier</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Contract editor modal -->
+<div class="modal-backdrop" id="editorModal">
+  <div class="modal">
+    <button class="modal-close" id="closeEditor">&times;</button>
+    <div class="eyebrow">Editing</div>
+    <h3 id="editorTitle">Contract</h3>
+    <div class="field">
+      <label>Contract body</label>
+      <div contenteditable="true" id="editorBody" style="min-height:220px;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.92rem;line-height:1.7;"></div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-gold" id="saveEditBtn">Save Changes</button>
+      <button class="btn btn-ghost-dark" id="cancelEditBtn">Cancel</button>
+    </div>
+    <p id="editorNote" style="margin-top:14px;font-size:0.82rem;"></p>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  if (!PactAuth.isLoggedIn()) {
+    window.location.href = "signup.html?next=" + encodeURIComponent(window.location.pathname.split("/").pop());
+  }
+  const profile = PactAuth.get() || { name: "", email: "", tier: "starter", joined: new Date().toISOString() };
+  if (profile.email) {
+    document.getElementById("settingsEmail").textContent = profile.email;
+    document.getElementById("settingsJoined").textContent = new Date(profile.joined).toLocaleDateString();
+  }
+
+  // ---- nav section switching ----
+  document.querySelectorAll(".dash-nav a[data-section]").forEach(a => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
+      a.classList.add("active");
+      ["contracts","ai","audit","settings"].forEach(id => {
+        document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
+      });
+    });
+  });
+
+  // ---- mock contract data ----
+  const CONTRACTS_KEY = "pact_contracts";
+  function seedContracts() {
+    if (localStorage.getItem(CONTRACTS_KEY)) return;
+    const now = Date.now();
+    const seed = [
+      { id: 1, name: "Freelance Video Editing Agreement", counterparty: "Studio Nine LLC", status: "signed", signedAt: now - 86400000 * 40, body: "This agreement is between Pact Profile Owner and Studio Nine LLC for video editing services, delivered in three milestones with a two-week turnaround per cut." },
+      { id: 2, name: "Commercial Lease — 4th & Main", counterparty: "Harborview Properties", status: "pending", signedAt: null, body: "Lease of retail space at 4th & Main, 36-month term, with a base rent of $4,200/month and annual 3% escalation." },
+      { id: 3, name: "NDA — Q3 Partnership Talks", counterparty: "Larkspur Group", status: "signed", signedAt: now - 86400000 * 12, body: "Mutual non-disclosure agreement covering discussions related to a potential Q3 distribution partnership." },
+      { id: 4, name: "Consulting Agreement — Draft", counterparty: "—", status: "draft", signedAt: null, body: "Draft consulting agreement, scope and fee schedule not yet finalized." },
+    ];
+    localStorage.setItem(CONTRACTS_KEY, JSON.stringify(seed));
+  }
+  function getContracts() { return JSON.parse(localStorage.getItem(CONTRACTS_KEY) || "[]"); }
+  function setContracts(list) { localStorage.setItem(CONTRACTS_KEY, JSON.stringify(list)); }
+
+  const AUDIT_KEY = "pact_audit";
+  function seedAudit() {
+    if (localStorage.getItem(AUDIT_KEY)) return;
+    const now = Date.now();
+    const seed = [
+      { text: "NDA — Q3 Partnership Talks signed by both parties", ts: now - 86400000 * 12 },
+      { text: "Freelance Video Editing Agreement signed by both parties", ts: now - 86400000 * 40 },
+      { text: "Freelance Video Editing Agreement — Section 2 (Milestones) edited by " + (profile ? profile.name : "you"), ts: now - 86400000 * 30 },
+      { text: "Freelance Video Editing Agreement downloaded by " + (profile ? profile.name : "you"), ts: now - 86400000 * 5 },
+    ];
+    localStorage.setItem(AUDIT_KEY, JSON.stringify(seed));
+  }
+  function getAudit() { return JSON.parse(localStorage.getItem(AUDIT_KEY) || "[]"); }
+  function pushAudit(text) {
+    const list = getAudit();
+    list.unshift({ text, ts: Date.now() });
+    localStorage.setItem(AUDIT_KEY, JSON.stringify(list));
+  }
+  function fmt(ts) {
+    return new Date(ts).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  seedContracts();
+  seedAudit();
+
+  function statusPill(status) {
+    if (status === "signed") return '<span class="status-pill status-signed">Signed</span>';
+    if (status === "pending") return '<span class="status-pill status-pending">Awaiting Signature</span>';
+    return '<span class="status-pill status-draft">Draft</span>';
+  }
+
+  function renderContracts() {
+    const wrap = document.getElementById("contractList");
+    wrap.innerHTML = "";
+    getContracts().forEach(c => {
+      const row = document.createElement("div");
+      row.className = "contract-row";
+      row.innerHTML = `
+        <div class="name">${c.name}<small>${c.counterparty !== "—" ? "with " + c.counterparty : "no counterparty yet"}</small></div>
+        <div>${statusPill(c.status)}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.signedAt ? fmt(c.signedAt) : "—"}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.status === "signed" ? "Locked + time-stamped" : "Editable"}</div>
+        <div class="row-actions">
+          <button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>
+          <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
+          <button class="icon-btn" title="Send" data-send="${c.id}">➤</button>
+        </div>`;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEditor(Number(btn.dataset.edit))));
+    wrap.querySelectorAll("[data-download]").forEach(btn => btn.addEventListener("click", () => {
+      const c = getContracts().find(x => x.id === Number(btn.dataset.download));
+      pushAudit(`${c.name} downloaded by ${profile.name}`);
+      alert(`Downloading "${c.name}" as a PDF.\n\n(In production this generates a signed, watermarked PDF export.)`);
+    }));
+    wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", () => {
+      const c = getContracts().find(x => x.id === Number(btn.dataset.send));
+      alert(`Sending "${c.name}" for e-signature.\n\n(In production this routes through secure e-signature infrastructure to the counterparty's verified profile or email.)`);
+    }));
+  }
+
+  document.getElementById("newContractBtn").addEventListener("click", () => {
+    window.location.href = "templates.html";
+  });
+
+  // ---- editor modal ----
+  let editingId = null;
+  const modal = document.getElementById("editorModal");
+  function openEditor(id) {
+    const c = getContracts().find(x => x.id === id);
+    editingId = id;
+    document.getElementById("editorTitle").textContent = c.name;
+    document.getElementById("editorBody").textContent = c.body;
+    document.getElementById("editorNote").textContent = c.status === "signed"
+      ? "This contract is signed. Any change you save will be added to the time-stamped audit trail below."
+      : "This contract is not yet signed — edits here are unrestricted.";
+    modal.classList.add("show");
+  }
+  document.getElementById("closeEditor").addEventListener("click", () => modal.classList.remove("show"));
+  document.getElementById("cancelEditBtn").addEventListener("click", () => modal.classList.remove("show"));
+  document.getElementById("saveEditBtn").addEventListener("click", () => {
+    const list = getContracts();
+    const c = list.find(x => x.id === editingId);
+    c.body = document.getElementById("editorBody").textContent;
+    setContracts(list);
+    if (c.status === "signed") {
+      pushAudit(`${c.name} edited by ${profile.name} (post-signature amendment)`);
+    }
+    modal.classList.remove("show");
+    renderContracts();
+    renderAudit();
+  });
+
+  function renderAudit() {
+    const log = document.getElementById("auditLog");
+    log.innerHTML = "";
+    getAudit().forEach(item => {
+      const div = document.createElement("div");
+      div.className = "audit-item";
+      div.innerHTML = `<strong>${item.text}</strong><span>${fmt(item.ts)}</span>`;
+      log.appendChild(div);
+    });
+  }
+
+  renderContracts();
+  renderAudit();
+
+  // ---- AI gating ----
+  const aiTiers = { pro: true, business: true };
+  if (profile && aiTiers[profile.tier]) {
+    document.getElementById("aiUnlocked").style.display = "";
+  } else {
+    document.getElementById("aiLocked").style.display = "";
+  }
+  const aiBtn = document.getElementById("aiRunBtn");
+  if (aiBtn) aiBtn.addEventListener("click", () => {
+    const prompt = document.getElementById("aiPrompt").value.trim();
+    const respBox = document.getElementById("aiResponse");
+    respBox.style.display = "block";
+    if (!prompt) {
+      respBox.innerHTML = "<p style='margin:0;'>Describe what you'd like Pact AI to draft, edit or analyze first.</p>";
+      return;
+    }
+    respBox.innerHTML = `<div class="eyebrow">Pact AI (preview)</div><p style="margin:0;">This is a preview build — Pact AI isn't connected to a live model yet. Once wired up, your prompt <em>"${prompt.replace(/</g,"&lt;")}"</em> would return a structured draft or analysis right here, ready to drop into the editor.</p>`;
+  });
+</script>
+</body>
+</html>

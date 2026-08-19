@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log In — Pact</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="eyebrow" style="justify-content:center;display:flex;">Welcome back</div>
+    <h2 class="center">Log in to Pact</h2>
+    <p class="center" style="font-size:0.9rem;">No profile isn't a dead end — <a href="signup.html" style="color:var(--gold-bright);">create one free</a> in under a minute.</p>
+
+    <div id="formAlert" class="alert alert-ruby"></div>
+
+    <form id="loginForm">
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" type="email" required placeholder="you@company.com">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" required placeholder="Your password">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">Log In</button>
+    </form>
+    <p class="form-note">New to Pact? <a href="signup.html">Create your free profile</a></p>
+    <p class="form-note" style="opacity:0.6;">Demo note: this preview checks for a locally saved profile only — create one on the signup page first.</p>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  document.getElementById("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value.trim();
+    const alertBox = document.getElementById("formAlert");
+    const profile = PactAuth.get();
+
+    if (profile && profile.email.toLowerCase() === email.toLowerCase()) {
+      const params = new URLSearchParams(window.location.search);
+      window.location.href = params.get("next") || "dashboard.html";
+    } else if (profile) {
+      alertBox.textContent = "That email doesn't match the profile saved on this device.";
+      alertBox.classList.add("show");
+    } else {
+      alertBox.textContent = "No profile found on this device yet — create one first.";
+      alertBox.classList.add("show");
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create Your Profile — Pact</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="eyebrow" style="justify-content:center;display:flex;">Create your profile</div>
+    <h2 class="center">Welcome to Pact</h2>
+    <p class="center" style="font-size:0.9rem;">A profile is required to view, edit, download or send any contract.</p>
+
+    <div id="formAlert" class="alert alert-ruby"></div>
+
+    <form id="signupForm">
+      <div class="field">
+        <label for="name">Full name</label>
+        <input id="name" type="text" required placeholder="Jordan Alvarez">
+      </div>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" type="email" required placeholder="you@company.com">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" required minlength="6" placeholder="At least 6 characters">
+      </div>
+      <div class="field">
+        <label for="tier">Choose a tier</label>
+        <select id="tier">
+          <option value="starter">Starter — $7.99/mo</option>
+          <option value="everyday">Everyday — $11.99/mo</option>
+          <option value="pro">Professional (AI) — $20.99/mo</option>
+          <option value="business">Enterprise (AI) — $89.99/mo</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">Create My Profile</button>
+    </form>
+    <p class="form-note">Already have a profile? <a href="login.html">Log in</a></p>
+    <p class="form-note" style="opacity:0.6;">Demo note: profile creation and billing are simulated locally for this preview — no payment is processed and no data leaves your browser.</p>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const presetTier = params.get("tier");
+  if (presetTier) document.getElementById("tier").value = presetTier;
+
+  document.getElementById("signupForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const tier = document.getElementById("tier").value;
+    const alertBox = document.getElementById("formAlert");
+
+    if (!name || !email) {
+      alertBox.textContent = "Please fill in your name and email to continue.";
+      alertBox.classList.add("show");
+      return;
+    }
+
+    PactAuth.save({ name, email, tier, joined: new Date().toISOString() });
+    const next = params.get("next") || "dashboard.html";
+    window.location.href = next;
+  });
+</script>
+</body>
+</html>

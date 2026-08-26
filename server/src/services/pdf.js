@@ -6,7 +6,7 @@ const GOLD = rgb(0.8, 0.64, 0.29);
 const INK = rgb(0.08, 0.08, 0.1);
 const MUTED = rgb(0.4, 0.4, 0.45);
 
-async function renderContractPdf({ contract, parties, audit }) {
+async function createPdfWriter() {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -41,6 +41,16 @@ async function renderContractPdf({ contract, parties, audit }) {
     y -= gap;
   }
 
+  function spacer(amount = 8) {
+    y -= amount;
+  }
+
+  return { doc, font, bold, writeLine, spacer };
+}
+
+async function renderContractPdf({ contract, parties, audit }) {
+  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+
   writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
   writeLine(contract.name, { size: 16, f: bold, gap: 22 });
   writeLine(`Status: ${contract.status.toUpperCase()}  |  Exported: ${new Date().toISOString()}`, {
@@ -51,7 +61,7 @@ async function renderContractPdf({ contract, parties, audit }) {
 
   contract.body.split("\n").forEach((paragraph) => writeLine(paragraph || " ", { size: 10.5, gap: 15 }));
 
-  y -= 8;
+  spacer();
   writeLine("SIGNATURES", { size: 13, f: bold, color: GOLD, gap: 20 });
   parties.forEach((p) => {
     writeLine(`${p.name} <${p.email}>  —  ${p.role}`, { size: 10, f: bold, gap: 14 });
@@ -63,7 +73,7 @@ async function renderContractPdf({ contract, parties, audit }) {
     );
   });
 
-  y -= 8;
+  spacer();
   writeLine("AUDIT TRAIL", { size: 13, f: bold, color: GOLD, gap: 20 });
   if (audit.length === 0) {
     writeLine("No events recorded yet.", { size: 9.5, color: MUTED, gap: 14 });
@@ -79,4 +89,30 @@ async function renderContractPdf({ contract, parties, audit }) {
   return doc.save();
 }
 
-module.exports = { renderContractPdf };
+// A $3.99 "download only" purchase: the raw blank template text with no
+// parties, no signature block and no audit trail — nothing to fill in or
+// sign, since that requires the $7.99 editable purchase or a subscription.
+async function renderBlankTemplatePdf(template) {
+  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+
+  writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
+  writeLine(template.name, { size: 16, f: bold, gap: 22 });
+  writeLine(`Blank template  |  Genre: ${template.genre}  |  Exported: ${new Date().toISOString()}`, {
+    size: 9,
+    color: MUTED,
+    gap: 22,
+  });
+
+  template.body.split("\n").forEach((paragraph) => writeLine(paragraph || " ", { size: 10.5, gap: 15 }));
+
+  spacer();
+  writeLine(
+    "This is a blank, unsigned copy purchased for one-time use. To fill it in and sign it inside Pact, " +
+      "purchase the editable version or upgrade to a subscription tier.",
+    { size: 9, color: MUTED, gap: 13 }
+  );
+
+  return doc.save();
+}
+
+module.exports = { renderContractPdf, renderBlankTemplatePdf };

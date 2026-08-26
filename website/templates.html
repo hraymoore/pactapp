@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Templates — Pact</title>
 <meta name="description" content="39 contract templates across 12 business genres — freelance, real estate, HR, technology, construction, healthcare, enterprise and more.">
-<link rel="canonical" href="https://contrapact.net/templates.html">
+<link rel="canonical" href="https://www.pactappstore.com/templates.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Pact">
 <meta property="og:title" content="Templates — Pact">
 <meta property="og:description" content="39 contract templates across 12 business genres — freelance, real estate, HR, technology, construction, healthcare, enterprise and more.">
-<meta property="og:url" content="https://contrapact.net/templates.html">
+<meta property="og:url" content="https://www.pactappstore.com/templates.html">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#0b0c0f">
 <link rel="manifest" href="manifest.json">
@@ -117,11 +117,39 @@
       window.location.href = `dashboard.html?contract=${contract.id}`;
     } catch (err) {
       if (err.status === 403 && err.payload && err.payload.requiredTier) {
-        alert(`${err.message}\n\nUpgrade on the Pricing page to unlock this template.`);
-        window.location.href = "pricing.html";
+        alert(`${err.message}\n\nUpgrade on the Pricing page, or buy just this one template below.`);
       } else {
         alert(err.message);
       }
+    }
+  }
+
+  // One-time, non-subscription purchase: $3.99 for a blank download-only
+  // copy, $7.99 for a copy you can edit in Pact — works regardless of tier.
+  async function buyTemplate(templateId, purchaseType, user, btn) {
+    if (!user) { window.location.href = "signup.html"; return; }
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Processing…";
+    try {
+      const data = await apiJson("/api/purchases/checkout", {
+        method: "POST",
+        body: JSON.stringify({ templateId, purchaseType }),
+      });
+      if (data.mode === "stripe") {
+        window.location.href = data.url;
+        return;
+      }
+      // direct mode (no Stripe key yet) — fulfilled immediately
+      if (purchaseType === "download") {
+        window.location.href = `/api/purchases/${data.purchase.id}/download`;
+      } else {
+        window.location.href = `dashboard.html?contract=${data.purchase.contract_id}`;
+      }
+    } catch (err) {
+      alert(err.message);
+      btn.disabled = false;
+      btn.textContent = original;
     }
   }
 
@@ -144,6 +172,10 @@
         <h3 style="font-size:1.05rem;">${t.name}</h3>
         <p style="font-size:0.88rem;">${t.description}</p>
         <button class="btn btn-ghost-dark btn-sm" data-use="${t.id}">${tierBlocked ? `Requires ${TIER_LABEL[t.min_tier]}` : "Use Template"}</button>
+        <div class="tag-row" style="margin-top:10px;">
+          <button class="btn btn-ghost-dark btn-sm" data-buy="${t.id}" data-buy-type="download">Download blank — $3.99</button>
+          <button class="btn btn-gold btn-sm" data-buy="${t.id}" data-buy-type="edit">Buy &amp; edit — $7.99</button>
+        </div>
         <div class="tpl-lock">
           <div class="lock-icon">&#128274;</div>
           <strong>Profile required</strong>
@@ -154,6 +186,9 @@
     });
     grid.querySelectorAll("[data-use]").forEach(btn => {
       btn.addEventListener("click", () => useTemplate(Number(btn.dataset.use), user));
+    });
+    grid.querySelectorAll("[data-buy]").forEach(btn => {
+      btn.addEventListener("click", () => buyTemplate(Number(btn.dataset.buy), btn.dataset.buyType, user, btn));
     });
   }
 

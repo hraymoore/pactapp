@@ -61,7 +61,7 @@ swapped in without touching the routes above it.
   it with Bubblewrap (config already in `android/twa-manifest.json`) to get
   onto the Google Play Store fastest, reusing the full web app instead of a
   parallel codebase. See `docs/ANDROID-PLAYSTORE.md` for the exact steps —
-  it needs contrapact.net live, a signing key only you hold, and a Google
+  it needs www.pactappstore.com live, a signing key only you hold, and a Google
   Play Developer account.
 - **Later — native React Native (Expo) app**, once the TWA proves the
   product and you want capabilities a TWA can't give you (background push,
@@ -86,6 +86,28 @@ swapped in without touching the routes above it.
 Template access and Pact AI are both gated by tier in the backend
 (`TIER_ORDER` checks in `routes/contracts.js` and `middleware/auth.js`'s
 `requireTier`), not just hidden in the UI.
+
+### À la carte: one-time purchases (no subscription)
+
+Alongside the four subscription tiers, any logged-in profile can buy a
+single template without subscribing at all, priced per template and
+enforced server-side regardless of tier (`routes/purchases.js`,
+`services/purchases.js`):
+
+| Purchase | Price | What it grants |
+|---|---|---|
+| Download blank | $3.99 | A blank PDF of one template — no editing inside Pact, no signature tracking |
+| Buy & edit | $7.99 | The same template as a real, editable contract in Pact — fills in, sends for e-signature, and gets the same time-stamped audit trail as any subscriber contract |
+
+A "buy & edit" purchase creates a normal row in `contracts`, owned by the
+buyer, the moment payment is confirmed (`createContractFromTemplate` in
+`services/contract-factory.js` — shared with the regular tier-gated
+creation path so both produce an identical contract/party/audit-log shape).
+It behaves exactly like a subscriber's contract from then on, including the
+signed-lock and post-signature amendment rules — there's no separate,
+weaker code path for purchased contracts. A "download" purchase never
+creates a contract at all; it only ever produces a fresh blank PDF via
+`renderBlankTemplatePdf`.
 
 ## 6. Visual identity
 

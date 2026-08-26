@@ -6,4 +6,4 @@ Disallow: /login.html
 Disallow: /sign.html
 Disallow: /api/
 
-Sitemap: https://contrapact.net/sitemap.xml
+Sitemap: https://www.pactappstore.com/sitemap.xml

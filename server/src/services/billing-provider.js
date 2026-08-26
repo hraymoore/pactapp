@@ -32,6 +32,32 @@ async function createCheckoutSession({ tier, priceCents, user, req }) {
   return session;
 }
 
+// One-time purchase (not a subscription): $3.99 download-only or $7.99
+// editable, priced per template.
+async function createOneTimeCheckoutSession({ template, purchaseType, priceCents, user, req }) {
+  const stripe = getStripe();
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const label = purchaseType === "edit" ? "editable, one-time purchase" : "blank, download-only";
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: user.email,
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: { name: `Pact — ${template.name} (${label})` },
+          unit_amount: priceCents,
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${origin}/dashboard.html?purchased=1`,
+    cancel_url: `${origin}/templates.html`,
+    metadata: { userId: String(user.id), templateId: String(template.id), purchaseType },
+  });
+  return session;
+}
+
 // Call this from the Stripe webhook handler once STRIPE_WEBHOOK_SECRET is
 // configured and `checkout.session.completed` events are verified — it
 // applies the tier chosen at checkout to the paying user.
@@ -42,4 +68,4 @@ function applyTierFromSession(db, session) {
   db.prepare("UPDATE users SET tier = ? WHERE id = ?").run(tier, userId);
 }
 
-module.exports = { billingConfigured, createCheckoutSession, applyTierFromSession };
+module.exports = { billingConfigured, createCheckoutSession, createOneTimeCheckoutSession, applyTierFromSession };

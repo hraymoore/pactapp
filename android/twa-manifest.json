@@ -1,6 +1,6 @@
 {
-  "packageId": "net.contrapact.twa",
-  "host": "contrapact.net",
+  "packageId": "com.pactappstore.twa",
+  "host": "www.pactappstore.com",
   "name": "Pact",
   "launcherName": "Pact",
   "display": "standalone",
@@ -12,8 +12,8 @@
   "backgroundColor": "#0B0C0F",
   "enableNotifications": false,
   "startUrl": "/index.html",
-  "iconUrl": "https://contrapact.net/icons/icon-512.png",
-  "maskableIconUrl": "https://contrapact.net/icons/icon-maskable-512.png",
+  "iconUrl": "https://www.pactappstore.com/icons/icon-512.png",
+  "maskableIconUrl": "https://www.pactappstore.com/icons/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
@@ -23,7 +23,7 @@
   "appVersionCode": 1,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://contrapact.net/manifest.json",
+  "webManifestUrl": "https://www.pactappstore.com/manifest.json",
   "fallbackType": "customtabs",
   "features": {
     "locationDelegation": { "enabled": false },
@@ -33,7 +33,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://contrapact.net/",
+  "fullScopeUrl": "https://www.pactappstore.com/",
   "minSdkVersion": 21,
   "orientation": "default",
   "fingerprints": []

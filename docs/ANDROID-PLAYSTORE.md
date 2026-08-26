@@ -3,7 +3,7 @@
 Pact's web app is already installable as a PWA (see `website/manifest.json`,
 `website/sw.js`). The fastest legitimate path onto the Play Store is
 wrapping that PWA in a **Trusted Web Activity (TWA)** — a thin native
-Android shell that opens `contrapact.net` full-screen with no browser
+Android shell that opens `www.pactappstore.com` full-screen with no browser
 chrome. This is the same technique Google itself documents and is how many
 production apps (Twitter Lite, Starbucks, and plenty of smaller SaaS
 products) ship on Play. It reuses 100% of the existing web app instead of
@@ -28,12 +28,12 @@ Building and signing the actual `.aab` requires things only you can hold:
 a Google Play Developer account, your own Android signing key (if I
 generated and held it, you'd be trusting me with the credential that
 controls your app's identity on the Play Store forever — losing or leaking
-it means you can never update the app again), and the live `contrapact.net`
+it means you can never update the app again), and the live `www.pactappstore.com`
 domain to point the TWA at. None of that exists yet from where I'm sitting.
 What's here gets you to a single `bubblewrap build` away from a submittable
 package.
 
-## Steps (once contrapact.net is live)
+## Steps (once www.pactappstore.com is live)
 
 1. **Google Play Developer account** — $25 one-time fee at
    [play.google.com/console](https://play.google.com/console/), if you
@@ -65,7 +65,7 @@ package.
    Copy the `SHA256:` value, paste it into
    `website/.well-known/assetlinks.json` (replacing the placeholder), and
    deploy — it must be reachable at
-   `https://contrapact.net/.well-known/assetlinks.json` before the app will
+   `https://www.pactappstore.com/.well-known/assetlinks.json` before the app will
    render full-screen instead of showing a browser bar.
 
 5. **Store listing assets you'll need to prepare:**

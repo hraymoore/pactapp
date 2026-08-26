@@ -5,22 +5,13 @@ const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { renderContractPdf } = require("../services/pdf");
 const { sendMail } = require("../services/mailer");
-const { applySignature } = require("../services/signing");
+const { applySignature, logAudit } = require("../services/signing");
+const { contentHash, createContractFromTemplate } = require("../services/contract-factory");
 
 router.use(express.json());
 router.use(requireAuth);
 
 const TIER_ORDER = ["starter", "everyday", "pro", "business"];
-
-function contentHash(body) {
-  return crypto.createHash("sha256").update(body, "utf8").digest("hex");
-}
-
-function logAudit(contractId, actor, action, detail) {
-  db.prepare(
-    "INSERT INTO audit_log (contract_id, actor_name, actor_email, action, detail) VALUES (?, ?, ?, ?, ?)"
-  ).run(contractId, (actor && actor.name) || null, (actor && actor.email) || null, action, detail || null);
-}
 
 function loadAuthorizedContract(req, res) {
   const contract = db.prepare("SELECT * FROM contracts WHERE id = ?").get(req.params.id);
@@ -74,35 +65,28 @@ router.get("/", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { name, templateId, counterpartyName, counterpartyEmail, genre } = req.body || {};
+  const { name, templateId, counterpartyName, counterpartyEmail } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Contract name is required." });
 
-  let body = "[Start drafting your contract here.]";
-  let tplGenre = genre || null;
-
+  let template = null;
   if (templateId) {
-    const tpl = db.prepare("SELECT * FROM templates WHERE id = ?").get(templateId);
-    if (!tpl) return res.status(404).json({ error: "Template not found." });
-    if (TIER_ORDER.indexOf(req.user.tier) < TIER_ORDER.indexOf(tpl.min_tier)) {
+    template = db.prepare("SELECT * FROM templates WHERE id = ?").get(templateId);
+    if (!template) return res.status(404).json({ error: "Template not found." });
+    if (TIER_ORDER.indexOf(req.user.tier) < TIER_ORDER.indexOf(template.min_tier)) {
       return res.status(403).json({
-        error: `This template requires the ${tpl.min_tier} tier or higher.`,
-        requiredTier: tpl.min_tier,
+        error: `This template requires the ${template.min_tier} tier or higher (or a one-time purchase — see Templates).`,
+        requiredTier: template.min_tier,
       });
     }
-    body = tpl.body;
-    tplGenre = tpl.genre;
   }
 
-  const info = db
-    .prepare(
-      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash) VALUES (?, ?, ?, ?, 'draft', ?, ?)"
-    )
-    .run(req.user.id, name.trim(), tplGenre, body, templateId || null, contentHash(body));
-  const contractId = info.lastInsertRowid;
-
-  db.prepare(
-    "INSERT INTO contract_parties (contract_id, user_id, name, email, role, signed_at) VALUES (?, ?, ?, ?, 'owner', NULL)"
-  ).run(contractId, req.user.id, req.user.name, req.user.email);
+  const contractId = createContractFromTemplate({
+    ownerId: req.user.id,
+    ownerName: req.user.name,
+    ownerEmail: req.user.email,
+    name: name.trim(),
+    template,
+  });
 
   if (counterpartyName && counterpartyEmail) {
     const token = crypto.randomBytes(24).toString("hex");
@@ -111,7 +95,6 @@ router.post("/", (req, res) => {
     ).run(contractId, counterpartyName.trim(), counterpartyEmail.trim().toLowerCase(), token);
   }
 
-  logAudit(contractId, req.user, "created", `Contract "${name.trim()}" created${templateId ? " from a template" : ""}.`);
   const contract = db.prepare("SELECT * FROM contracts WHERE id = ?").get(contractId);
   res.status(201).json({ contract });
 });

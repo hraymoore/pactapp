@@ -29,6 +29,7 @@ app.use("/api/sign", require("./routes/sign"));
 app.use("/api/ai", require("./routes/ai"));
 app.use("/api/billing", require("./routes/billing"));
 app.use("/api/identity", require("./routes/identity"));
+app.use("/api/purchases", require("./routes/purchases"));
 
 // dotfiles: "allow" — express.static hides dot-directories by default,
 // which would otherwise 404 /.well-known/assetlinks.json (needed to verify

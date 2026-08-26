@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { billingConfigured, createCheckoutSession, applyTierFromSession } = require("../services/billing-provider");
+const { fulfillPurchase } = require("../services/purchases");
 
 const TIER_PRICE_CENTS = { starter: 799, everyday: 1199, pro: 2099, business: 8999 };
 
@@ -18,7 +19,22 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const event = stripe.webhooks.constructEvent(req.body, req.headers["stripe-signature"], process.env.STRIPE_WEBHOOK_SECRET);
     if (event.type === "checkout.session.completed") {
-      applyTierFromSession(db, event.data.object);
+      const session = event.data.object;
+      if (session.metadata && session.metadata.purchaseType) {
+        const user = db.prepare("SELECT * FROM users WHERE id = ?").get(session.metadata.userId);
+        if (user) {
+          fulfillPurchase({
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            templateId: Number(session.metadata.templateId),
+            purchaseType: session.metadata.purchaseType,
+            stripeSessionId: session.id,
+          });
+        }
+      } else {
+        applyTierFromSession(db, session);
+      }
     }
     res.json({ received: true });
   } catch (err) {

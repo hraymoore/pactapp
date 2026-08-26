@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard — Pact</title>
 <meta name="description" content="Your Pact contracts, AI assistant, audit trail and account settings.">
-<link rel="canonical" href="https://contrapact.net/dashboard.html">
+<link rel="canonical" href="https://www.pactappstore.com/dashboard.html">
 <meta name="robots" content="noindex, nofollow">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Pact">
 <meta property="og:title" content="Dashboard — Pact">
 <meta property="og:description" content="Your Pact contracts, AI assistant, audit trail and account settings.">
-<meta property="og:url" content="https://contrapact.net/dashboard.html">
+<meta property="og:url" content="https://www.pactappstore.com/dashboard.html">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#0b0c0f">
 <link rel="manifest" href="manifest.json">
@@ -57,6 +57,7 @@
     </div>
     <div class="dash-nav">
       <a href="#" class="active" data-section="contracts">📄 Contracts</a>
+      <a href="#" data-section="purchases">🛒 Purchases</a>
       <a href="#" data-section="ai">✨ Pact AI</a>
       <a href="#" data-section="audit">🕓 Audit Trail</a>
       <a href="#" data-section="settings">⚙️ Settings</a>
@@ -103,6 +104,12 @@
           <div id="aiResponse" style="margin-top:20px;display:none;" class="card"></div>
         </div>
       </div>
+    </section>
+
+    <section id="sec-purchases" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Purchases</h2><p style="margin:0;">One-time template purchases — no subscription required.</p></div></div>
+      <div id="purchaseList"></div>
+      <p id="purchasesEmptyState" style="display:none;">No purchases yet. <a href="templates.html" style="color:var(--gold-bright);">Buy a template</a> for $3.99 (download-only) or $7.99 (editable).</p>
     </section>
 
     <section id="sec-audit" style="display:none;">
@@ -352,13 +359,45 @@
     });
   }
 
+  // ---- purchases (one-time, non-subscription) ----
+  async function renderPurchases() {
+    const { purchases } = await apiJson("/api/purchases");
+    const wrap = document.getElementById("purchaseList");
+    wrap.innerHTML = "";
+    document.getElementById("purchasesEmptyState").style.display = purchases.length ? "none" : "";
+
+    purchases.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "contract-row";
+      const priceLabel = p.purchase_type === "download" ? "$3.99 — Download only" : "$7.99 — Editable";
+      row.innerHTML = `
+        <div class="name">${p.template_name}<small>${priceLabel} &middot; purchased ${fmt(p.created_at)}</small></div>
+        <div><span class="status-pill status-signed">Paid</span></div>
+        <div></div>
+        <div></div>
+        <div class="row-actions">
+          ${p.purchase_type === "download"
+            ? `<button class="icon-btn" title="Download" data-dl-purchase="${p.id}">⬇</button>`
+            : `<button class="icon-btn" title="Open contract" data-open-contract="${p.contract_id}">✎</button>`}
+        </div>`;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll("[data-dl-purchase]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `/api/purchases/${btn.dataset.dlPurchase}/download`;
+    }));
+    wrap.querySelectorAll("[data-open-contract]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `dashboard.html?contract=${btn.dataset.openContract}`;
+    }));
+  }
+
   // ---- nav section switching ----
   document.querySelectorAll(".dash-nav a[data-section]").forEach(a => {
     a.addEventListener("click", (e) => {
       e.preventDefault();
       document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
       a.classList.add("active");
-      ["contracts", "ai", "audit", "settings"].forEach(id => {
+      ["contracts", "purchases", "ai", "audit", "settings"].forEach(id => {
         document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
       });
     });
@@ -467,6 +506,7 @@
     document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
 
     await renderContracts();
+    await renderPurchases();
     await renderAudit();
     await setupAI();
     setupTierButtons();

@@ -75,6 +75,22 @@ CREATE TABLE IF NOT EXISTS identity_verifications (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- One-time, non-subscription purchases: $3.99 for a blank, download-only
+-- copy of a template; $7.99 for a blank copy you can edit in Pact's editor
+-- (which creates a normal row in contracts, linked back here via
+-- contract_id, once the purchase is fulfilled).
+CREATE TABLE IF NOT EXISTS purchases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  template_id INTEGER NOT NULL REFERENCES templates(id),
+  purchase_type TEXT NOT NULL CHECK (purchase_type IN ('download', 'edit')),
+  amount_cents INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  stripe_session_id TEXT UNIQUE,
+  contract_id INTEGER REFERENCES contracts(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 module.exports = db;

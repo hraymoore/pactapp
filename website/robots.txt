@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard.html
+Disallow: /signup.html
+Disallow: /login.html
+Disallow: /sign.html
+Disallow: /api/
+
+Sitemap: https://www.pactappstore.com/sitemap.xml

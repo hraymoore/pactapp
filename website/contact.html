@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact — Pact</title>
+<meta name="description" content="Get in touch with the Pact team about billing, templates, security or enterprise sales.">
+<link rel="canonical" href="https://www.pactappstore.com/contact.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pact">
+<meta property="og:title" content="Contact — Pact">
+<meta property="og:description" content="Get in touch with the Pact team about billing, templates, security or enterprise sales.">
+<meta property="og:url" content="https://www.pactappstore.com/contact.html">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html" class="active">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<header class="hero" style="padding:90px 0 60px;">
+  <div class="wrap">
+    <div class="eyebrow">Get in touch</div>
+    <h1 style="max-width:640px;">Questions about Pact? We're building this in the open.</h1>
+    <p style="max-width:560px;">Whether it's a question about a tier, a template request for your industry, or feedback on the platform — reach out.</p>
+  </div>
+</header>
+
+<section class="section" style="padding-top:10px;">
+  <div class="wrap grid grid-2" style="align-items:start;">
+    <div class="auth-card" style="margin:0;">
+      <h3>Send a message</h3>
+      <div id="contactAlert" class="alert alert-emerald"></div>
+      <form id="contactForm">
+        <div class="field"><label for="cname">Name</label><input id="cname" type="text" required></div>
+        <div class="field"><label for="cemail">Email</label><input id="cemail" type="email" required></div>
+        <div class="field"><label for="ctopic">Topic</label>
+          <select id="ctopic">
+            <option>General question</option>
+            <option>Billing &amp; tiers</option>
+            <option>Template request</option>
+            <option>Security &amp; compliance</option>
+            <option>Enterprise sales</option>
+          </select>
+        </div>
+        <div class="field"><label for="cmessage">Message</label><textarea id="cmessage" rows="4" required></textarea></div>
+        <button type="submit" class="btn btn-gold btn-block">Send Message</button>
+      </form>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="icon icon-gold">✉️</div>
+        <h3>General &amp; support</h3>
+        <p style="margin:0;">support@pactappstore.com<br>Response within one business day.</p>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="icon icon-emerald">🏢</div>
+        <h3>Enterprise sales</h3>
+        <p style="margin:0;">enterprise@pactappstore.com<br>For onboarding, SLAs and API access.</p>
+      </div>
+      <div class="card">
+        <div class="icon icon-ruby">🔐</div>
+        <h3>Security disclosures</h3>
+        <p style="margin:0;">security@pactappstore.com<br>Responsible disclosure welcomed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div><div class="brand" style="margin-bottom:14px;"><span class="mark">P</span> Pact</div><p style="max-width:280px;">The contract platform built for how modern business actually gets agreed to.</p></div>
+      <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
+      <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
+      <div><h4>Legal</h4><a href="#">Terms of Service</a><a href="#">Privacy Policy</a><a href="#">Security</a><a href="#">e-Signature Disclosure</a></div>
+    </div>
+    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
+  </div>
+</footer>
+
+<script src="js/app.js"></script>
+<script>
+  document.getElementById("contactForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const box = document.getElementById("contactAlert");
+    box.textContent = "Thanks — this preview doesn't send live messages yet, but your form works and is ready to wire up to a real inbox.";
+    box.classList.add("show");
+    e.target.reset();
+  });
+</script>
+</body>
+</html>

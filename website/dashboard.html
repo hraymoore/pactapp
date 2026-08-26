@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Pact</title>
+<meta name="description" content="Your Pact contracts, AI assistant, audit trail and account settings.">
+<link rel="canonical" href="https://www.pactappstore.com/dashboard.html">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pact">
+<meta property="og:title" content="Dashboard — Pact">
+<meta property="og:description" content="Your Pact contracts, AI assistant, audit trail and account settings.">
+<meta property="og:url" content="https://www.pactappstore.com/dashboard.html">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<div class="dash-shell">
+  <aside class="dash-side">
+    <div class="who">
+      <div class="avatar" data-user-avatar style="width:44px;height:44px;font-size:1rem;">P</div>
+      <div>
+        <strong data-user-name>—</strong>
+        <span class="tier-pill" data-user-tier style="margin-top:4px;display:inline-block;">Starter</span>
+      </div>
+    </div>
+    <div class="dash-nav">
+      <a href="#" class="active" data-section="contracts">📄 Contracts</a>
+      <a href="#" data-section="purchases">🛒 Purchases</a>
+      <a href="#" data-section="ai">✨ Pact AI</a>
+      <a href="#" data-section="audit">🕓 Audit Trail</a>
+      <a href="#" data-section="settings">⚙️ Settings</a>
+      <a href="#" data-logout style="margin-top:20px;color:var(--ruby-bright);">↩ Log out</a>
+    </div>
+  </aside>
+
+  <main class="dash-main">
+
+    <section id="sec-contracts">
+      <div class="dash-head">
+        <div>
+          <h2 style="margin-bottom:4px;">Your Contracts</h2>
+          <p style="margin:0;">Everything here is scoped to your profile only.</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <a href="templates.html" class="btn btn-gold">+ New Contract</a>
+          <button class="btn btn-ghost-dark" id="openUploadModalBtn">⬆ Upload Contract</button>
+        </div>
+      </div>
+      <div class="field" style="max-width:360px;">
+        <input id="contractSearch" type="text" placeholder="Search your contracts by name or genre…">
+      </div>
+      <div id="contractList"></div>
+      <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
+    </section>
+
+    <section id="sec-ai" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Pact AI</h2><p style="margin:0;">Draft, edit and analyze contracts with AI assistance.</p></div></div>
+
+      <div id="aiLocked" style="display:none;" class="card">
+        <div class="icon icon-ruby">🔒</div>
+        <h3>Pact AI is available on Professional and Enterprise</h3>
+        <p>Upgrade your profile to draft from a prompt, get clause-level suggestions, and have Pact AI analyze contracts for risk.</p>
+        <a href="pricing.html" class="btn btn-gold">Upgrade Now</a>
+      </div>
+
+      <div id="aiNotConfigured" style="display:none;" class="card">
+        <div class="icon icon-gold">🔌</div>
+        <h3>Pact AI isn't connected yet</h3>
+        <p>Your tier includes Pact AI, but this server doesn't have an <code>ANTHROPIC_API_KEY</code> configured. Add one to <code>server/.env</code> to enable live drafting and analysis — see <code>/docs/PRODUCT-PLAN.md</code>.</p>
+      </div>
+
+      <div id="aiUnlocked" style="display:none;">
+        <div class="ai-panel">
+          <div class="ai-top"><span class="ai-dot"></span><strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ruby-bright);">Pact AI</strong></div>
+          <p style="margin-bottom:14px;">Describe what you need, and Pact AI will draft a contract for you.</p>
+          <div class="field"><textarea id="aiPrompt" rows="3" placeholder="e.g. Draft a freelance video editing agreement with a 2-week milestone schedule and a kill fee clause."></textarea></div>
+          <button class="btn btn-ruby" id="aiRunBtn">Ask Pact AI</button>
+          <div id="aiResponse" style="margin-top:20px;display:none;" class="card"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-purchases" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Purchases</h2><p style="margin:0;">One-time template purchases — no subscription required.</p></div></div>
+      <div id="purchaseList"></div>
+      <p id="purchasesEmptyState" style="display:none;">No purchases yet. <a href="templates.html" style="color:var(--gold-bright);">Buy a template</a> for $3.99 (download-only) or $7.99 (editable).</p>
+    </section>
+
+    <section id="sec-audit" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Audit Trail</h2><p style="margin:0;">Every change made after both parties sign, time-stamped and attributed — generated server-side, not by your browser.</p></div></div>
+      <div class="doc-card">
+        <div class="audit-log" id="auditLog"></div>
+      </div>
+    </section>
+
+    <section id="sec-settings" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile, subscription and identity verification.</p></div></div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Profile</h3>
+          <p><strong>Name:</strong> <span data-user-name>—</span></p>
+          <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
+          <p style="margin-bottom:0;"><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
+        </div>
+        <div class="card">
+          <h3>Subscription</h3>
+          <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
+          <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
+          <div class="tag-row" id="tierButtons"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:24px;">
+        <h3>Identity Verification</h3>
+        <p id="identityStatusText">Checking status…</p>
+        <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
+        <p id="identityNote" style="margin-top:14px;font-size:0.82rem;opacity:0.75;"></p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Contract editor modal -->
+<div class="modal-backdrop" id="editorModal">
+  <div class="modal">
+    <button class="modal-close" id="closeEditor">&times;</button>
+    <div class="eyebrow">Editing</div>
+    <h3 id="editorTitle">Contract</h3>
+    <div class="field">
+      <label>Contract body</label>
+      <textarea id="editorBody" rows="12" style="background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.9rem;line-height:1.6;color:var(--silver);width:100%;font-family:var(--font-mono);"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-gold" id="saveEditBtn">Save Changes</button>
+      <button class="btn btn-ghost-dark" id="cancelEditBtn">Cancel</button>
+    </div>
+    <p id="editorNote" style="margin-top:14px;font-size:0.82rem;"></p>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:10px;">ATTACHMENTS</label>
+      <div id="attachmentList" style="margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input id="attachmentFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" style="flex:1;">
+        <button class="btn btn-ghost-dark btn-sm" id="addAttachmentBtn">Add</button>
+      </div>
+      <p id="attachmentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Send modal -->
+<div class="modal-backdrop" id="sendModal">
+  <div class="modal" style="max-width:460px;">
+    <button class="modal-close" id="closeSend">&times;</button>
+    <div class="eyebrow">Send for signature</div>
+    <h3 id="sendTitle">Contract</h3>
+    <div id="sendFields">
+      <div class="field"><label>Counterparty name</label><input id="sendName" type="text" placeholder="Sam Rivera"></div>
+      <div class="field"><label>Counterparty email</label><input id="sendEmail" type="email" placeholder="sam@example.com"></div>
+    </div>
+    <button class="btn btn-gold btn-block" id="confirmSendBtn">Send</button>
+    <div id="sendResult" style="margin-top:16px;display:none;"></div>
+  </div>
+</div>
+
+<!-- Sign modal (owner signing in-app) -->
+<div class="modal-backdrop" id="signModal">
+  <div class="modal" style="max-width:460px;">
+    <button class="modal-close" id="closeSignModal">&times;</button>
+    <div class="eyebrow">Sign contract</div>
+    <h3 id="signModalTitle">Contract</h3>
+    <div class="field">
+      <label>Type your full legal name</label>
+      <input id="ownerTypedSignature" type="text" style="font-family:var(--font-display);font-style:italic;font-size:1.05rem;">
+    </div>
+    <div class="field" style="display:flex;gap:10px;align-items:flex-start;">
+      <input id="ownerConsent" type="checkbox" style="width:auto;margin-top:4px;">
+      <label style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;">I consent to sign this document electronically.</label>
+    </div>
+    <button class="btn btn-gold btn-block" id="confirmSignBtn">Sign</button>
+    <div id="signResult" style="margin-top:16px;display:none;"></div>
+  </div>
+</div>
+
+<!-- Share modal -->
+<div class="modal-backdrop" id="shareModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeShareModal">&times;</button>
+    <div class="eyebrow">Share</div>
+    <h3 id="shareModalTitle">Contract</h3>
+    <p style="font-size:0.85rem;">Give another Pact profile access to this one contract — they must already have an account.</p>
+    <div class="field"><label>Their email</label><input id="shareEmail" type="email" placeholder="colleague@example.com"></div>
+    <div class="field">
+      <label>Access</label>
+      <select id="sharePermission">
+        <option value="view">View &amp; download only</option>
+        <option value="edit">Can also edit</option>
+      </select>
+    </div>
+    <button class="btn btn-gold btn-block" id="confirmShareBtn">Share</button>
+    <p id="shareError" class="alert alert-ruby" style="margin-top:14px;"></p>
+    <div id="shareListWrap" style="margin-top:20px;">
+      <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:8px;">CURRENTLY SHARED WITH</label>
+      <div id="shareList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload modal -->
+<div class="modal-backdrop" id="uploadModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeUploadModal">&times;</button>
+    <div class="eyebrow">Upload a contract</div>
+    <h3>Bring your own document</h3>
+    <p style="font-size:0.85rem;">PDF, Word doc, plain text, or image (scan) — up to 15MB. The file becomes your contract's original attachment; if it's a plain text file, its content also seeds the editable draft.</p>
+    <div class="field"><label>Contract name</label><input id="uploadName" type="text" placeholder="e.g. Signed Vendor Agreement"></div>
+    <div class="field"><label>Genre (optional)</label><input id="uploadGenre" type="text" placeholder="Defaults to “Other”"></div>
+    <div class="field"><label>File</label><input id="uploadFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"></div>
+    <button class="btn btn-gold btn-block" id="confirmUploadBtn">Upload</button>
+    <p id="uploadError" class="alert alert-ruby" style="margin-top:14px;"></p>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  const TIER_ORDER = ["starter", "everyday", "pro", "business"];
+  const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+  let CURRENT_USER = null;
+
+  function statusPill(status) {
+    if (status === "signed") return '<span class="status-pill status-signed">Signed</span>';
+    if (status === "pending") return '<span class="status-pill status-pending">Awaiting Signature</span>';
+    return '<span class="status-pill status-draft">Draft</span>';
+  }
+
+  function fmt(ts) {
+    if (!ts) return "—";
+    return new Date(ts.replace(" ", "T") + "Z").toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  }
+
+  let ALL_CONTRACTS = [];
+
+  async function renderContracts() {
+    const { contracts } = await apiJson("/api/contracts");
+    ALL_CONTRACTS = contracts;
+    drawContractRows(contracts);
+  }
+
+  function drawContractRows(contracts) {
+    const wrap = document.getElementById("contractList");
+    wrap.innerHTML = "";
+    document.getElementById("emptyState").style.display = ALL_CONTRACTS.length ? "none" : "";
+
+    contracts.forEach(c => {
+      const mySelf = c.parties.find(p => p.email === CURRENT_USER.email);
+      const iCanSign = mySelf && !mySelf.signed_at && c.parties.length > 1;
+      const isOwner = c.owner_id === CURRENT_USER.id;
+      const badge = isOwner ? "" : `<span class="mini-tag" style="margin-left:8px;">${c.myPermission === "edit" ? "Shared — edit" : "Shared — view"}</span>`;
+      const row = document.createElement("div");
+      row.className = "contract-row";
+      row.innerHTML = `
+        <div class="name">${c.name}${badge}<small>${c.genre || "General"} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div>${statusPill(c.status)}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
+        <div class="row-actions">
+          ${iCanSign ? `<button class="icon-btn" title="Sign" data-sign="${c.id}" data-name="${c.name}">✔</button>` : ""}
+          ${(isOwner || c.myPermission === "edit") ? `<button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>` : ""}
+          <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
+          ${isOwner ? `<button class="icon-btn" title="Send" data-send="${c.id}" data-name="${c.name}">➤</button>` : ""}
+          ${isOwner ? `<button class="icon-btn" title="Share" data-share="${c.id}" data-name="${c.name}">👤</button>` : ""}
+        </div>`;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEditor(Number(btn.dataset.edit))));
+    wrap.querySelectorAll("[data-download]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `/api/contracts/${btn.dataset.download}/download`;
+    }));
+    wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", () => openSendModal(Number(btn.dataset.send), btn.dataset.name)));
+    wrap.querySelectorAll("[data-sign]").forEach(btn => btn.addEventListener("click", () => openSignModal(Number(btn.dataset.sign), btn.dataset.name)));
+    wrap.querySelectorAll("[data-share]").forEach(btn => btn.addEventListener("click", () => openShareModal(Number(btn.dataset.share), btn.dataset.name)));
+  }
+
+  function filterContracts() {
+    const q = document.getElementById("contractSearch").value.trim().toLowerCase();
+    if (!q) { drawContractRows(ALL_CONTRACTS); return; }
+    drawContractRows(ALL_CONTRACTS.filter(c =>
+      c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q)
+    ));
+  }
+
+  // ---- editor modal ----
+  let editingId = null;
+  const editorModal = document.getElementById("editorModal");
+  async function openEditor(id) {
+    const { contract } = await apiJson(`/api/contracts/${id}`);
+    editingId = id;
+    document.getElementById("editorTitle").textContent = contract.name;
+    document.getElementById("editorBody").value = contract.body;
+    document.getElementById("editorNote").textContent = contract.status === "signed"
+      ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
+      : "This contract is not yet signed — edits here are unrestricted.";
+    editorModal.classList.add("show");
+    await renderAttachments();
+  }
+
+  async function renderAttachments() {
+    const { attachments } = await apiJson(`/api/contracts/${editingId}/attachments`);
+    const wrap = document.getElementById("attachmentList");
+    wrap.innerHTML = attachments.length ? "" : "<p style='margin:0;font-size:0.85rem;'>No attachments yet.</p>";
+    attachments.forEach(a => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:0.85rem;";
+      row.innerHTML = `
+        <span>${a.is_original_source ? "📎 " : ""}${a.original_filename} <span style="color:var(--silver-soft);">&middot; ${(a.size_bytes / 1024).toFixed(0)} KB &middot; ${a.uploader_name}</span></span>
+        <a href="/api/contracts/${editingId}/attachments/${a.id}/download" class="icon-btn" title="Download">⬇</a>`;
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById("addAttachmentBtn").addEventListener("click", async () => {
+    const fileInput = document.getElementById("attachmentFile");
+    const errBox = document.getElementById("attachmentError");
+    errBox.classList.remove("show");
+    if (!fileInput.files[0]) {
+      errBox.textContent = "Choose a file first.";
+      errBox.classList.add("show");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    try {
+      const r = await fetch(`/api/contracts/${editingId}/attachments`, { method: "POST", credentials: "include", body: formData });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Upload failed.");
+      fileInput.value = "";
+      await renderAttachments();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+  document.getElementById("closeEditor").addEventListener("click", () => editorModal.classList.remove("show"));
+  document.getElementById("cancelEditBtn").addEventListener("click", () => editorModal.classList.remove("show"));
+  document.getElementById("saveEditBtn").addEventListener("click", async () => {
+    try {
+      await apiJson(`/api/contracts/${editingId}`, {
+        method: "PUT",
+        body: JSON.stringify({ body: document.getElementById("editorBody").value }),
+      });
+      editorModal.classList.remove("show");
+      await renderContracts();
+      await renderAudit();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---- send modal ----
+  let sendingId = null;
+  const sendModal = document.getElementById("sendModal");
+  function openSendModal(id, name) {
+    sendingId = id;
+    document.getElementById("sendTitle").textContent = name;
+    document.getElementById("sendResult").style.display = "none";
+    document.getElementById("sendFields").style.display = "";
+    document.getElementById("confirmSendBtn").style.display = "";
+    sendModal.classList.add("show");
+  }
+  document.getElementById("closeSend").addEventListener("click", () => sendModal.classList.remove("show"));
+  document.getElementById("confirmSendBtn").addEventListener("click", async () => {
+    const counterpartyName = document.getElementById("sendName").value.trim();
+    const counterpartyEmail = document.getElementById("sendEmail").value.trim();
+    try {
+      const data = await apiJson(`/api/contracts/${sendingId}/send`, {
+        method: "POST",
+        body: JSON.stringify({ counterpartyName, counterpartyEmail }),
+      });
+      document.getElementById("sendFields").style.display = "none";
+      document.getElementById("confirmSendBtn").style.display = "none";
+      const result = document.getElementById("sendResult");
+      result.style.display = "";
+      result.innerHTML = data.emailSent
+        ? `<p style="margin:0;">Sent — an email invitation went to the counterparty.</p>`
+        : `<p style="margin-bottom:10px;">${data.emailNote}</p><div class="field"><label>Share this signing link</label><input readonly value="${data.signUrl}" onclick="this.select()"></div>`;
+      await renderContracts();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---- sign modal (owner) ----
+  let signingId = null;
+  const signModal = document.getElementById("signModal");
+  function openSignModal(id, name) {
+    signingId = id;
+    document.getElementById("signModalTitle").textContent = name;
+    document.getElementById("ownerTypedSignature").value = CURRENT_USER.name;
+    document.getElementById("ownerConsent").checked = false;
+    document.getElementById("signResult").style.display = "none";
+    signModal.classList.add("show");
+  }
+  document.getElementById("closeSignModal").addEventListener("click", () => signModal.classList.remove("show"));
+  document.getElementById("confirmSignBtn").addEventListener("click", async () => {
+    const typedSignature = document.getElementById("ownerTypedSignature").value.trim();
+    const consent = document.getElementById("ownerConsent").checked;
+    try {
+      const data = await apiJson(`/api/contracts/${signingId}/sign`, {
+        method: "POST",
+        body: JSON.stringify({ typedSignature, consent }),
+      });
+      const result = document.getElementById("signResult");
+      result.style.display = "";
+      result.innerHTML = `<p style="margin:0;">${data.allSigned ? "Signed — both parties have now executed this contract. It's locked and future edits will be time-stamped." : "Signed — waiting on the other party."}</p>`;
+      await renderContracts();
+      await renderAudit();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---- share modal (owner) ----
+  let sharingId = null;
+  const shareModal = document.getElementById("shareModal");
+  async function openShareModal(id, name) {
+    sharingId = id;
+    document.getElementById("shareModalTitle").textContent = name;
+    document.getElementById("shareEmail").value = "";
+    document.getElementById("sharePermission").value = "view";
+    document.getElementById("shareError").classList.remove("show");
+    shareModal.classList.add("show");
+    await renderShareList();
+  }
+  async function renderShareList() {
+    const { shares } = await apiJson(`/api/contracts/${sharingId}/shares`);
+    const wrap = document.getElementById("shareList");
+    wrap.innerHTML = shares.length ? "" : "<p style='margin:0;font-size:0.85rem;'>Not shared with anyone yet.</p>";
+    shares.forEach(s => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);";
+      row.innerHTML = `
+        <span style="font-size:0.85rem;">${s.name} <span style="color:var(--silver-soft);">&lt;${s.email}&gt;</span> &middot; ${s.permission}</span>
+        <button class="icon-btn" title="Revoke" data-revoke-share="${s.id}">&times;</button>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll("[data-revoke-share]").forEach(btn => btn.addEventListener("click", async () => {
+      await apiJson(`/api/contracts/${sharingId}/share/${btn.dataset.revokeShare}`, { method: "DELETE" });
+      await renderShareList();
+    }));
+  }
+  document.getElementById("closeShareModal").addEventListener("click", () => shareModal.classList.remove("show"));
+  document.getElementById("confirmShareBtn").addEventListener("click", async () => {
+    const email = document.getElementById("shareEmail").value.trim();
+    const permission = document.getElementById("sharePermission").value;
+    const errBox = document.getElementById("shareError");
+    errBox.classList.remove("show");
+    try {
+      await apiJson(`/api/contracts/${sharingId}/share`, {
+        method: "POST",
+        body: JSON.stringify({ email, permission }),
+      });
+      document.getElementById("shareEmail").value = "";
+      await renderShareList();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
+  // ---- audit ----
+  async function renderAudit() {
+    const { audit } = await apiJson("/api/contracts/audit");
+    const log = document.getElementById("auditLog");
+    log.innerHTML = "";
+    if (audit.length === 0) {
+      log.innerHTML = "<p style='margin:0;'>No activity yet.</p>";
+      return;
+    }
+    audit.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "audit-item";
+      div.innerHTML = `<strong>${item.contract_name} — ${item.action}${item.detail ? ": " + item.detail : ""}</strong><span>${fmt(item.created_at)}</span>`;
+      log.appendChild(div);
+    });
+  }
+
+  // ---- purchases (one-time, non-subscription) ----
+  async function renderPurchases() {
+    const { purchases } = await apiJson("/api/purchases");
+    const wrap = document.getElementById("purchaseList");
+    wrap.innerHTML = "";
+    document.getElementById("purchasesEmptyState").style.display = purchases.length ? "none" : "";
+
+    purchases.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "contract-row";
+      const priceLabel = p.purchase_type === "download" ? "$3.99 — Download only" : "$7.99 — Editable";
+      row.innerHTML = `
+        <div class="name">${p.template_name}<small>${priceLabel} &middot; purchased ${fmt(p.created_at)}</small></div>
+        <div><span class="status-pill status-signed">Paid</span></div>
+        <div></div>
+        <div></div>
+        <div class="row-actions">
+          ${p.purchase_type === "download"
+            ? `<button class="icon-btn" title="Download" data-dl-purchase="${p.id}">⬇</button>`
+            : `<button class="icon-btn" title="Open contract" data-open-contract="${p.contract_id}">✎</button>`}
+        </div>`;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll("[data-dl-purchase]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `/api/purchases/${btn.dataset.dlPurchase}/download`;
+    }));
+    wrap.querySelectorAll("[data-open-contract]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `dashboard.html?contract=${btn.dataset.openContract}`;
+    }));
+  }
+
+  // ---- nav section switching ----
+  document.querySelectorAll(".dash-nav a[data-section]").forEach(a => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
+      a.classList.add("active");
+      ["contracts", "purchases", "ai", "audit", "settings"].forEach(id => {
+        document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
+      });
+    });
+  });
+
+  // ---- AI ----
+  async function setupAI() {
+    const aiTierOk = ["pro", "business"].includes(CURRENT_USER.tier);
+    if (!aiTierOk) {
+      document.getElementById("aiLocked").style.display = "";
+      return;
+    }
+    const { configured } = await apiJson("/api/ai/status");
+    if (!configured) {
+      document.getElementById("aiNotConfigured").style.display = "";
+      return;
+    }
+    document.getElementById("aiUnlocked").style.display = "";
+    document.getElementById("aiRunBtn").addEventListener("click", async () => {
+      const prompt = document.getElementById("aiPrompt").value.trim();
+      const respBox = document.getElementById("aiResponse");
+      respBox.style.display = "block";
+      if (!prompt) {
+        respBox.innerHTML = "<p style='margin:0;'>Describe what you'd like Pact AI to draft first.</p>";
+        return;
+      }
+      respBox.innerHTML = "<p style='margin:0;'>Thinking…</p>";
+      try {
+        const { text } = await apiJson("/api/ai/draft", { method: "POST", body: JSON.stringify({ prompt }) });
+        respBox.innerHTML = `<div class="eyebrow">Pact AI</div><p style="margin:0;white-space:pre-wrap;">${text.replace(/</g, "&lt;")}</p>`;
+      } catch (err) {
+        respBox.innerHTML = `<p style="margin:0;color:var(--ruby-bright);">${err.message}</p>`;
+      }
+    });
+  }
+
+  // ---- settings: billing + identity ----
+  function setupTierButtons() {
+    const wrap = document.getElementById("tierButtons");
+    wrap.innerHTML = "";
+    TIER_ORDER.forEach(t => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-ghost-dark btn-sm";
+      btn.textContent = t === CURRENT_USER.tier ? `Current: ${TIER_LABEL[t]}` : `Switch to ${TIER_LABEL[t]}`;
+      if (t === CURRENT_USER.tier) btn.disabled = true;
+      btn.addEventListener("click", async () => {
+        try {
+          const data = await apiJson("/api/billing/checkout", { method: "POST", body: JSON.stringify({ tier: t }) });
+          if (data.mode === "stripe") {
+            window.location.href = data.url;
+          } else {
+            alert(data.note);
+            window.location.reload();
+          }
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  async function setupIdentity() {
+    const statusText = document.getElementById("identityStatusText");
+    const verifyBtn = document.getElementById("verifyIdentityBtn");
+    const note = document.getElementById("identityNote");
+    try {
+      const { configured, verification } = await apiJson("/api/identity/status");
+      if (!configured) {
+        statusText.textContent = "Identity verification isn't connected yet on this server.";
+        note.textContent = "Pact verifies identity through Stripe Identity — Pact never stores your ID document or SSN directly. Add STRIPE_SECRET_KEY to server/.env to enable it.";
+        return;
+      }
+      if (verification && verification.status === "verified") {
+        statusText.innerHTML = `<span style="color:var(--emerald-bright);">Verified</span> as ${verification.verified_name || CURRENT_USER.name}.`;
+        return;
+      }
+      if (verification && verification.status === "pending") {
+        statusText.textContent = "Verification in progress — check back shortly.";
+      } else {
+        statusText.textContent = "Your identity is not verified yet.";
+      }
+      verifyBtn.style.display = "";
+      note.textContent = "Verification happens on Stripe's secure, hosted page — Pact only receives a pass/fail result, never your document or SSN.";
+      verifyBtn.addEventListener("click", async () => {
+        try {
+          const data = await apiJson("/api/identity/start", { method: "POST", body: JSON.stringify({}) });
+          window.location.href = data.url;
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    } catch (err) {
+      statusText.textContent = "Couldn't load identity verification status.";
+    }
+  }
+
+  // ---- upload modal ----
+  const uploadModal = document.getElementById("uploadModal");
+  document.getElementById("openUploadModalBtn").addEventListener("click", () => {
+    document.getElementById("uploadName").value = "";
+    document.getElementById("uploadGenre").value = "";
+    document.getElementById("uploadFile").value = "";
+    document.getElementById("uploadError").classList.remove("show");
+    uploadModal.classList.add("show");
+  });
+  document.getElementById("closeUploadModal").addEventListener("click", () => uploadModal.classList.remove("show"));
+  document.getElementById("confirmUploadBtn").addEventListener("click", async () => {
+    const fileInput = document.getElementById("uploadFile");
+    const errBox = document.getElementById("uploadError");
+    errBox.classList.remove("show");
+    if (!fileInput.files[0]) {
+      errBox.textContent = "Choose a file to upload.";
+      errBox.classList.add("show");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("name", document.getElementById("uploadName").value.trim());
+    formData.append("genre", document.getElementById("uploadGenre").value.trim());
+    try {
+      const r = await fetch("/api/contracts/upload", { method: "POST", credentials: "include", body: formData });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Upload failed.");
+      uploadModal.classList.remove("show");
+      await renderContracts();
+      openEditor(data.contract.id);
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
+  // ---- boot ----
+  (async () => {
+    CURRENT_USER = await PactAPI.me();
+    if (!CURRENT_USER) {
+      window.location.href = "signup.html?next=" + encodeURIComponent(window.location.pathname.split("/").pop());
+      return;
+    }
+    document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
+    document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
+
+    document.getElementById("contractSearch").addEventListener("input", filterContracts);
+
+    await renderContracts();
+    await renderPurchases();
+    await renderAudit();
+    await setupAI();
+    setupTierButtons();
+    await setupIdentity();
+
+    const openId = new URLSearchParams(window.location.search).get("contract");
+    if (openId) {
+      openEditor(Number(openId));
+      history.replaceState(null, "", window.location.pathname);
+    }
+  })();
+</script>
+</body>
+</html>

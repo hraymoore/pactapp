@@ -18,14 +18,16 @@ serves `/website` directly (`express.static`) and mounts the API under
 `/api/*`, so there's nothing separate to deploy.
 
 Storage is a single SQLite file at `server/data/pact.sqlite`, created and
-seeded (39 templates) automatically on first boot via Node's built-in
+seeded (62 templates) automatically on first boot via Node's built-in
 `node:sqlite` — no database server, no native build step.
 
 ## What's real right now (no keys required)
 
 - **Auth** — bcrypt-hashed passwords, JWT session cookies (`server/src/auth-utils.js`)
 - **Contracts** — real CRUD, scoped to the logged-in profile or named parties
-- **Templates** — 39 templates across 12 genres, tier-gated at creation time
+- **Templates** — 62 templates across 18 genres, tier-gated at creation time, searchable by name/genre/description/keywords
+- **Upload & attachments** — bring your own document (PDF/Word/text/image) as a contract instead of a template, plus supporting attachments on any contract
+- **Sharing** — the owner can grant another existing Pact profile view or edit access to one specific contract
 - **e-Signature** — Pact's own token-based flow (`routes/sign.js` for outside
   counterparties, `POST /api/contracts/:id/sign` for the logged-in owner).
   Typed name + timestamp + IP recorded per signer; once every party has
@@ -80,9 +82,9 @@ server/
   src/
     index.js              # Express app, mounts routes, serves /website
     db.js                 # node:sqlite schema
-    seed-templates.js      # 39-template catalog
+    seed-templates.js      # 62-template catalog
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
-    routes/                  # auth, templates, contracts, sign, ai, billing, identity
-    services/                # pdf, signing, ai-provider, billing-provider, identity-provider, mailer
+    routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases
+    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, billing-provider, identity-provider, mailer
 ```

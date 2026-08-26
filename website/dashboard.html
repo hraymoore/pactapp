@@ -73,7 +73,13 @@
           <h2 style="margin-bottom:4px;">Your Contracts</h2>
           <p style="margin:0;">Everything here is scoped to your profile only.</p>
         </div>
-        <a href="templates.html" class="btn btn-gold">+ New Contract</a>
+        <div style="display:flex;gap:10px;">
+          <a href="templates.html" class="btn btn-gold">+ New Contract</a>
+          <button class="btn btn-ghost-dark" id="openUploadModalBtn">⬆ Upload Contract</button>
+        </div>
+      </div>
+      <div class="field" style="max-width:360px;">
+        <input id="contractSearch" type="text" placeholder="Search your contracts by name or genre…">
       </div>
       <div id="contractList"></div>
       <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
@@ -161,6 +167,16 @@
       <button class="btn btn-ghost-dark" id="cancelEditBtn">Cancel</button>
     </div>
     <p id="editorNote" style="margin-top:14px;font-size:0.82rem;"></p>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:10px;">ATTACHMENTS</label>
+      <div id="attachmentList" style="margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input id="attachmentFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" style="flex:1;">
+        <button class="btn btn-ghost-dark btn-sm" id="addAttachmentBtn">Add</button>
+      </div>
+      <p id="attachmentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+    </div>
   </div>
 </div>
 
@@ -198,6 +214,45 @@
   </div>
 </div>
 
+<!-- Share modal -->
+<div class="modal-backdrop" id="shareModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeShareModal">&times;</button>
+    <div class="eyebrow">Share</div>
+    <h3 id="shareModalTitle">Contract</h3>
+    <p style="font-size:0.85rem;">Give another Pact profile access to this one contract — they must already have an account.</p>
+    <div class="field"><label>Their email</label><input id="shareEmail" type="email" placeholder="colleague@example.com"></div>
+    <div class="field">
+      <label>Access</label>
+      <select id="sharePermission">
+        <option value="view">View &amp; download only</option>
+        <option value="edit">Can also edit</option>
+      </select>
+    </div>
+    <button class="btn btn-gold btn-block" id="confirmShareBtn">Share</button>
+    <p id="shareError" class="alert alert-ruby" style="margin-top:14px;"></p>
+    <div id="shareListWrap" style="margin-top:20px;">
+      <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:8px;">CURRENTLY SHARED WITH</label>
+      <div id="shareList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload modal -->
+<div class="modal-backdrop" id="uploadModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeUploadModal">&times;</button>
+    <div class="eyebrow">Upload a contract</div>
+    <h3>Bring your own document</h3>
+    <p style="font-size:0.85rem;">PDF, Word doc, plain text, or image (scan) — up to 15MB. The file becomes your contract's original attachment; if it's a plain text file, its content also seeds the editable draft.</p>
+    <div class="field"><label>Contract name</label><input id="uploadName" type="text" placeholder="e.g. Signed Vendor Agreement"></div>
+    <div class="field"><label>Genre (optional)</label><input id="uploadGenre" type="text" placeholder="Defaults to “Other”"></div>
+    <div class="field"><label>File</label><input id="uploadFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"></div>
+    <button class="btn btn-gold btn-block" id="confirmUploadBtn">Upload</button>
+    <p id="uploadError" class="alert alert-ruby" style="margin-top:14px;"></p>
+  </div>
+</div>
+
 <script src="js/app.js"></script>
 <script>
   const TIER_ORDER = ["starter", "everyday", "pro", "business"];
@@ -217,27 +272,37 @@
     });
   }
 
+  let ALL_CONTRACTS = [];
+
   async function renderContracts() {
     const { contracts } = await apiJson("/api/contracts");
+    ALL_CONTRACTS = contracts;
+    drawContractRows(contracts);
+  }
+
+  function drawContractRows(contracts) {
     const wrap = document.getElementById("contractList");
     wrap.innerHTML = "";
-    document.getElementById("emptyState").style.display = contracts.length ? "none" : "";
+    document.getElementById("emptyState").style.display = ALL_CONTRACTS.length ? "none" : "";
 
     contracts.forEach(c => {
       const mySelf = c.parties.find(p => p.email === CURRENT_USER.email);
       const iCanSign = mySelf && !mySelf.signed_at && c.parties.length > 1;
+      const isOwner = c.owner_id === CURRENT_USER.id;
+      const badge = isOwner ? "" : `<span class="mini-tag" style="margin-left:8px;">${c.myPermission === "edit" ? "Shared — edit" : "Shared — view"}</span>`;
       const row = document.createElement("div");
       row.className = "contract-row";
       row.innerHTML = `
-        <div class="name">${c.name}<small>${c.genre || "General"} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div class="name">${c.name}${badge}<small>${c.genre || "General"} &middot; updated ${fmt(c.updated_at)}</small></div>
         <div>${statusPill(c.status)}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
         <div class="row-actions">
           ${iCanSign ? `<button class="icon-btn" title="Sign" data-sign="${c.id}" data-name="${c.name}">✔</button>` : ""}
-          <button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>
+          ${(isOwner || c.myPermission === "edit") ? `<button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>` : ""}
           <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
-          <button class="icon-btn" title="Send" data-send="${c.id}" data-name="${c.name}">➤</button>
+          ${isOwner ? `<button class="icon-btn" title="Send" data-send="${c.id}" data-name="${c.name}">➤</button>` : ""}
+          ${isOwner ? `<button class="icon-btn" title="Share" data-share="${c.id}" data-name="${c.name}">👤</button>` : ""}
         </div>`;
       wrap.appendChild(row);
     });
@@ -248,6 +313,15 @@
     }));
     wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", () => openSendModal(Number(btn.dataset.send), btn.dataset.name)));
     wrap.querySelectorAll("[data-sign]").forEach(btn => btn.addEventListener("click", () => openSignModal(Number(btn.dataset.sign), btn.dataset.name)));
+    wrap.querySelectorAll("[data-share]").forEach(btn => btn.addEventListener("click", () => openShareModal(Number(btn.dataset.share), btn.dataset.name)));
+  }
+
+  function filterContracts() {
+    const q = document.getElementById("contractSearch").value.trim().toLowerCase();
+    if (!q) { drawContractRows(ALL_CONTRACTS); return; }
+    drawContractRows(ALL_CONTRACTS.filter(c =>
+      c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q)
+    ));
   }
 
   // ---- editor modal ----
@@ -262,7 +336,45 @@
       ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
       : "This contract is not yet signed — edits here are unrestricted.";
     editorModal.classList.add("show");
+    await renderAttachments();
   }
+
+  async function renderAttachments() {
+    const { attachments } = await apiJson(`/api/contracts/${editingId}/attachments`);
+    const wrap = document.getElementById("attachmentList");
+    wrap.innerHTML = attachments.length ? "" : "<p style='margin:0;font-size:0.85rem;'>No attachments yet.</p>";
+    attachments.forEach(a => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:0.85rem;";
+      row.innerHTML = `
+        <span>${a.is_original_source ? "📎 " : ""}${a.original_filename} <span style="color:var(--silver-soft);">&middot; ${(a.size_bytes / 1024).toFixed(0)} KB &middot; ${a.uploader_name}</span></span>
+        <a href="/api/contracts/${editingId}/attachments/${a.id}/download" class="icon-btn" title="Download">⬇</a>`;
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById("addAttachmentBtn").addEventListener("click", async () => {
+    const fileInput = document.getElementById("attachmentFile");
+    const errBox = document.getElementById("attachmentError");
+    errBox.classList.remove("show");
+    if (!fileInput.files[0]) {
+      errBox.textContent = "Choose a file first.";
+      errBox.classList.add("show");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    try {
+      const r = await fetch(`/api/contracts/${editingId}/attachments`, { method: "POST", credentials: "include", body: formData });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Upload failed.");
+      fileInput.value = "";
+      await renderAttachments();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
   document.getElementById("closeEditor").addEventListener("click", () => editorModal.classList.remove("show"));
   document.getElementById("cancelEditBtn").addEventListener("click", () => editorModal.classList.remove("show"));
   document.getElementById("saveEditBtn").addEventListener("click", async () => {
@@ -339,6 +451,54 @@
       await renderAudit();
     } catch (err) {
       alert(err.message);
+    }
+  });
+
+  // ---- share modal (owner) ----
+  let sharingId = null;
+  const shareModal = document.getElementById("shareModal");
+  async function openShareModal(id, name) {
+    sharingId = id;
+    document.getElementById("shareModalTitle").textContent = name;
+    document.getElementById("shareEmail").value = "";
+    document.getElementById("sharePermission").value = "view";
+    document.getElementById("shareError").classList.remove("show");
+    shareModal.classList.add("show");
+    await renderShareList();
+  }
+  async function renderShareList() {
+    const { shares } = await apiJson(`/api/contracts/${sharingId}/shares`);
+    const wrap = document.getElementById("shareList");
+    wrap.innerHTML = shares.length ? "" : "<p style='margin:0;font-size:0.85rem;'>Not shared with anyone yet.</p>";
+    shares.forEach(s => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);";
+      row.innerHTML = `
+        <span style="font-size:0.85rem;">${s.name} <span style="color:var(--silver-soft);">&lt;${s.email}&gt;</span> &middot; ${s.permission}</span>
+        <button class="icon-btn" title="Revoke" data-revoke-share="${s.id}">&times;</button>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll("[data-revoke-share]").forEach(btn => btn.addEventListener("click", async () => {
+      await apiJson(`/api/contracts/${sharingId}/share/${btn.dataset.revokeShare}`, { method: "DELETE" });
+      await renderShareList();
+    }));
+  }
+  document.getElementById("closeShareModal").addEventListener("click", () => shareModal.classList.remove("show"));
+  document.getElementById("confirmShareBtn").addEventListener("click", async () => {
+    const email = document.getElementById("shareEmail").value.trim();
+    const permission = document.getElementById("sharePermission").value;
+    const errBox = document.getElementById("shareError");
+    errBox.classList.remove("show");
+    try {
+      await apiJson(`/api/contracts/${sharingId}/share`, {
+        method: "POST",
+        body: JSON.stringify({ email, permission }),
+      });
+      document.getElementById("shareEmail").value = "";
+      await renderShareList();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
     }
   });
 
@@ -495,6 +655,42 @@
     }
   }
 
+  // ---- upload modal ----
+  const uploadModal = document.getElementById("uploadModal");
+  document.getElementById("openUploadModalBtn").addEventListener("click", () => {
+    document.getElementById("uploadName").value = "";
+    document.getElementById("uploadGenre").value = "";
+    document.getElementById("uploadFile").value = "";
+    document.getElementById("uploadError").classList.remove("show");
+    uploadModal.classList.add("show");
+  });
+  document.getElementById("closeUploadModal").addEventListener("click", () => uploadModal.classList.remove("show"));
+  document.getElementById("confirmUploadBtn").addEventListener("click", async () => {
+    const fileInput = document.getElementById("uploadFile");
+    const errBox = document.getElementById("uploadError");
+    errBox.classList.remove("show");
+    if (!fileInput.files[0]) {
+      errBox.textContent = "Choose a file to upload.";
+      errBox.classList.add("show");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("name", document.getElementById("uploadName").value.trim());
+    formData.append("genre", document.getElementById("uploadGenre").value.trim());
+    try {
+      const r = await fetch("/api/contracts/upload", { method: "POST", credentials: "include", body: formData });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Upload failed.");
+      uploadModal.classList.remove("show");
+      await renderContracts();
+      openEditor(data.contract.id);
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
   // ---- boot ----
   (async () => {
     CURRENT_USER = await PactAPI.me();
@@ -504,6 +700,8 @@
     }
     document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
     document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
+
+    document.getElementById("contractSearch").addEventListener("input", filterContracts);
 
     await renderContracts();
     await renderPurchases();

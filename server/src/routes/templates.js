@@ -8,13 +8,23 @@ router.get("/genres", (req, res) => {
 });
 
 router.get("/", (req, res) => {
-  const { genre } = req.query;
-  const rows =
-    genre && genre !== "All"
-      ? db
-          .prepare("SELECT id, name, genre, min_tier, description FROM templates WHERE genre = ? ORDER BY name")
-          .all(genre)
-      : db.prepare("SELECT id, name, genre, min_tier, description FROM templates ORDER BY genre, name").all();
+  const { genre, q } = req.query;
+  const clauses = [];
+  const params = {};
+
+  if (genre && genre !== "All") {
+    clauses.push("genre = @genre");
+    params.genre = genre;
+  }
+  if (q && q.trim()) {
+    clauses.push("(name LIKE @q OR genre LIKE @q OR description LIKE @q OR keywords LIKE @q)");
+    params.q = `%${q.trim()}%`;
+  }
+
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const rows = db
+    .prepare(`SELECT id, name, genre, min_tier, description, keywords FROM templates ${where} ORDER BY genre, name`)
+    .all(params);
   res.json({ templates: rows });
 });
 

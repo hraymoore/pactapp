@@ -22,7 +22,7 @@ Then open **http://localhost:4000**.
 - `index.html` — home
 - `about.html` — company story + roadmap
 - `pricing.html` — 4 subscription tiers + comparison table (upgrades in place if you're logged in)
-- `templates.html` — filterable contract template gallery (39 templates, 12 genres), fetched from the API
+- `templates.html` — filterable, searchable contract template gallery (62 templates, 18 genres), fetched from the API
 - `features.html` — security, e-signature and Pact AI overview
 - `signup.html` / `login.html` — real profile creation/login against the backend
 - `dashboard.html` — gated app: contract list, editor, send/sign, AI panel, audit trail, billing & identity settings

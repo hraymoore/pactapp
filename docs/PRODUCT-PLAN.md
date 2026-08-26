@@ -10,7 +10,7 @@ Node backend it talks to — see `server/README.md` for how to run it.
 Running `server/npm start` gives you the whole product, not a mock:
 
 - Real auth (bcrypt + JWT session cookies), real per-profile contract
-  storage (SQLite via `node:sqlite`), real 39-template catalog across 12
+  storage (SQLite via `node:sqlite`), real 62-template catalog across 18
   business genres, tier-gated at creation time
 - A native e-signature flow: typed name + consent + IP + server timestamp
   per signer, via a public token link for outside counterparties
@@ -22,6 +22,19 @@ Running `server/npm start` gives you the whole product, not a mock:
   client-side.
 - Real PDF export (`pdf-lib`) of the contract text, signature block and
   audit trail
+- **Search** across the template library (name, genre, description, and
+  hand-tagged keywords so "car" finds Vehicle Bill of Sale, "lawyer" finds
+  Legal Services, etc.) and across a profile's own contracts
+- **Upload your own document** as a contract instead of starting from a
+  template — PDF/Word/text/image, up to 15MB. A plain-text upload seeds
+  the editable draft directly; other types become the contract's
+  "original source" attachment, downloadable alongside an editable working
+  draft you write in Pact. Any authorized party can add further supporting
+  attachments to a contract afterward (scans, exhibits, reference docs).
+- **Sharing a specific contract** with another existing Pact profile
+  (view-only or edit), separate from being a signing party — the promised
+  "team members" experience made concrete at the contract level rather
+  than a full multi-seat org system (see §3 for what that would still take)
 - Pluggable AI (Anthropic), billing (Stripe), identity verification
   (Stripe Identity) and email (SMTP) — each is wired for real and activates
   the moment its API key is set in `server/.env`; with no key, each one
@@ -49,8 +62,8 @@ swapped in without touching the routes above it.
 |---|---|---|
 | Rich contract editor | Plain textarea | A real clause-aware editor (ProseMirror/Tiptap), inline redlining, diff view between versions |
 | Notifications | None | Push/email notifications for "awaiting your signature," "contract amended," tier changes |
-| Team accounts | Single-owner profiles only | Multi-seat orgs with role-based permissions (Everyday+ promise this) |
-| Search & filtering | Client-side only, small scale | Full-text search across contracts as volume grows |
+| Team accounts | Per-contract sharing exists (view/edit, see §1), but no org concept | A real multi-seat org — one bill, a shared contract pool, org-level roles — instead of sharing contracts one at a time (Everyday+ tier copy promises "team members," which today means "share contracts individually") |
+| Search & filtering | `LIKE`-based, fine at hundreds of templates/contracts | A real search index (Postgres full-text or a search service) once template/contract volume grows past what a simple `LIKE` scan handles well |
 | Production auth hardening | Dev-friendly JWT secret fallback | Enforce `JWT_SECRET` in production, add rate limiting, password reset flow, email verification |
 | Deployment | Local SQLite file | Managed Postgres + object storage, proper backups, horizontal scaling |
 
@@ -117,3 +130,23 @@ accent), **Emerald** (success/signed-state accent). Dark backgrounds always
 pair with silver/paper text; light backgrounds always pair with ink-dark
 text; gold/ruby/emerald are accents only, never body copy on a background
 that would fail contrast.
+
+## 7. Template genre taxonomy
+
+18 genres (`server/src/seed-templates.js`), chosen to cover real-world
+contract categories rather than just business/SaaS use cases, with a
+deliberate catch-all so nothing forces a bad fit:
+
+Freelance & Gig · Real Estate · HR & Employment · Business Formation ·
+Commerce & Retail · Technology · Construction & Trades · Creative & Media ·
+**Music & Entertainment** · Hospitality & Events · Healthcare (including
+direct doctor–patient agreements) · Finance & Lending · **Legal Services**
+(attorney–client and attorney–business) · **Automotive & Vehicle** ·
+**Education & Training** · **Personal & Family** · Enterprise · **Other**
+
+**Other** exists specifically so nothing has to be force-fit into the
+wrong category — it holds one general-purpose "General / Custom Agreement"
+template and is also the default genre for an uploaded contract when no
+genre is specified. Adding a 19th genre later is a matter of adding rows
+to `TEMPLATE_SEED`, not a schema change — `genre` is a free-text column, not
+an enum.

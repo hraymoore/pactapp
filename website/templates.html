@@ -49,16 +49,20 @@
   <div class="wrap">
     <div class="eyebrow">Template library</div>
     <h1 style="max-width:700px;">Contract templates for every genre of business</h1>
-    <p style="max-width:600px;">Freelance, real estate, HR, technology, construction, creative, hospitality, healthcare, finance and enterprise. Browsing is open to everyone — opening, editing or sending a template requires a Pact profile.</p>
+    <p style="max-width:600px;">Freelance, real estate, HR, legal, automotive, music, healthcare, technology, education and more — 18 genres in all. Anything that doesn't fit a specific category lives under Other. Browsing is open to everyone — opening, editing or sending a template requires a Pact profile.</p>
     <div id="auth-note" class="alert alert-emerald" style="max-width:600px;"></div>
   </div>
 </header>
 
 <section class="section" style="padding-top:10px;">
   <div class="wrap">
+    <div class="field" style="max-width:420px;margin-bottom:20px;">
+      <input id="templateSearch" type="text" placeholder="Search templates — try “car”, “music”, “lawyer”, “doctor”…">
+    </div>
     <div class="filter-row" id="filterRow">
       <button class="chip active" data-genre="All">All Genres</button>
     </div>
+    <p id="resultCount" style="font-size:0.85rem;margin:-6px 0 20px;"></p>
     <div class="grid grid-3" id="templateGrid"></div>
   </div>
 </section>
@@ -88,7 +92,8 @@
   const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
   const TIER_ICON = { starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
   const TIER_ORDER = ["starter", "everyday", "pro", "business"];
-  let ALL_TEMPLATES = [];
+  let CURRENT_GENRE = "All";
+  let CURRENT_QUERY = "";
 
   function renderFilters(genres) {
     const row = document.getElementById("filterRow");
@@ -103,8 +108,14 @@
       if (!e.target.classList.contains("chip")) return;
       row.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
       e.target.classList.add("active");
-      renderGrid(e.target.dataset.genre);
+      CURRENT_GENRE = e.target.dataset.genre;
+      renderGrid();
     });
+  }
+
+  function debounce(fn, wait) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
   }
 
   async function useTemplate(templateId, user) {
@@ -153,11 +164,23 @@
     }
   }
 
-  async function renderGrid(filter) {
+  async function renderGrid() {
     const grid = document.getElementById("templateGrid");
     grid.innerHTML = "";
     const user = await PactAPI.me();
-    const items = filter === "All" ? ALL_TEMPLATES : ALL_TEMPLATES.filter(t => t.genre === filter);
+    const params = new URLSearchParams();
+    if (CURRENT_GENRE !== "All") params.set("genre", CURRENT_GENRE);
+    if (CURRENT_QUERY) params.set("q", CURRENT_QUERY);
+    const { templates: items } = await apiJson(`/api/templates?${params.toString()}`);
+
+    document.getElementById("resultCount").textContent =
+      `${items.length} template${items.length === 1 ? "" : "s"}${CURRENT_QUERY ? ` matching “${CURRENT_QUERY}”` : ""}`;
+
+    if (items.length === 0) {
+      grid.innerHTML = `<p style="grid-column:1/-1;">No templates match that search. Try a different term, or pick "All Genres".</p>`;
+      return;
+    }
+
     items.forEach(t => {
       const locked = !user;
       const tierBlocked = user && TIER_ORDER.indexOf(user.tier) < TIER_ORDER.indexOf(t.min_tier);
@@ -193,13 +216,16 @@
   }
 
   (async () => {
-    const [{ templates }, { genres }] = await Promise.all([
-      apiJson("/api/templates"),
-      apiJson("/api/templates/genres"),
-    ]);
-    ALL_TEMPLATES = templates;
+    const { genres } = await apiJson("/api/templates/genres");
     renderFilters(genres);
-    await renderGrid("All");
+
+    const searchInput = document.getElementById("templateSearch");
+    searchInput.addEventListener("input", debounce(() => {
+      CURRENT_QUERY = searchInput.value.trim();
+      renderGrid();
+    }, 250));
+
+    await renderGrid();
 
     const user = await PactAPI.me();
     const note = document.getElementById("auth-note");

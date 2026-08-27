@@ -34,7 +34,7 @@ async function createCheckoutSession({ tier, priceCents, user, req }) {
 
 // One-time purchase (not a subscription): $3.99 download-only or $7.99
 // editable, priced per template.
-async function createOneTimeCheckoutSession({ template, purchaseType, priceCents, user, req }) {
+async function createOneTimeCheckoutSession({ template, purchaseType, priceCents, user, req, state }) {
   const stripe = getStripe();
   const origin = `${req.protocol}://${req.get("host")}`;
   const label = purchaseType === "edit" ? "editable, one-time purchase" : "blank, download-only";
@@ -53,7 +53,7 @@ async function createOneTimeCheckoutSession({ template, purchaseType, priceCents
     ],
     success_url: `${origin}/dashboard.html?purchased=1`,
     cancel_url: `${origin}/templates.html`,
-    metadata: { userId: String(user.id), templateId: String(template.id), purchaseType },
+    metadata: { userId: String(user.id), templateId: String(template.id), purchaseType, state: state || "" },
   });
   return session;
 }

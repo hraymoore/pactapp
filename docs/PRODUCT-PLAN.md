@@ -5,13 +5,43 @@ agreements in one profile-gated place, with AI assistance on the top two
 subscription tiers. `/website` is the front end and `/server` is a real
 Node backend it talks to — see `server/README.md` for how to run it.
 
+## 0. Guardrails (built in from day one, not bolted on)
+
+- **Persistent "not legal advice" disclaimer** on every AI-touched or
+  signable surface — the contract editor, the Pact AI chat panel,
+  `sign.html`, and both PDF exports (`services/pdf.js`) — as static UI/PDF
+  text, not something the model is merely asked to say.
+- **Family-law drafting is hard-blocked, not just discouraged.** Divorce,
+  custody and related agreements live under a dedicated **Family Law**
+  genre whose templates are marked `ai_restricted` (informational overview
+  + checklist content only — see §7); a contract created from one of them
+  inherits that flag. `routes/ai.js` checks the flag **before** calling the
+  model — a restricted contract, or a freeform request that matches a
+  divorce/custody keyword heuristic with no contract selected
+  (`services/ai-guardrails.js`), gets a fixed, deterministic redirect to
+  the informational template + "consult an attorney," and the model is
+  never invoked. This works even with `ANTHROPIC_API_KEY` unset.
+- **Every AI call is logged**, successful or blocked: `ai_audit_log`
+  (`user_id`, `contract_id` if any, `interaction_type`, `blocked`,
+  truncated input/output, timestamp) is the durable, user-indexed record;
+  a contract-scoped call is also mirrored into that contract's own
+  `audit_log` so it shows up in the existing Audit Trail tab. `GET
+  /api/ai/audit` returns a user's own history.
+- **No raw SSN/EIN storage** — identity verification is routed through
+  Stripe Identity (see §2); Pact never receives or stores the number
+  itself, in testing or in production.
+
 ## 1. What's real today
 
 Running `server/npm start` gives you the whole product, not a mock:
 
 - Real auth (bcrypt + JWT session cookies), real per-profile contract
-  storage (SQLite via `node:sqlite`), real 62-template catalog across 18
+  storage (SQLite via `node:sqlite`), real 72-template catalog across 20
   business genres, tier-gated at creation time
+- **A state-based contract engine** (§8) — every contract picks a governing
+  state at creation; two states (Arkansas, Texas) have deep, hand-written
+  template coverage across three categories, every other state gets the
+  same generic templates with the governing-law clause auto-inserted
 - A native e-signature flow: typed name + consent + IP + server timestamp
   per signer, via a public token link for outside counterparties
   (`/sign.html`) or in-app for the logged-in owner
@@ -149,7 +179,7 @@ that would fail contrast.
 
 ## 7. Template genre taxonomy
 
-18 genres (`server/src/seed-templates.js`), chosen to cover real-world
+20 genres (`server/src/seed-templates.js`), chosen to cover real-world
 contract categories rather than just business/SaaS use cases, with a
 deliberate catch-all so nothing forces a bad fit:
 
@@ -158,11 +188,52 @@ Commerce & Retail · Technology · Construction & Trades · Creative & Media ·
 **Music & Entertainment** · Hospitality & Events · Healthcare (including
 direct doctor–patient agreements) · Finance & Lending · **Legal Services**
 (attorney–client and attorney–business) · **Automotive & Vehicle** ·
-**Education & Training** · **Personal & Family** · Enterprise · **Other**
+**Education & Training** · **Personal & Family** · **Home & Personal
+Services** (lawn care, cleaning, recurring home services) · Enterprise ·
+**Family Law** · **Other**
 
 **Other** exists specifically so nothing has to be force-fit into the
 wrong category — it holds one general-purpose "General / Custom Agreement"
 template and is also the default genre for an uploaded contract when no
-genre is specified. Adding a 19th genre later is a matter of adding rows
+genre is specified. Adding a 21st genre later is a matter of adding rows
 to `TEMPLATE_SEED`, not a schema change — `genre` is a free-text column, not
 an enum.
+
+**Family Law is different from every other genre**: its three templates
+(Marital Settlement Agreement overview, Child Custody & Visitation info
+sheet, Uncontested Divorce Filing Checklist) are informational only —
+general descriptions of what these documents typically cover and a
+pointer to a licensed attorney and local court resources, not fillable
+contracts — and are marked `ai_restricted` in the database, which is what
+`routes/ai.js` checks to hard-block AI drafting/suggestions for them (§0).
+
+## 8. State-based contract engine
+
+- **Every contract requires a governing state** at creation
+  (`POST /api/contracts`, the "buy & edit" purchase flow, and optionally
+  an upload) — `server/src/us-states.js` is the canonical 50-state + DC
+  list used by both the API and the state selector on `templates.html`.
+- **Templates are structured by (state × genre).** Most templates have
+  `state = 'ALL'` — usable by any state, with `[STATE]` in their
+  governing-law clause auto-replaced by the contract's chosen state at
+  creation (`applyGoverningLaw` in `services/contract-factory.js`) so the
+  user never has to remember to fill it in. A template can instead pin a
+  specific `state` (e.g. `'AR'`) for real, hand-written state-specific
+  language — `GET /api/templates?state=AR` returns that state's own
+  templates *plus* the generic ones, never the state-specific ones alone.
+- **Deep, not shallow, for the MVP window**: rather than thin, generic
+  coverage across all 50 states, Arkansas and Texas each get real,
+  state-specific templates (citing Arkansas's residential landlord-tenant
+  practice and Texas Property Code Chapter 92 for leases, for example)
+  across three categories — Home & Personal Services (lawn
+  care/landscaping), Real Estate (residential lease), and Music &
+  Entertainment (licensing) — six deep templates total, on top of the
+  generic library every other state already gets.
+- **Search & filter by state** — the template gallery has a governing-state
+  selector (also required before creating or buying-to-edit a template),
+  and a user's own Contracts list has status/category/state filter chips
+  (`website/dashboard.html`) alongside the existing text search.
+
+Adding real depth for a third state, or a fourth category, is adding rows
+to `TEMPLATE_SEED` with a `state` and a hand-written `body` — the schema
+and every route already support it.

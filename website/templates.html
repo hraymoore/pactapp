@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Templates — Pact</title>
-<meta name="description" content="39 contract templates across 12 business genres — freelance, real estate, HR, technology, construction, healthcare, enterprise and more.">
+<meta name="description" content="72 contract templates across 20 business genres — freelance, real estate, HR, technology, construction, healthcare, enterprise and more.">
 <link rel="canonical" href="https://www.pactappstore.com/templates.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Pact">
 <meta property="og:title" content="Templates — Pact">
-<meta property="og:description" content="39 contract templates across 12 business genres — freelance, real estate, HR, technology, construction, healthcare, enterprise and more.">
+<meta property="og:description" content="72 contract templates across 20 business genres — freelance, real estate, HR, technology, construction, healthcare, enterprise and more.">
 <meta property="og:url" content="https://www.pactappstore.com/templates.html">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#0b0c0f">
@@ -49,16 +49,23 @@
   <div class="wrap">
     <div class="eyebrow">Template library</div>
     <h1 style="max-width:700px;">Contract templates for every genre of business</h1>
-    <p style="max-width:600px;">Freelance, real estate, HR, legal, automotive, music, healthcare, technology, education and more — 18 genres in all. Anything that doesn't fit a specific category lives under Other. Browsing is open to everyone — opening, editing or sending a template requires a Pact profile.</p>
+    <p style="max-width:600px;">Freelance, real estate, HR, legal, automotive, music, healthcare, technology, education and more — 20 genres in all. Anything that doesn't fit a specific category lives under Other. Browsing is open to everyone — opening, editing or sending a template requires a Pact profile.</p>
     <div id="auth-note" class="alert alert-emerald" style="max-width:600px;"></div>
   </div>
 </header>
 
 <section class="section" style="padding-top:10px;">
   <div class="wrap">
-    <div class="field" style="max-width:420px;margin-bottom:20px;">
-      <input id="templateSearch" type="text" placeholder="Search templates — try “car”, “music”, “lawyer”, “doctor”…">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+      <div class="field" style="max-width:420px;margin-bottom:0;flex:1;min-width:220px;">
+        <input id="templateSearch" type="text" placeholder="Search templates — try “car”, “music”, “lawyer”, “doctor”…">
+      </div>
+      <div class="field" style="max-width:260px;margin-bottom:0;">
+        <label for="stateSelect" style="font-size:0.75rem;">Governing state</label>
+        <select id="stateSelect"><option value="All">All states</option></select>
+      </div>
     </div>
+    <p id="stateNote" style="font-size:0.82rem;margin:-14px 0 14px;color:var(--silver-soft);"></p>
     <div class="filter-row" id="filterRow">
       <button class="chip active" data-genre="All">All Genres</button>
     </div>
@@ -94,6 +101,8 @@
   const TIER_ORDER = ["starter", "everyday", "pro", "business"];
   let CURRENT_GENRE = "All";
   let CURRENT_QUERY = "";
+  let CURRENT_STATE = "All";
+  let DEEP_COVERAGE_STATES = [];
 
   function renderFilters(genres) {
     const row = document.getElementById("filterRow");
@@ -120,10 +129,14 @@
 
   async function useTemplate(templateId, user) {
     if (!user) { window.location.href = "signup.html"; return; }
+    if (CURRENT_STATE === "All") {
+      alert("Pick a governing state from the dropdown above first — every contract needs one so Pact can insert the correct governing-law clause.");
+      return;
+    }
     try {
       const { contract } = await apiJson("/api/contracts", {
         method: "POST",
-        body: JSON.stringify({ name: "Untitled Contract", templateId }),
+        body: JSON.stringify({ name: "Untitled Contract", templateId, state: CURRENT_STATE }),
       });
       window.location.href = `dashboard.html?contract=${contract.id}`;
     } catch (err) {
@@ -139,13 +152,17 @@
   // copy, $7.99 for a copy you can edit in Pact — works regardless of tier.
   async function buyTemplate(templateId, purchaseType, user, btn) {
     if (!user) { window.location.href = "signup.html"; return; }
+    if (purchaseType === "edit" && CURRENT_STATE === "All") {
+      alert("Pick a governing state from the dropdown above first — the editable version needs one, just like any other contract.");
+      return;
+    }
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Processing…";
     try {
       const data = await apiJson("/api/purchases/checkout", {
         method: "POST",
-        body: JSON.stringify({ templateId, purchaseType }),
+        body: JSON.stringify({ templateId, purchaseType, state: purchaseType === "edit" ? CURRENT_STATE : undefined }),
       });
       if (data.mode === "stripe") {
         window.location.href = data.url;
@@ -171,6 +188,7 @@
     const params = new URLSearchParams();
     if (CURRENT_GENRE !== "All") params.set("genre", CURRENT_GENRE);
     if (CURRENT_QUERY) params.set("q", CURRENT_QUERY);
+    if (CURRENT_STATE !== "All") params.set("state", CURRENT_STATE);
     const { templates: items } = await apiJson(`/api/templates?${params.toString()}`);
 
     document.getElementById("resultCount").textContent =
@@ -194,6 +212,10 @@
         <div class="icon ${TIER_ICON[t.min_tier]}">&#128196;</div>
         <h3 style="font-size:1.05rem;">${t.name}</h3>
         <p style="font-size:0.88rem;">${t.description}</p>
+        <div class="tag-row" style="margin-bottom:10px;">
+          <span class="mini-tag">${t.state === "ALL" ? "All states" : t.state}</span>
+          ${t.ai_restricted ? '<span class="mini-tag" style="color:var(--ruby-bright);">Informational only</span>' : ""}
+        </div>
         <button class="btn btn-ghost-dark btn-sm" data-use="${t.id}">${tierBlocked ? `Requires ${TIER_LABEL[t.min_tier]}` : "Use Template"}</button>
         <div class="tag-row" style="margin-top:10px;">
           <button class="btn btn-ghost-dark btn-sm" data-buy="${t.id}" data-buy-type="download">Download blank — $3.99</button>
@@ -218,6 +240,26 @@
   (async () => {
     const { genres } = await apiJson("/api/templates/genres");
     renderFilters(genres);
+
+    const { states, deepCoverageStates } = await apiJson("/api/templates/states");
+    DEEP_COVERAGE_STATES = deepCoverageStates;
+    const stateSelect = document.getElementById("stateSelect");
+    states.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.code;
+      opt.textContent = deepCoverageStates.includes(s.code) ? `${s.name} (deep coverage)` : s.name;
+      stateSelect.appendChild(opt);
+    });
+    stateSelect.addEventListener("change", () => {
+      CURRENT_STATE = stateSelect.value;
+      document.getElementById("stateNote").textContent = CURRENT_STATE === "All"
+        ? "Pick your state to see state-specific templates and create a contract — every contract needs a governing state."
+        : (deepCoverageStates.includes(CURRENT_STATE)
+          ? "Showing templates written specifically for this state, plus general-purpose ones."
+          : "No state-specific templates for this state yet — showing general-purpose templates; the governing-law clause is still auto-filled to this state.");
+      renderGrid();
+    });
+    document.getElementById("stateNote").textContent = "Pick your state to see state-specific templates and create a contract — every contract needs a governing state.";
 
     const searchInput = document.getElementById("templateSearch");
     searchInput.addEventListener("input", debounce(() => {

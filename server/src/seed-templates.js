@@ -101,6 +101,337 @@ const TEMPLATE_SEED = [
 
   // ---- Other (catch-all) ----
   { name: "General / Custom Agreement", genre: "Other", tier: "starter", desc: "A minimal, general-purpose agreement structure for anything that doesn't fit a more specific category — customize freely.", keywords: "custom general misc other blank" },
+
+  // ---- Home & Personal Services (generic; deep AR/TX coverage below) ----
+  { name: "Home & Personal Services Agreement", genre: "Home & Personal Services", tier: "starter", desc: "Recurring service terms for lawn care, cleaning, or similar home services — scope, schedule and cancellation policy.", keywords: "lawn care landscaping cleaning handyman home service recurring" },
+
+  // ---- Family Law (informational only — see ai_restricted below) ----
+  {
+    name: "Marital Settlement Agreement — Informational Overview",
+    genre: "Family Law",
+    tier: "starter",
+    desc: "An informational overview of what a marital settlement agreement typically covers — not a fillable contract.",
+    keywords: "divorce marital settlement family law spouse separation",
+    aiRestricted: true,
+    body: [
+      "MARITAL SETTLEMENT AGREEMENT — INFORMATIONAL OVERVIEW",
+      "",
+      "This document is informational only. It is not a contract, is not filled in with your details, and is " +
+        "not something Pact AI will draft or customize for you.",
+      "",
+      "WHAT A MARITAL SETTLEMENT AGREEMENT TYPICALLY ADDRESSES",
+      "- Division of marital property and debts",
+      "- Spousal support (alimony), if any, and its duration",
+      "- Child custody, visitation/parenting time, and child support, if applicable",
+      "- Health insurance and tax-filing arrangements during the transition",
+      "",
+      "WHY PACT DOESN'T AUTO-GENERATE THIS ONE",
+      "Divorce settlements are typically filed with and reviewed by a court, vary significantly by state, and " +
+        "carry consequences (support obligations, custody terms, property division) that are highly fact-specific. " +
+        "Pact AI will not draft or suggest terms for this category — it will only point you to this overview.",
+      "",
+      "NEXT STEPS",
+      "Consult a licensed family-law attorney in your state, and check your local court's self-help or family-law " +
+        "facilitator resources for the forms your jurisdiction actually requires.",
+      "",
+      "This is not legal advice. Review with a licensed attorney before taking any action based on this overview.",
+    ].join("\n"),
+  },
+  {
+    name: "Child Custody & Visitation Info Sheet",
+    genre: "Family Law",
+    tier: "starter",
+    desc: "General information about how custody and visitation/parenting-time arrangements are typically structured.",
+    keywords: "custody visitation parenting plan child family law divorce",
+    aiRestricted: true,
+    body: [
+      "CHILD CUSTODY & VISITATION — INFORMATIONAL SHEET",
+      "",
+      "This document is informational only. It is not a contract or parenting plan, and Pact AI will not draft or " +
+        "customize custody or visitation terms.",
+      "",
+      "TERMS YOU'LL COMMONLY SEE",
+      "- Legal custody (who makes major decisions) vs. physical custody (where the child primarily lives)",
+      "- Parenting time / visitation schedules, including holidays and school breaks",
+      "- Child support, calculated under your state's guidelines",
+      "",
+      "WHY PACT DOESN'T AUTO-GENERATE THIS ONE",
+      "Custody and visitation terms are almost always subject to court approval and the child's best interests as " +
+        "your state defines them — an AI-suggested arrangement could conflict with local guidelines or a judge's " +
+        "expectations. Pact AI will not finalize or suggest custody terms.",
+      "",
+      "NEXT STEPS",
+      "Work with a licensed family-law attorney, and check your local family court for required parenting-plan forms.",
+      "",
+      "This is not legal advice. Review with a licensed attorney before taking any action based on this overview.",
+    ].join("\n"),
+  },
+  {
+    name: "Uncontested Divorce Filing Checklist",
+    genre: "Family Law",
+    tier: "starter",
+    desc: "A general checklist of what an uncontested divorce filing usually involves — informational only.",
+    keywords: "divorce filing checklist uncontested family law court",
+    aiRestricted: true,
+    body: [
+      "UNCONTESTED DIVORCE — GENERAL FILING CHECKLIST",
+      "",
+      "This is a general, informational checklist, not a legal filing and not customized to your situation. " +
+        "Pact AI will not draft divorce petitions or related filings.",
+      "",
+      "TYPICALLY INVOLVED",
+      "- Meeting your state's residency requirement before filing",
+      "- Filing a petition with the appropriate family/circuit court",
+      "- Serving your spouse (or filing jointly, where allowed)",
+      "- A settlement agreement covering property, support and custody (see the Marital Settlement Agreement " +
+        "overview and Child Custody & Visitation info sheet in this category)",
+      "- A waiting/cooling-off period before the divorce is finalized, which varies by state",
+      "",
+      "WHY THIS STAYS INFORMATIONAL",
+      "Divorce is a court proceeding. Filing requirements, forms and waiting periods vary by state and by county, " +
+        "and getting them wrong can delay or jeopardize your case — this is exactly the kind of situation where " +
+        "Pact AI defers instead of guessing.",
+      "",
+      "NEXT STEPS",
+      "Contact your local family/circuit court clerk for the exact forms required, and consult a licensed " +
+        "family-law attorney, especially if children, property or support are involved.",
+      "",
+      "This is not legal advice. Review with a licensed attorney before taking any action based on this checklist.",
+    ].join("\n"),
+  },
+
+  // ---- Deep state coverage: Arkansas & Texas ----
+  // MVP prioritizes real depth in two states across three categories over
+  // shallow, generic coverage everywhere — every other state still gets a
+  // usable contract via the generic ('ALL') templates above, with the
+  // governing-law clause auto-filled to that state at creation time.
+  {
+    name: "Arkansas Lawn Care & Landscaping Service Agreement",
+    genre: "Home & Personal Services",
+    tier: "starter",
+    state: "AR",
+    desc: "Recurring lawn care/landscaping terms written for Arkansas, including a standard cancellation policy.",
+    keywords: "lawn care landscaping arkansas home service recurring",
+    body: [
+      "ARKANSAS LAWN CARE & LANDSCAPING SERVICE AGREEMENT",
+      "",
+      "This Agreement is entered into as of [DATE] by and between [SERVICE PROVIDER NAME] (\"Provider\") and " +
+        "[CUSTOMER NAME] (\"Customer\") for lawn care and/or landscaping services at [SERVICE ADDRESS], Arkansas.",
+      "",
+      "1. SERVICES & SCHEDULE",
+      "Provider will perform [DESCRIBE SERVICES — e.g., weekly mowing, edging, seasonal cleanup] beginning " +
+        "[START DATE] through [END DATE], on a [WEEKLY/BI-WEEKLY/MONTHLY] schedule, weather permitting.",
+      "",
+      "2. FEES & PAYMENT",
+      "Customer agrees to pay $[AMOUNT] per [VISIT/MONTH], due [PAYMENT TERMS, e.g., within 10 days of service].",
+      "",
+      "3. CANCELLATION POLICY",
+      "Either party may cancel a scheduled visit with at least [NOTICE PERIOD, e.g., 24 hours] notice. Either " +
+        "party may terminate this Agreement entirely with [NOTICE PERIOD, e.g., 14 days] written notice.",
+      "",
+      "4. PROPERTY ACCESS & LIABILITY",
+      "Customer authorizes Provider to access the property described above during scheduled service windows. " +
+        "Provider is responsible for damage directly caused by its negligence; Customer should disclose known " +
+        "hazards (irrigation lines, invisible fencing, uneven terrain) before service begins.",
+      "",
+      "5. GOVERNING LAW",
+      "This Agreement is governed by the laws of the State of Arkansas, without regard to conflict-of-law " +
+        "principles.",
+      "",
+      "6. ENTIRE AGREEMENT",
+      "This Agreement constitutes the entire understanding between the parties regarding these services.",
+      "",
+      "[This is a starting-point draft, not legal advice. Customize every bracketed term and have counsel review " +
+        "before use in a high-value or long-term arrangement.]",
+    ].join("\n"),
+  },
+  {
+    name: "Texas Lawn Care & Landscaping Service Agreement",
+    genre: "Home & Personal Services",
+    tier: "starter",
+    state: "TX",
+    desc: "Recurring lawn care/landscaping terms written for Texas, including a standard cancellation policy.",
+    keywords: "lawn care landscaping texas home service recurring",
+    body: [
+      "TEXAS LAWN CARE & LANDSCAPING SERVICE AGREEMENT",
+      "",
+      "This Agreement is entered into as of [DATE] by and between [SERVICE PROVIDER NAME] (\"Provider\") and " +
+        "[CUSTOMER NAME] (\"Customer\") for lawn care and/or landscaping services at [SERVICE ADDRESS], Texas.",
+      "",
+      "1. SERVICES & SCHEDULE",
+      "Provider will perform [DESCRIBE SERVICES — e.g., weekly mowing, edging, seasonal cleanup] beginning " +
+        "[START DATE] through [END DATE], on a [WEEKLY/BI-WEEKLY/MONTHLY] schedule, weather permitting.",
+      "",
+      "2. FEES & PAYMENT",
+      "Customer agrees to pay $[AMOUNT] per [VISIT/MONTH], due [PAYMENT TERMS, e.g., within 10 days of service]. " +
+        "Provider is responsible for any Texas sales tax due on taxable landscaping services under state law.",
+      "",
+      "3. CANCELLATION POLICY",
+      "Either party may cancel a scheduled visit with at least [NOTICE PERIOD, e.g., 24 hours] notice. Either " +
+        "party may terminate this Agreement entirely with [NOTICE PERIOD, e.g., 14 days] written notice.",
+      "",
+      "4. PROPERTY ACCESS & LIABILITY",
+      "Customer authorizes Provider to access the property described above during scheduled service windows. " +
+        "Provider is responsible for damage directly caused by its negligence; Customer should disclose known " +
+        "hazards (irrigation lines, invisible fencing, uneven terrain) before service begins.",
+      "",
+      "5. GOVERNING LAW",
+      "This Agreement is governed by the laws of the State of Texas, without regard to conflict-of-law principles.",
+      "",
+      "6. ENTIRE AGREEMENT",
+      "This Agreement constitutes the entire understanding between the parties regarding these services.",
+      "",
+      "[This is a starting-point draft, not legal advice. Customize every bracketed term and have counsel review " +
+        "before use in a high-value or long-term arrangement.]",
+    ].join("\n"),
+  },
+  {
+    name: "Arkansas Residential Lease Agreement",
+    genre: "Real Estate",
+    tier: "starter",
+    state: "AR",
+    desc: "A residential lease written for Arkansas, including deposit-handling terms consistent with state practice.",
+    keywords: "rent apartment lease arkansas tenant landlord house",
+    body: [
+      "ARKANSAS RESIDENTIAL LEASE AGREEMENT",
+      "",
+      "This Lease is entered into as of [DATE] by and between [LANDLORD NAME] (\"Landlord\") and [TENANT NAME] " +
+        "(\"Tenant\") for the property located at [PROPERTY ADDRESS], Arkansas.",
+      "",
+      "1. TERM",
+      "This Lease begins on [START DATE] and ends on [END DATE], unless renewed or terminated as provided herein.",
+      "",
+      "2. RENT",
+      "Tenant agrees to pay $[AMOUNT] per month, due on the [DAY] of each month, payable to [PAYMENT METHOD].",
+      "",
+      "3. SECURITY DEPOSIT",
+      "Tenant will pay a security deposit of $[AMOUNT]. Under Arkansas law, Landlord must return the deposit " +
+        "(less lawful deductions) within 60 days of Tenant vacating, along with an itemized list of any " +
+        "deductions if the deposit exceeds $50 or is charged to more than one tenant.",
+      "",
+      "4. MAINTENANCE & REPAIRS",
+      "Landlord is responsible for maintaining the property in a habitable condition; Tenant is responsible for " +
+        "damage beyond normal wear and tear and for promptly reporting needed repairs.",
+      "",
+      "5. TERMINATION & NOTICE",
+      "Either party must provide written notice as required under Arkansas's residential landlord-tenant rules " +
+        "before ending a month-to-month tenancy or before either party may act on a material breach.",
+      "",
+      "6. GOVERNING LAW",
+      "This Lease is governed by the laws of the State of Arkansas, without regard to conflict-of-law principles.",
+      "",
+      "[This is a starting-point draft, not legal advice. Landlord-tenant rules change; have counsel review before " +
+        "use, especially for deposit handling and eviction notice periods.]",
+    ].join("\n"),
+  },
+  {
+    name: "Texas Residential Lease Agreement",
+    genre: "Real Estate",
+    tier: "starter",
+    state: "TX",
+    desc: "A residential lease written for Texas, including deposit-handling terms consistent with the Texas Property Code.",
+    keywords: "rent apartment lease texas tenant landlord house",
+    body: [
+      "TEXAS RESIDENTIAL LEASE AGREEMENT",
+      "",
+      "This Lease is entered into as of [DATE] by and between [LANDLORD NAME] (\"Landlord\") and [TENANT NAME] " +
+        "(\"Tenant\") for the property located at [PROPERTY ADDRESS], Texas.",
+      "",
+      "1. TERM",
+      "This Lease begins on [START DATE] and ends on [END DATE], unless renewed or terminated as provided herein.",
+      "",
+      "2. RENT",
+      "Tenant agrees to pay $[AMOUNT] per month, due on the [DAY] of each month, payable to [PAYMENT METHOD].",
+      "",
+      "3. SECURITY DEPOSIT",
+      "Tenant will pay a security deposit of $[AMOUNT]. Under Texas Property Code Chapter 92, Landlord must " +
+        "return the deposit (less lawful deductions) within 30 days of Tenant surrendering the property and " +
+        "providing a forwarding address.",
+      "",
+      "4. MAINTENANCE & REPAIRS",
+      "Landlord is responsible for maintaining the property in a habitable condition and must repair conditions " +
+        "materially affecting health/safety within a reasonable time after written notice from Tenant.",
+      "",
+      "5. TERMINATION & NOTICE",
+      "Either party must provide written notice as required under Texas law before ending a month-to-month " +
+        "tenancy or before either party may act on a material breach.",
+      "",
+      "6. GOVERNING LAW",
+      "This Lease is governed by the laws of the State of Texas, without regard to conflict-of-law principles.",
+      "",
+      "[This is a starting-point draft, not legal advice. Landlord-tenant rules change; have counsel review before " +
+        "use, especially for deposit handling and eviction notice periods.]",
+    ].join("\n"),
+  },
+  {
+    name: "Arkansas Music Licensing Agreement",
+    genre: "Music & Entertainment",
+    tier: "pro",
+    state: "AR",
+    desc: "Sync/use rights and royalty terms for licensed music use, written for Arkansas.",
+    keywords: "song music sync license arkansas",
+    body: [
+      "ARKANSAS MUSIC LICENSING AGREEMENT",
+      "",
+      "This Agreement is entered into as of [DATE] by and between [LICENSOR NAME] (\"Licensor\"), the rights " +
+        "holder of the musical work \"[SONG TITLE]\" (\"Work\"), and [LICENSEE NAME] (\"Licensee\").",
+      "",
+      "1. GRANT OF RIGHTS",
+      "Licensor grants Licensee a [EXCLUSIVE/NON-EXCLUSIVE] license to use the Work for [DESCRIBE USE — e.g., " +
+        "film, advertising, streaming] within the territory of [TERRITORY], for the term of [TERM].",
+      "",
+      "2. ROYALTIES & FEES",
+      "Licensee agrees to pay a [FLAT FEE/ROYALTY RATE] of $[AMOUNT] / [PERCENTAGE]%, payable [SCHEDULE].",
+      "",
+      "3. CREDIT",
+      "Licensee will credit Licensor as [CREDIT LANGUAGE] wherever the Work is used, where practicable.",
+      "",
+      "4. TERMINATION",
+      "Either party may terminate this Agreement for uncured material breach with [NOTICE PERIOD] written notice.",
+      "",
+      "5. GOVERNING LAW",
+      "This Agreement is governed by the laws of the State of Arkansas, without regard to conflict-of-law " +
+        "principles.",
+      "",
+      "[This is a starting-point draft, not legal advice. Music rights (mechanical, performance, sync) can " +
+        "involve multiple rights holders — confirm Licensor actually controls the rights being licensed, and " +
+        "have counsel review before use.]",
+    ].join("\n"),
+  },
+  {
+    name: "Texas Music Licensing Agreement",
+    genre: "Music & Entertainment",
+    tier: "pro",
+    state: "TX",
+    desc: "Sync/use rights and royalty terms for licensed music use, written for Texas.",
+    keywords: "song music sync license texas",
+    body: [
+      "TEXAS MUSIC LICENSING AGREEMENT",
+      "",
+      "This Agreement is entered into as of [DATE] by and between [LICENSOR NAME] (\"Licensor\"), the rights " +
+        "holder of the musical work \"[SONG TITLE]\" (\"Work\"), and [LICENSEE NAME] (\"Licensee\").",
+      "",
+      "1. GRANT OF RIGHTS",
+      "Licensor grants Licensee a [EXCLUSIVE/NON-EXCLUSIVE] license to use the Work for [DESCRIBE USE — e.g., " +
+        "film, advertising, streaming] within the territory of [TERRITORY], for the term of [TERM].",
+      "",
+      "2. ROYALTIES & FEES",
+      "Licensee agrees to pay a [FLAT FEE/ROYALTY RATE] of $[AMOUNT] / [PERCENTAGE]%, payable [SCHEDULE].",
+      "",
+      "3. CREDIT",
+      "Licensee will credit Licensor as [CREDIT LANGUAGE] wherever the Work is used, where practicable.",
+      "",
+      "4. TERMINATION",
+      "Either party may terminate this Agreement for uncured material breach with [NOTICE PERIOD] written notice.",
+      "",
+      "5. GOVERNING LAW",
+      "This Agreement is governed by the laws of the State of Texas, without regard to conflict-of-law principles.",
+      "",
+      "[This is a starting-point draft, not legal advice. Music rights (mechanical, performance, sync) can " +
+        "involve multiple rights holders — confirm Licensor actually controls the rights being licensed, and " +
+        "have counsel review before use.]",
+    ].join("\n"),
+  },
 ];
 
 function buildBody(t) {
@@ -144,12 +475,21 @@ function seedTemplates(db) {
   const count = db.prepare("SELECT COUNT(*) as n FROM templates").get().n;
   if (count > 0) return;
   const insert = db.prepare(
-    "INSERT INTO templates (name, genre, min_tier, description, body, keywords) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO templates (name, genre, min_tier, description, body, keywords, state, ai_restricted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
   db.exec("BEGIN");
   try {
     for (const t of TEMPLATE_SEED) {
-      insert.run(t.name, t.genre, t.tier, t.desc, buildBody(t), t.keywords || "");
+      insert.run(
+        t.name,
+        t.genre,
+        t.tier,
+        t.desc,
+        t.body || buildBody(t),
+        t.keywords || "",
+        t.state || "ALL",
+        t.aiRestricted ? 1 : 0
+      );
     }
     db.exec("COMMIT");
   } catch (err) {

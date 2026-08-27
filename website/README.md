@@ -22,11 +22,11 @@ Then open **http://localhost:4000**.
 - `index.html` — home
 - `about.html` — company story + roadmap
 - `pricing.html` — 4 subscription tiers + comparison table (upgrades in place if you're logged in)
-- `templates.html` — filterable, searchable contract template gallery (62 templates, 18 genres), fetched from the API
+- `templates.html` — filterable, searchable contract template gallery (72 templates, 20 genres) with a governing-state selector, fetched from the API
 - `features.html` — security, e-signature and Pact AI overview
 - `signup.html` / `login.html` — real profile creation/login against the backend
 - `forgot-password.html` — request a temporary password (emailed, or shown directly if SMTP isn't configured)
-- `dashboard.html` — gated app: contract list, editor, send/sign, Pact AI chat (multi-turn, contract-aware, summarization presets), audit trail, billing & identity settings, password change
+- `dashboard.html` — gated app: contract list with status/category/state filter chips, editor (with a persistent legal-advice disclaimer and a Family Law restricted-category banner), send/sign, Pact AI chat (multi-turn, contract-aware, summarization presets, hard-blocked for Family Law contracts), audit trail, billing & identity settings, password change
 - `sign.html` — public page an outside counterparty opens from a signing link (no account needed)
 - `contact.html` — contact form
 

@@ -18,8 +18,24 @@ serves `/website` directly (`express.static`) and mounts the API under
 `/api/*`, so there's nothing separate to deploy.
 
 Storage is a single SQLite file at `server/data/pact.sqlite`, created and
-seeded (62 templates) automatically on first boot via Node's built-in
+seeded (72 templates) automatically on first boot via Node's built-in
 `node:sqlite` — no database server, no native build step.
+
+## Guardrails (always on, no key required)
+
+- A **persistent "not legal advice" disclaimer** on the contract editor, the
+  Pact AI chat panel, `sign.html`, and both PDF exports.
+- **Family Law drafting is hard-blocked**, not just discouraged: `routes/ai.js`
+  checks `contracts.ai_restricted` (inherited from the template) or a
+  divorce/custody keyword heuristic on freeform requests
+  (`services/ai-guardrails.js`) **before** calling the model, and returns a
+  fixed, deterministic redirect to the informational template instead —
+  this works even with no `ANTHROPIC_API_KEY` set.
+- **Every AI call is logged**, successful or blocked, to `ai_audit_log`
+  (`GET /api/ai/audit`), and mirrored into the relevant contract's own
+  `audit_log` when one is scoped to the call.
+- **No raw SSN/EIN storage**, in testing or production — see Identity
+  verification below.
 
 ## What's real right now (no keys required)
 
@@ -33,7 +49,13 @@ seeded (62 templates) automatically on first boot via Node's built-in
   contract" action in the dashboard), and summarize contracts at whatever reading level/audience the user
   asks for — see `services/ai-provider.js`'s `chatWithAI`
 - **Contracts** — real CRUD, scoped to the logged-in profile or named parties
-- **Templates** — 62 templates across 18 genres, tier-gated at creation time, searchable by name/genre/description/keywords
+- **State-based contract engine** — every contract picks a governing state at
+  creation (`server/src/us-states.js`); Arkansas and Texas have deep,
+  hand-written templates across 3 categories, every other state gets the
+  generic templates with the governing-law clause auto-filled to that state
+  (`applyGoverningLaw` in `services/contract-factory.js`) — see
+  `GET /api/templates?state=`, `GET /api/templates/states`
+- **Templates** — 72 templates across 20 genres, tier-gated at creation time, searchable by name/genre/description/keywords
 - **Upload & attachments** — bring your own document (PDF/Word/text/image) as a contract instead of a template, plus supporting attachments on any contract
 - **Sharing** — the owner can grant another existing Pact profile view or edit access to one specific contract
 - **e-Signature** — Pact's own token-based flow (`routes/sign.js` for outside
@@ -90,9 +112,10 @@ server/
   src/
     index.js              # Express app, mounts routes, serves /website
     db.js                 # node:sqlite schema
-    seed-templates.js      # 62-template catalog
+    seed-templates.js      # 72-template catalog
+    us-states.js             # canonical state list for the state engine
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
     routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases
-    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, billing-provider, identity-provider, mailer
+    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails, billing-provider, identity-provider, mailer
 ```

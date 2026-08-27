@@ -81,6 +81,15 @@
       <div class="field" style="max-width:360px;">
         <input id="contractSearch" type="text" placeholder="Search your contracts by name or genre…">
       </div>
+      <div class="filter-row" id="statusFilterRow" style="margin-bottom:8px;">
+        <button class="chip active" data-status="All">All Status</button>
+      </div>
+      <div class="filter-row" id="genreFilterRow" style="margin-bottom:8px;">
+        <button class="chip active" data-genre="All">All Categories</button>
+      </div>
+      <div class="filter-row" id="stateFilterRow" style="margin-bottom:16px;">
+        <button class="chip active" data-state="All">All States</button>
+      </div>
       <div id="contractList"></div>
       <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
     </section>
@@ -104,12 +113,14 @@
       <div id="aiUnlocked" style="display:none;">
         <div class="ai-panel">
           <div class="ai-top"><span class="ai-dot"></span><strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ruby-bright);">Pact AI</strong></div>
-          <p style="margin-bottom:14px;">Chat with Pact AI to draft, revise, navigate or summarize your contracts — it stays in the conversation, so you can follow up.</p>
+          <p style="margin-bottom:10px;">Chat with Pact AI to draft, revise, navigate or summarize your contracts — it stays in the conversation, so you can follow up.</p>
+          <p style="margin-bottom:14px;font-size:0.78rem;color:var(--silver-soft);">This is not legal advice. Review with a licensed attorney before signing.</p>
 
           <div class="field">
             <label for="aiContractSelect">Talk about a specific contract (optional)</label>
             <select id="aiContractSelect"><option value="">No contract selected</option></select>
           </div>
+          <p id="aiRestrictedNote" style="display:none;font-size:0.82rem;color:var(--ruby-bright);margin-top:-6px;margin-bottom:14px;">This contract is in the Family Law category — Pact AI doesn't draft or suggest terms for it. See the Templates library for an informational overview instead.</p>
 
           <div class="tag-row" id="aiPresetRow" style="margin-bottom:14px;">
             <button class="btn btn-ghost-dark btn-sm" data-preset="plain">Summarize in plain English</button>
@@ -185,6 +196,8 @@
     <button class="modal-close" id="closeEditor">&times;</button>
     <div class="eyebrow">Editing</div>
     <h3 id="editorTitle">Contract</h3>
+    <p id="editorStateTag" style="margin:-6px 0 12px;font-size:0.78rem;color:var(--silver-soft);"></p>
+    <p id="editorRestrictedBanner" style="display:none;font-size:0.85rem;color:var(--ruby-bright);margin-bottom:12px;">This contract is in the Family Law category — informational only. Pact AI drafting/suggestions are disabled for it; consult a licensed attorney and your local court's resources.</p>
     <div class="field">
       <label>Contract body</label>
       <textarea id="editorBody" rows="12" style="background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.9rem;line-height:1.6;color:var(--silver);width:100%;font-family:var(--font-mono);"></textarea>
@@ -194,6 +207,7 @@
       <button class="btn btn-ghost-dark" id="cancelEditBtn">Cancel</button>
     </div>
     <p id="editorNote" style="margin-top:14px;font-size:0.82rem;"></p>
+    <p style="margin-top:6px;font-size:0.78rem;color:var(--silver-soft);">This is not legal advice. Review with a licensed attorney before signing.</p>
 
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
       <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:10px;">ATTACHMENTS</label>
@@ -274,6 +288,7 @@
     <p style="font-size:0.85rem;">PDF, Word doc, plain text, or image (scan) — up to 15MB. The file becomes your contract's original attachment; if it's a plain text file, its content also seeds the editable draft.</p>
     <div class="field"><label>Contract name</label><input id="uploadName" type="text" placeholder="e.g. Signed Vendor Agreement"></div>
     <div class="field"><label>Genre (optional)</label><input id="uploadGenre" type="text" placeholder="Defaults to “Other”"></div>
+    <div class="field"><label>Governing state (optional)</label><select id="uploadState"><option value="">Not specified</option></select></div>
     <div class="field"><label>File</label><input id="uploadFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"></div>
     <button class="btn btn-gold btn-block" id="confirmUploadBtn">Upload</button>
     <p id="uploadError" class="alert alert-ruby" style="margin-top:14px;"></p>
@@ -300,12 +315,49 @@
   }
 
   let ALL_CONTRACTS = [];
+  let CONTRACT_STATUS_FILTER = "All";
+  let CONTRACT_GENRE_FILTER = "All";
+  let CONTRACT_STATE_FILTER = "All";
 
   async function renderContracts() {
     const { contracts } = await apiJson("/api/contracts");
     ALL_CONTRACTS = contracts;
-    drawContractRows(contracts);
+    renderContractFilterChips();
+    filterContracts();
   }
+
+  function renderContractFilterChips() {
+    function buildRow(rowId, dataKey, current, values) {
+      const row = document.getElementById(rowId);
+      const allLabel = row.querySelector(`[data-${dataKey}="All"]`);
+      row.innerHTML = "";
+      row.appendChild(allLabel);
+      values.forEach(v => {
+        const chip = document.createElement("button");
+        chip.className = "chip" + (v === current ? " active" : "");
+        chip.dataset[dataKey] = v;
+        chip.textContent = v;
+        row.appendChild(chip);
+      });
+      if (current === "All") allLabel.classList.add("active"); else allLabel.classList.remove("active");
+    }
+    buildRow("statusFilterRow", "status", CONTRACT_STATUS_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.status))].sort());
+    buildRow("genreFilterRow", "genre", CONTRACT_GENRE_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.genre).filter(Boolean))].sort());
+    buildRow("stateFilterRow", "state", CONTRACT_STATE_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.state).filter(Boolean))].sort());
+  }
+
+  function wireFilterRow(rowId, dataKey, setter) {
+    document.getElementById(rowId).addEventListener("click", (e) => {
+      if (!e.target.classList.contains("chip")) return;
+      document.getElementById(rowId).querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      e.target.classList.add("active");
+      setter(e.target.dataset[dataKey]);
+      filterContracts();
+    });
+  }
+  wireFilterRow("statusFilterRow", "status", (v) => CONTRACT_STATUS_FILTER = v);
+  wireFilterRow("genreFilterRow", "genre", (v) => CONTRACT_GENRE_FILTER = v);
+  wireFilterRow("stateFilterRow", "state", (v) => CONTRACT_STATE_FILTER = v);
 
   function drawContractRows(contracts) {
     const wrap = document.getElementById("contractList");
@@ -320,7 +372,7 @@
       const row = document.createElement("div");
       row.className = "contract-row";
       row.innerHTML = `
-        <div class="name">${c.name}${badge}<small>${c.genre || "General"} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div class="name">${c.name}${badge}<small>${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
         <div>${statusPill(c.status)}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
@@ -345,10 +397,13 @@
 
   function filterContracts() {
     const q = document.getElementById("contractSearch").value.trim().toLowerCase();
-    if (!q) { drawContractRows(ALL_CONTRACTS); return; }
-    drawContractRows(ALL_CONTRACTS.filter(c =>
-      c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q)
-    ));
+    const filtered = ALL_CONTRACTS.filter(c =>
+      (!q || c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q)) &&
+      (CONTRACT_STATUS_FILTER === "All" || c.status === CONTRACT_STATUS_FILTER) &&
+      (CONTRACT_GENRE_FILTER === "All" || c.genre === CONTRACT_GENRE_FILTER) &&
+      (CONTRACT_STATE_FILTER === "All" || c.state === CONTRACT_STATE_FILTER)
+    );
+    drawContractRows(filtered);
   }
 
   // ---- editor modal ----
@@ -359,6 +414,8 @@
     editingId = id;
     document.getElementById("editorTitle").textContent = contract.name;
     document.getElementById("editorBody").value = contract.body;
+    document.getElementById("editorStateTag").textContent = contract.state ? `Governing state: ${contract.state}` : "";
+    document.getElementById("editorRestrictedBanner").style.display = contract.ai_restricted ? "" : "none";
     document.getElementById("editorNote").textContent = contract.status === "signed"
       ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
       : "This contract is not yet signed — edits here are unrestricted.";
@@ -623,7 +680,16 @@
   function populateContractSelect() {
     const sel = document.getElementById("aiContractSelect");
     sel.innerHTML = '<option value="">No contract selected</option>' +
-      ALL_CONTRACTS.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+      ALL_CONTRACTS.map(c => `<option value="${c.id}" data-restricted="${c.ai_restricted ? 1 : 0}">${escapeHtml(c.name)}${c.ai_restricted ? " (Family Law — AI unavailable)" : ""}</option>`).join("");
+  }
+
+  function updateAiRestrictedState() {
+    const sel = document.getElementById("aiContractSelect");
+    const restricted = sel.selectedOptions[0] && sel.selectedOptions[0].dataset.restricted === "1";
+    document.getElementById("aiRestrictedNote").style.display = restricted ? "" : "none";
+    document.getElementById("aiRunBtn").disabled = restricted;
+    document.getElementById("aiPresetRow").querySelectorAll("button").forEach(b => b.disabled = restricted);
+    return restricted;
   }
 
   async function sendAiMessage(text) {
@@ -661,6 +727,7 @@
     }
     document.getElementById("aiUnlocked").style.display = "";
     populateContractSelect();
+    document.getElementById("aiContractSelect").addEventListener("change", updateAiRestrictedState);
 
     document.getElementById("aiRunBtn").addEventListener("click", () => {
       const input = document.getElementById("aiPrompt");
@@ -835,6 +902,7 @@
     formData.append("file", fileInput.files[0]);
     formData.append("name", document.getElementById("uploadName").value.trim());
     formData.append("genre", document.getElementById("uploadGenre").value.trim());
+    formData.append("state", document.getElementById("uploadState").value);
     try {
       const r = await fetch("/api/contracts/upload", { method: "POST", credentials: "include", body: formData });
       const data = await r.json();
@@ -859,6 +927,16 @@
     document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
 
     document.getElementById("contractSearch").addEventListener("input", filterContracts);
+
+    apiJson("/api/templates/states").then(({ states }) => {
+      const sel = document.getElementById("uploadState");
+      states.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.code;
+        opt.textContent = s.name;
+        sel.appendChild(opt);
+      });
+    });
 
     await renderContracts();
     await renderPurchases();

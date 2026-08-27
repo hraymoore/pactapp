@@ -30,6 +30,7 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
             templateId: Number(session.metadata.templateId),
             purchaseType: session.metadata.purchaseType,
             stripeSessionId: session.id,
+            state: session.metadata.state || undefined,
           });
         }
       } else {

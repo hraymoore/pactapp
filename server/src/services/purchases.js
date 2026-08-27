@@ -11,7 +11,7 @@ function priceFor(purchaseType) {
 // configured ("direct" mode, same fallback pattern as billing/identity), or
 // from the Stripe webhook once a real checkout.session.completed event
 // arrives for a one-time purchase.
-function fulfillPurchase({ userId, userName, userEmail, templateId, purchaseType, stripeSessionId }) {
+function fulfillPurchase({ userId, userName, userEmail, templateId, purchaseType, stripeSessionId, state }) {
   const template = db.prepare("SELECT * FROM templates WHERE id = ?").get(templateId);
   if (!template) {
     const err = new Error("Template not found.");
@@ -27,6 +27,7 @@ function fulfillPurchase({ userId, userName, userEmail, templateId, purchaseType
       ownerEmail: userEmail,
       name: template.name,
       template,
+      state: state || (template.state !== "ALL" ? template.state : null),
       sourceNote: `Purchased as a one-time $7.99 editable contract (not a subscription).`,
     });
   }

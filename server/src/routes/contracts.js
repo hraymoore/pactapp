@@ -8,6 +8,7 @@ const { sendMail } = require("../services/mailer");
 const { applySignature, logAudit } = require("../services/signing");
 const { contentHash, createContractFromTemplate } = require("../services/contract-factory");
 const { upload, UPLOAD_DIR } = require("../services/uploads");
+const { isValidStateCode } = require("../us-states");
 const fs = require("fs");
 const path = require("path");
 
@@ -79,15 +80,27 @@ router.get("/audit", (req, res) => {
 });
 
 router.get("/", (req, res) => {
+  const { status, genre, state } = req.query;
+  const clauses = [
+    "(owner_id = @uid OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email) OR id IN (SELECT contract_id FROM contract_shares WHERE shared_with_user_id = @uid))",
+  ];
+  const params = { uid: req.user.id, email: req.user.email };
+  if (status && status !== "All") {
+    clauses.push("status = @status");
+    params.status = status;
+  }
+  if (genre && genre !== "All") {
+    clauses.push("genre = @genre");
+    params.genre = genre;
+  }
+  if (state && state !== "All") {
+    clauses.push("state = @state");
+    params.state = state;
+  }
+
   const rows = db
-    .prepare(
-      `SELECT * FROM contracts
-       WHERE owner_id = @uid
-          OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email)
-          OR id IN (SELECT contract_id FROM contract_shares WHERE shared_with_user_id = @uid)
-       ORDER BY updated_at DESC`
-    )
-    .all({ uid: req.user.id, email: req.user.email });
+    .prepare(`SELECT * FROM contracts WHERE ${clauses.join(" AND ")} ORDER BY updated_at DESC`)
+    .all(params);
   const withParties = rows.map((c) => ({
     ...c,
     parties: db
@@ -99,8 +112,11 @@ router.get("/", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { name, templateId, counterpartyName, counterpartyEmail } = req.body || {};
+  const { name, templateId, counterpartyName, counterpartyEmail, state } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Contract name is required." });
+  if (!isValidStateCode(state)) {
+    return res.status(400).json({ error: "Select the state whose laws will govern this contract." });
+  }
 
   let template = null;
   if (templateId) {
@@ -120,6 +136,7 @@ router.post("/", (req, res) => {
     ownerEmail: req.user.email,
     name: name.trim(),
     template,
+    state,
   });
 
   if (counterpartyName && counterpartyEmail) {
@@ -142,6 +159,10 @@ router.post("/upload", handleUpload, (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded." });
   const name = (req.body.name || req.file.originalname).trim() || "Untitled Contract";
   const genre = (req.body.genre || "Other").trim() || "Other";
+  // Optional here (unlike template-based creation): an uploaded document
+  // may already specify its own governing law, so this only tags the
+  // contract for search/filtering rather than rewriting anything in it.
+  const state = req.body.state && isValidStateCode(req.body.state) ? req.body.state : null;
 
   let body = `[Original file attached: ${req.file.originalname}. Download it from the Attachments panel. This text box is your editable working draft — write or paste the contract terms here.]`;
   if (req.file.mimetype === "text/plain") {
@@ -154,9 +175,9 @@ router.post("/upload", handleUpload, (req, res) => {
 
   const info = db
     .prepare(
-      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash) VALUES (?, ?, ?, ?, 'draft', NULL, ?)"
+      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash, state) VALUES (?, ?, ?, ?, 'draft', NULL, ?, ?)"
     )
-    .run(req.user.id, name, genre, body, contentHash(body));
+    .run(req.user.id, name, genre, body, contentHash(body), state);
   const contractId = info.lastInsertRowid;
 
   db.prepare(

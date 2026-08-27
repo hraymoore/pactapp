@@ -125,6 +125,22 @@ CREATE TABLE IF NOT EXISTS contract_shares (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (contract_id, shared_with_user_id)
 );
+
+-- Every AI draft/analyze/chat call, successful or blocked, with the acting
+-- user and (when scoped to one) the contract — the durable, user-indexed
+-- record the guardrails require independent of any single contract's own
+-- audit_log. contract_id is nullable because a freeform draft ("draft me
+-- a lawn care agreement") has no contract yet when the call happens.
+CREATE TABLE IF NOT EXISTS ai_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  contract_id INTEGER REFERENCES contracts(id) ON DELETE SET NULL,
+  interaction_type TEXT NOT NULL CHECK (interaction_type IN ('draft', 'analyze', 'chat')),
+  blocked INTEGER NOT NULL DEFAULT 0,
+  input_summary TEXT NOT NULL,
+  output_summary TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -135,6 +151,10 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE users ADD COLUMN locked_at TEXT",
   "ALTER TABLE users ADD COLUMN temp_password_expires_at TEXT",
+  "ALTER TABLE templates ADD COLUMN state TEXT NOT NULL DEFAULT 'ALL'",
+  "ALTER TABLE templates ADD COLUMN ai_restricted INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE contracts ADD COLUMN state TEXT",
+  "ALTER TABLE contracts ADD COLUMN ai_restricted INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(stmt);

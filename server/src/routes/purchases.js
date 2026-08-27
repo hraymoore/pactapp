@@ -5,6 +5,7 @@ const { requireAuth } = require("../middleware/auth");
 const { billingConfigured, createOneTimeCheckoutSession } = require("../services/billing-provider");
 const { priceFor, fulfillPurchase } = require("../services/purchases");
 const { renderBlankTemplatePdf } = require("../services/pdf");
+const { isValidStateCode } = require("../us-states");
 
 router.use(express.json());
 router.use(requireAuth);
@@ -21,12 +22,19 @@ router.get("/", (req, res) => {
 });
 
 router.post("/checkout", async (req, res) => {
-  const { templateId, purchaseType } = req.body || {};
+  const { templateId, purchaseType, state } = req.body || {};
   if (!["download", "edit"].includes(purchaseType)) {
     return res.status(400).json({ error: "purchaseType must be 'download' ($3.99) or 'edit' ($7.99)." });
   }
   const template = db.prepare("SELECT * FROM templates WHERE id = ?").get(templateId);
   if (!template) return res.status(404).json({ error: "Template not found." });
+
+  // "edit" fulfillment creates a real contract, so it needs a governing
+  // state like any other contract-creation path — "download" is just a
+  // blank PDF, no contract, so no state is required.
+  if (purchaseType === "edit" && !isValidStateCode(state)) {
+    return res.status(400).json({ error: "Select a valid governing state before buying the editable version." });
+  }
 
   const priceCents = priceFor(purchaseType);
 
@@ -38,6 +46,7 @@ router.post("/checkout", async (req, res) => {
       templateId: template.id,
       purchaseType,
       stripeSessionId: null,
+      state,
     });
     return res.json({
       mode: "direct",
@@ -47,7 +56,7 @@ router.post("/checkout", async (req, res) => {
   }
 
   try {
-    const session = await createOneTimeCheckoutSession({ template, purchaseType, priceCents, user: req.user, req });
+    const session = await createOneTimeCheckoutSession({ template, purchaseType, priceCents, user: req.user, req, state });
     res.json({ mode: "stripe", url: session.url });
   } catch (err) {
     res.status(500).json({ error: err.message });

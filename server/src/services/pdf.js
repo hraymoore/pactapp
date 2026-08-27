@@ -86,6 +86,14 @@ async function renderContractPdf({ contract, parties, audit }) {
     });
   });
 
+  spacer(14);
+  writeLine("This is not legal advice. Review with a licensed attorney before signing.", {
+    size: 9,
+    f: bold,
+    color: MUTED,
+    gap: 13,
+  });
+
   return doc.save();
 }
 
@@ -111,6 +119,12 @@ async function renderBlankTemplatePdf(template) {
       "purchase the editable version or upgrade to a subscription tier.",
     { size: 9, color: MUTED, gap: 13 }
   );
+  writeLine("This is not legal advice. Review with a licensed attorney before signing.", {
+    size: 9,
+    f: bold,
+    color: MUTED,
+    gap: 13,
+  });
 
   return doc.save();
 }

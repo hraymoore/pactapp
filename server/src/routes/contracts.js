@@ -409,3 +409,4 @@ router.delete("/:id/share/:shareId", (req, res) => {
 });
 
 module.exports = router;
+module.exports.resolveAccess = resolveAccess;

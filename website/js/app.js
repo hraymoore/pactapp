@@ -55,6 +55,19 @@ const PactAPI = {
     this._cache = null;
   },
 
+  async changePassword({ currentPassword, newPassword }) {
+    const r = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Could not change password.");
+    this._cache = data.user;
+    return data.user;
+  },
+
   isLoggedIn() { return !!this._cache; },
 
   tierMeta(id) {

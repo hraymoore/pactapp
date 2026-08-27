@@ -55,4 +55,44 @@ async function analyzeWithAI(contractBody, question) {
   return msg.content.map((block) => block.text || "").join("\n");
 }
 
-module.exports = { aiConfigured, draftWithAI, analyzeWithAI };
+const CHAT_SYSTEM_PROMPT =
+  "You are Pact AI, a conversational assistant embedded in Pact, a contract management platform. " +
+  "You help users navigate the app, draft new contracts, and revise existing ones across any conversation turn, " +
+  "not just a single question. You can also summarize a contract in plain, layman's terms, and adjust the " +
+  "reading level or audience (e.g. \"explain it like I'm not a lawyer\", \"summarize for a business partner\", " +
+  "\"summarize for a 10th grader\") whenever the user asks for a different verbiage or audience. " +
+  "When a user asks you to draft or revise contract text, put the full proposed contract text inside a fenced " +
+  "code block (```) by itself so the app can offer to apply it directly to the contract — write only the contract " +
+  "text inside that block, no commentary inside it. Keep everything else conversational. Always end contract " +
+  "drafts with a brief reminder that this is a starting point, not legal advice.";
+
+const MAX_CHAT_MESSAGES = 30;
+
+async function chatWithAI(messages, contractContext) {
+  if (!aiConfigured()) throw notConfiguredError();
+  if (!Array.isArray(messages) || messages.length === 0) {
+    const err = new Error("At least one message is required.");
+    err.status = 400;
+    throw err;
+  }
+  const client = getClient();
+  const trimmed = messages.slice(-MAX_CHAT_MESSAGES).map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: String(m.content || "").slice(0, 20000),
+  }));
+
+  let system = CHAT_SYSTEM_PROMPT;
+  if (contractContext) {
+    system += `\n\nThe user currently has this contract open, named "${contractContext.name}":\n\n${contractContext.body}`;
+  }
+
+  const msg = await client.messages.create({
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+    max_tokens: 1500,
+    system,
+    messages: trimmed,
+  });
+  return msg.content.map((block) => block.text || "").join("\n");
+}
+
+module.exports = { aiConfigured, draftWithAI, analyzeWithAI, chatWithAI };

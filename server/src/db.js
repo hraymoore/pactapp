@@ -127,4 +127,20 @@ CREATE TABLE IF NOT EXISTS contract_shares (
 );
 `);
 
+// Migrations for columns added after the initial CREATE TABLE (existing
+// deployed databases already have a users table without these). SQLite
+// (3.35+, bundled with node:sqlite) supports IF NOT EXISTS on ADD COLUMN;
+// the try/catch is defense-in-depth for older builds.
+for (const stmt of [
+  "ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN locked_at TEXT",
+  "ALTER TABLE users ADD COLUMN temp_password_expires_at TEXT",
+]) {
+  try {
+    db.exec(stmt);
+  } catch (err) {
+    if (!/duplicate column/i.test(err.message)) throw err;
+  }
+}
+
 module.exports = db;

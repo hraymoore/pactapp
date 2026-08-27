@@ -23,7 +23,15 @@ seeded (62 templates) automatically on first boot via Node's built-in
 
 ## What's real right now (no keys required)
 
-- **Auth** — bcrypt-hashed passwords, JWT session cookies (`server/src/auth-utils.js`)
+- **Auth** — bcrypt-hashed passwords, JWT session cookies (`server/src/auth-utils.js`); accounts lock
+  after 7 failed login attempts, and `POST /api/auth/forgot-password` issues a 30-minute temporary
+  password (emailed via `services/mailer.js`, or returned directly in the response when SMTP isn't
+  configured, for local testing) that also clears a lockout — see `website/forgot-password.html` and
+  `POST /api/auth/change-password`
+- **Pact AI chat** — `POST /api/ai/chat` (Professional/Enterprise tiers) is a real multi-turn conversation,
+  optionally scoped to one contract for context, that can draft, revise (with a one-click "apply to
+  contract" action in the dashboard), and summarize contracts at whatever reading level/audience the user
+  asks for — see `services/ai-provider.js`'s `chatWithAI`
 - **Contracts** — real CRUD, scoped to the logged-in profile or named parties
 - **Templates** — 62 templates across 18 genres, tier-gated at creation time, searchable by name/genre/description/keywords
 - **Upload & attachments** — bring your own document (PDF/Word/text/image) as a contract instead of a template, plus supporting attachments on any contract

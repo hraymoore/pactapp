@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 let warned = false;
 function getSecret() {
@@ -34,4 +35,16 @@ function verifyToken(token) {
   }
 }
 
-module.exports = { hashPassword, verifyPassword, signToken, verifyToken };
+// Unambiguous alphabet (no 0/O/1/I/l) so a temp password read out of an
+// email doesn't get mistyped.
+const TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+function generateTempPassword(length = 12) {
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += TEMP_PASSWORD_ALPHABET[bytes[i] % TEMP_PASSWORD_ALPHABET.length];
+  }
+  return out;
+}
+
+module.exports = { hashPassword, verifyPassword, signToken, verifyToken, generateTempPassword };

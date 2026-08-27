@@ -6,8 +6,19 @@ function attachUser(req, res, next) {
   if (token) {
     const payload = verifyToken(token);
     if (payload) {
-      const user = db.prepare("SELECT id, name, email, tier, created_at FROM users WHERE id = ?").get(payload.sub);
-      if (user) req.user = user;
+      const user = db
+        .prepare("SELECT id, name, email, tier, created_at, temp_password_expires_at FROM users WHERE id = ?")
+        .get(payload.sub);
+      if (user) {
+        req.user = {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          tier: user.tier,
+          created_at: user.created_at,
+          passwordIsTemporary: !!user.temp_password_expires_at,
+        };
+      }
     }
   }
   next();

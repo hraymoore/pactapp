@@ -25,7 +25,8 @@ Then open **http://localhost:4000**.
 - `templates.html` — filterable, searchable contract template gallery (62 templates, 18 genres), fetched from the API
 - `features.html` — security, e-signature and Pact AI overview
 - `signup.html` / `login.html` — real profile creation/login against the backend
-- `dashboard.html` — gated app: contract list, editor, send/sign, AI panel, audit trail, billing & identity settings
+- `forgot-password.html` — request a temporary password (emailed, or shown directly if SMTP isn't configured)
+- `dashboard.html` — gated app: contract list, editor, send/sign, Pact AI chat (multi-turn, contract-aware, summarization presets), audit trail, billing & identity settings, password change
 - `sign.html` — public page an outside counterparty opens from a signing link (no account needed)
 - `contact.html` — contact form
 

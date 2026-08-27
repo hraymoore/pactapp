@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { requireAuth, requireTier } = require("../middleware/auth");
-const { draftWithAI, analyzeWithAI, aiConfigured } = require("../services/ai-provider");
+const { draftWithAI, analyzeWithAI, chatWithAI, aiConfigured } = require("../services/ai-provider");
+const { resolveAccess } = require("./contracts");
 
 router.use(express.json());
 
@@ -36,6 +37,30 @@ router.post("/analyze", async (req, res) => {
 
   try {
     const text = await analyzeWithAI(contract.body, question);
+    res.json({ text });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.post("/chat", async (req, res) => {
+  const { messages, contractId } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "Send at least one message." });
+  }
+
+  let contractContext = null;
+  if (contractId) {
+    const contract = db.prepare("SELECT * FROM contracts WHERE id = ?").get(contractId);
+    if (!contract) return res.status(404).json({ error: "Contract not found." });
+    if (!resolveAccess(contract, req.user)) {
+      return res.status(403).json({ error: "You do not have access to this contract." });
+    }
+    contractContext = { name: contract.name, body: contract.body };
+  }
+
+  try {
+    const text = await chatWithAI(messages, contractContext);
     res.json({ text });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });

@@ -104,10 +104,28 @@
       <div id="aiUnlocked" style="display:none;">
         <div class="ai-panel">
           <div class="ai-top"><span class="ai-dot"></span><strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ruby-bright);">Pact AI</strong></div>
-          <p style="margin-bottom:14px;">Describe what you need, and Pact AI will draft a contract for you.</p>
+          <p style="margin-bottom:14px;">Chat with Pact AI to draft, revise, navigate or summarize your contracts — it stays in the conversation, so you can follow up.</p>
+
+          <div class="field">
+            <label for="aiContractSelect">Talk about a specific contract (optional)</label>
+            <select id="aiContractSelect"><option value="">No contract selected</option></select>
+          </div>
+
+          <div class="tag-row" id="aiPresetRow" style="margin-bottom:14px;">
+            <button class="btn btn-ghost-dark btn-sm" data-preset="plain">Summarize in plain English</button>
+            <button class="btn btn-ghost-dark btn-sm" data-preset="business">Summarize for a business audience</button>
+            <button class="btn btn-ghost-dark btn-sm" data-preset="risks">Flag risky or one-sided terms</button>
+          </div>
+
+          <div id="aiChatLog" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;margin-bottom:14px;"></div>
+
           <div class="field"><textarea id="aiPrompt" rows="3" placeholder="e.g. Draft a freelance video editing agreement with a 2-week milestone schedule and a kill fee clause."></textarea></div>
-          <button class="btn btn-ruby" id="aiRunBtn">Ask Pact AI</button>
-          <div id="aiResponse" style="margin-top:20px;display:none;" class="card"></div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-ruby" id="aiRunBtn">Send</button>
+            <button class="btn btn-ghost-dark btn-sm" id="aiApplyBtn" style="display:none;">Apply draft to selected contract</button>
+            <button class="btn btn-ghost-dark btn-sm" id="aiClearBtn">Clear conversation</button>
+          </div>
+          <p id="aiApplyNote" style="margin-top:10px;font-size:0.82rem;"></p>
         </div>
       </div>
     </section>
@@ -146,6 +164,15 @@
         <p id="identityStatusText">Checking status…</p>
         <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
         <p id="identityNote" style="margin-top:14px;font-size:0.82rem;opacity:0.75;"></p>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <h3>Password</h3>
+        <p id="tempPasswordBanner" style="display:none;color:var(--ruby-bright);font-size:0.85rem;">You're signed in with a temporary password. Set a permanent one below.</p>
+        <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" placeholder="Current password"></div>
+        <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 6 characters"></div>
+        <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
+        <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
       </div>
     </section>
 
@@ -563,7 +590,64 @@
     });
   });
 
-  // ---- AI ----
+  // ---- AI: multi-turn chat ----
+  let AI_CHAT_HISTORY = [];
+  let AI_LAST_DRAFT = null;
+
+  function escapeHtml(s) {
+    return String(s).replace(/</g, "&lt;");
+  }
+
+  function extractDraft(text) {
+    const m = text.match(/```(?:[a-zA-Z]*\n)?([\s\S]*?)```/);
+    return m ? m[1].trim() : null;
+  }
+
+  function renderChatLog() {
+    const log = document.getElementById("aiChatLog");
+    log.innerHTML = AI_CHAT_HISTORY.map(m => {
+      const isUser = m.role === "user";
+      return `<div style="align-self:${isUser ? "flex-end" : "flex-start"};max-width:85%;">
+        <div class="eyebrow" style="margin-bottom:4px;${isUser ? "text-align:right;" : ""}">${isUser ? "You" : "Pact AI"}</div>
+        <div class="card" style="margin:0;white-space:pre-wrap;font-size:0.88rem;${isUser ? "background:var(--obsidian-soft,#16181d);" : ""}">${escapeHtml(m.content)}</div>
+      </div>`;
+    }).join("");
+    log.scrollTop = log.scrollHeight;
+
+    const applyBtn = document.getElementById("aiApplyBtn");
+    const lastAssistant = [...AI_CHAT_HISTORY].reverse().find(m => m.role === "assistant");
+    AI_LAST_DRAFT = lastAssistant ? extractDraft(lastAssistant.content) : null;
+    applyBtn.style.display = AI_LAST_DRAFT ? "" : "none";
+  }
+
+  function populateContractSelect() {
+    const sel = document.getElementById("aiContractSelect");
+    sel.innerHTML = '<option value="">No contract selected</option>' +
+      ALL_CONTRACTS.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  }
+
+  async function sendAiMessage(text) {
+    if (!text || !text.trim()) return;
+    AI_CHAT_HISTORY.push({ role: "user", content: text.trim() });
+    renderChatLog();
+    const note = document.getElementById("aiApplyNote");
+    note.textContent = "";
+    const thinking = { role: "assistant", content: "Thinking…" };
+    AI_CHAT_HISTORY.push(thinking);
+    renderChatLog();
+    try {
+      const contractId = document.getElementById("aiContractSelect").value || undefined;
+      const { text: reply } = await apiJson("/api/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ messages: AI_CHAT_HISTORY.slice(0, -1), contractId }),
+      });
+      AI_CHAT_HISTORY[AI_CHAT_HISTORY.length - 1] = { role: "assistant", content: reply };
+    } catch (err) {
+      AI_CHAT_HISTORY[AI_CHAT_HISTORY.length - 1] = { role: "assistant", content: `⚠ ${err.message}` };
+    }
+    renderChatLog();
+  }
+
   async function setupAI() {
     const aiTierOk = ["pro", "business"].includes(CURRENT_USER.tier);
     if (!aiTierOk) {
@@ -576,20 +660,64 @@
       return;
     }
     document.getElementById("aiUnlocked").style.display = "";
-    document.getElementById("aiRunBtn").addEventListener("click", async () => {
-      const prompt = document.getElementById("aiPrompt").value.trim();
-      const respBox = document.getElementById("aiResponse");
-      respBox.style.display = "block";
-      if (!prompt) {
-        respBox.innerHTML = "<p style='margin:0;'>Describe what you'd like Pact AI to draft first.</p>";
+    populateContractSelect();
+
+    document.getElementById("aiRunBtn").addEventListener("click", () => {
+      const input = document.getElementById("aiPrompt");
+      const text = input.value;
+      input.value = "";
+      sendAiMessage(text);
+    });
+
+    document.getElementById("aiPrompt").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById("aiRunBtn").click();
+      }
+    });
+
+    document.getElementById("aiClearBtn").addEventListener("click", () => {
+      AI_CHAT_HISTORY = [];
+      document.getElementById("aiApplyNote").textContent = "";
+      renderChatLog();
+    });
+
+    const PRESETS = {
+      plain: "Summarize this contract in plain, layman's terms — assume the reader has no legal background.",
+      business: "Summarize this contract for a business audience — focus on obligations, deadlines, payment terms and termination rights.",
+      risks: "Flag any risky, unusual or one-sided terms in this contract, and explain each in plain English.",
+    };
+    document.getElementById("aiPresetRow").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-preset]");
+      if (!btn) return;
+      const note = document.getElementById("aiApplyNote");
+      if (!document.getElementById("aiContractSelect").value) {
+        note.textContent = "Select a contract above first so Pact AI has something to summarize.";
+        note.style.color = "var(--ruby-bright)";
         return;
       }
-      respBox.innerHTML = "<p style='margin:0;'>Thinking…</p>";
+      sendAiMessage(PRESETS[btn.dataset.preset]);
+    });
+
+    document.getElementById("aiApplyBtn").addEventListener("click", async () => {
+      const contractId = document.getElementById("aiContractSelect").value;
+      const note = document.getElementById("aiApplyNote");
+      if (!contractId) {
+        note.textContent = "Select a contract above to apply this draft to.";
+        note.style.color = "var(--ruby-bright)";
+        return;
+      }
+      if (!AI_LAST_DRAFT) return;
       try {
-        const { text } = await apiJson("/api/ai/draft", { method: "POST", body: JSON.stringify({ prompt }) });
-        respBox.innerHTML = `<div class="eyebrow">Pact AI</div><p style="margin:0;white-space:pre-wrap;">${text.replace(/</g, "&lt;")}</p>`;
+        await apiJson(`/api/contracts/${contractId}`, { method: "PUT", body: JSON.stringify({ body: AI_LAST_DRAFT }) });
+        note.textContent = "Applied to the contract. Open it from the Contracts tab to review.";
+        note.style.color = "var(--emerald-bright)";
+        await renderContracts();
+        populateContractSelect();
+        document.getElementById("aiContractSelect").value = contractId;
       } catch (err) {
-        respBox.innerHTML = `<p style="margin:0;color:var(--ruby-bright);">${err.message}</p>`;
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
       }
     });
   }
@@ -655,6 +783,35 @@
     }
   }
 
+  // ---- settings: change password ----
+  function setupPasswordChange() {
+    if (CURRENT_USER.passwordIsTemporary) {
+      document.getElementById("tempPasswordBanner").style.display = "";
+    }
+    document.getElementById("changePasswordBtn").addEventListener("click", async () => {
+      const currentPassword = document.getElementById("currentPassword").value;
+      const newPassword = document.getElementById("newPassword").value;
+      const note = document.getElementById("passwordChangeNote");
+      note.style.color = "";
+      if (!currentPassword || !newPassword) {
+        note.textContent = "Enter your current and new password.";
+        note.style.color = "var(--ruby-bright)";
+        return;
+      }
+      try {
+        CURRENT_USER = await PactAPI.changePassword({ currentPassword, newPassword });
+        document.getElementById("currentPassword").value = "";
+        document.getElementById("newPassword").value = "";
+        document.getElementById("tempPasswordBanner").style.display = "none";
+        note.textContent = "Password changed.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
   // ---- upload modal ----
   const uploadModal = document.getElementById("uploadModal");
   document.getElementById("openUploadModalBtn").addEventListener("click", () => {
@@ -709,6 +866,7 @@
     await setupAI();
     setupTierButtons();
     await setupIdentity();
+    setupPasswordChange();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

@@ -31,6 +31,22 @@ Running `server/npm start` gives you the whole product, not a mock:
   "original source" attachment, downloadable alongside an editable working
   draft you write in Pact. Any authorized party can add further supporting
   attachments to a contract afterward (scans, exhibits, reference docs).
+- **Account security** — accounts lock after 7 failed login attempts (`failed_login_attempts`/`locked_at`
+  on `users`); a locked-out or forgetful user requests a temporary password from `/forgot-password.html`,
+  which is emailed (or, with no SMTP configured, returned directly in the API response for local testing)
+  and expires in 30 minutes. Logging in with it unlocks the account and resets the attempt counter; the
+  dashboard flags the session as using a temporary password until the user sets a permanent one from
+  Settings (`POST /api/auth/change-password`).
+- **Pact AI as a real multi-turn chatbox** (Professional/Enterprise tiers) — `POST /api/ai/chat` holds a
+  conversation, not a single prompt/response, and can optionally be pointed at one of the user's contracts
+  for context. It helps navigate the app, draft new contract language, and revise an existing contract in
+  place: when it proposes contract text, the dashboard offers a one-click "Apply to selected contract"
+  action that `PUT`s the draft into that contract's body (subject to the same edit-access and
+  signed-lock/amendment rules as any other edit).
+- **Contract summarization in adjustable verbiage** — quick-action presets in the same chat ("Summarize in
+  plain English," "Summarize for a business audience," "Flag risky terms") ask Pact AI to explain a long
+  contract at a chosen reading level/audience; a user can also just ask conversationally for a different
+  verbiage ("explain like I'm not a lawyer," "summarize for a 10th grader") and it adapts.
 - **Sharing a specific contract** with another existing Pact profile
   (view-only or edit), separate from being a signing party — the promised
   "team members" experience made concrete at the contract level rather
@@ -64,7 +80,7 @@ swapped in without touching the routes above it.
 | Notifications | None | Push/email notifications for "awaiting your signature," "contract amended," tier changes |
 | Team accounts | Per-contract sharing exists (view/edit, see §1), but no org concept | A real multi-seat org — one bill, a shared contract pool, org-level roles — instead of sharing contracts one at a time (Everyday+ tier copy promises "team members," which today means "share contracts individually") |
 | Search & filtering | `LIKE`-based, fine at hundreds of templates/contracts | A real search index (Postgres full-text or a search service) once template/contract volume grows past what a simple `LIKE` scan handles well |
-| Production auth hardening | Dev-friendly JWT secret fallback | Enforce `JWT_SECRET` in production, add rate limiting, password reset flow, email verification |
+| Production auth hardening | Dev-friendly JWT secret fallback; login lockout (7 attempts) and temporary-password reset are real (§1) | Enforce `JWT_SECRET` in production, add IP-based rate limiting, email verification |
 | Deployment | Local SQLite file | Managed Postgres + object storage, proper backups, horizontal scaling |
 
 ## 4. Mobile app plan

@@ -82,6 +82,11 @@ seeded (72 templates) automatically on first boot via Node's built-in
   (`scripts/send-expiration-reminders.js`) emails the owner once per expiration date within a
   7-day window and logs it to the audit trail — schedule it externally (Render Cron Job, cron),
   Pact doesn't run its own job scheduler.
+- **Attorney review requests** (`routes/attorney-review.js`, `services/attorney-review.js`) — a
+  flat $99 paid request to have a human attorney review one contract. This is request + payment
+  intake only, not a two-sided marketplace: there's no attorney role, licensing match, or
+  assignment system. Set `ATTORNEY_REVIEW_ADMIN_EMAIL` to your own login email to unlock
+  `/attorney-queue.html` (every request, across every user) and get emailed on each new one.
 
 ## What needs a key to go live
 

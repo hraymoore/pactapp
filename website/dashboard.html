@@ -284,6 +284,18 @@
     <p style="margin-top:6px;font-size:0.78rem;color:var(--silver);">This is not legal advice. Review with a licensed attorney before signing.</p>
 
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">ATTORNEY REVIEW</label>
+      <p id="reviewStatusNote" style="margin:0 0 10px;font-size:0.85rem;"></p>
+      <button class="btn btn-ghost-dark btn-sm" id="requestReviewToggleBtn">Request Attorney Review — $99</button>
+      <div id="requestReviewForm" style="display:none;margin-top:12px;">
+        <div class="field"><label>Anything specific you want the attorney to focus on? (optional)</label><textarea id="reviewNotes" rows="3"></textarea></div>
+        <button class="btn btn-gold btn-sm" id="confirmRequestReviewBtn">Continue to payment</button>
+        <p style="margin-top:8px;font-size:0.78rem;color:var(--silver);">This connects you with a request queue, not an automated opinion — Pact reviews and assigns each request; there's no guaranteed turnaround time yet.</p>
+      </div>
+      <p id="reviewRequestError" class="alert alert-ruby" style="margin-top:10px;"></p>
+    </div>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
       <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">ATTACHMENTS</label>
       <div id="attachmentList" style="margin-bottom:12px;"></div>
       <div style="display:flex;gap:10px;align-items:center;">
@@ -540,7 +552,50 @@
     await renderAttachments();
     await renderHealthScore();
     await renderVersionList();
+    await renderReviewStatus();
   }
+
+  async function renderReviewStatus() {
+    const { requests } = await apiJson("/api/attorney-review/mine");
+    const existing = requests.find(r => r.contract_id === editingId && r.status !== "canceled");
+    const note = document.getElementById("reviewStatusNote");
+    const toggleBtn = document.getElementById("requestReviewToggleBtn");
+    document.getElementById("requestReviewForm").style.display = "none";
+    document.getElementById("reviewRequestError").classList.remove("show");
+    if (existing) {
+      const labels = { pending: "Requested — awaiting assignment", in_review: "An attorney is reviewing this", completed: "Review completed" };
+      note.textContent = labels[existing.status] || existing.status;
+      note.style.color = existing.status === "completed" ? "var(--emerald-bright)" : "var(--gold-bright)";
+      toggleBtn.style.display = "none";
+    } else {
+      note.textContent = "";
+      toggleBtn.style.display = "";
+    }
+  }
+
+  document.getElementById("requestReviewToggleBtn").addEventListener("click", () => {
+    document.getElementById("requestReviewForm").style.display = "";
+  });
+
+  document.getElementById("confirmRequestReviewBtn").addEventListener("click", async () => {
+    const errBox = document.getElementById("reviewRequestError");
+    errBox.classList.remove("show");
+    try {
+      const data = await apiJson("/api/attorney-review", {
+        method: "POST",
+        body: JSON.stringify({ contractId: editingId, notes: document.getElementById("reviewNotes").value.trim() }),
+      });
+      if (data.mode === "stripe") {
+        window.location.href = data.url;
+        return;
+      }
+      alert(data.note);
+      await renderReviewStatus();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
 
   async function renderHealthScore() {
     const box = document.getElementById("healthScoreBox");

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attorney Review Queue — Pact</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links"></div>
+    <div class="nav-actions">
+      <a href="dashboard.html" class="btn btn-ghost-dark btn-sm">Back to Dashboard</a>
+    </div>
+  </div>
+</nav>
+
+<div class="section" style="padding-top:50px;">
+  <div class="wrap">
+    <div class="eyebrow">Internal</div>
+    <h1 style="margin-bottom:6px;">Attorney Review Queue</h1>
+    <p style="max-width:600px;">Every paid attorney-review request, across every profile. Gated by <code>ATTORNEY_REVIEW_ADMIN_EMAIL</code> — there's no staff/admin role system yet, so this page is the whole access control.</p>
+
+    <div id="notAuthorized" class="card" style="display:none;max-width:520px;margin-top:24px;">
+      <div class="icon icon-ruby">🔒</div>
+      <h3>Not authorized</h3>
+      <p>This page is only visible to the email set as <code>ATTORNEY_REVIEW_ADMIN_EMAIL</code> on the server. If that's supposed to be you, make sure you're logged in with that exact email.</p>
+    </div>
+
+    <div id="queueWrap" style="display:none;margin-top:24px;">
+      <p id="emptyQueue" style="display:none;">No review requests yet.</p>
+      <div id="queueList"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  function fmt(ts) {
+    if (!ts) return "—";
+    return new Date(ts.replace(" ", "T") + "Z").toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  }
+
+  function escapeHtml(s) { return String(s || "").replace(/</g, "&lt;"); }
+
+  const STATUS_COLOR = { pending: "var(--gold-bright)", in_review: "var(--ruby-bright)", completed: "var(--emerald-bright)", canceled: "var(--silver)" };
+
+  async function renderQueue() {
+    const { requests } = await apiJson("/api/attorney-review/queue");
+    document.getElementById("emptyQueue").style.display = requests.length ? "none" : "";
+    const wrap = document.getElementById("queueList");
+    wrap.innerHTML = "";
+    requests.forEach(r => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.marginBottom = "16px";
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:flex-start;">
+          <div>
+            <h3 style="margin-bottom:4px;">${escapeHtml(r.contract_name)}</h3>
+            <p style="margin:0;font-size:0.85rem;">${escapeHtml(r.requester_name)} &lt;${escapeHtml(r.requester_email)}&gt; &middot; ${r.genre || "General"}${r.state ? " · " + r.state : ""} &middot; requested ${fmt(r.created_at)}</p>
+          </div>
+          <span class="mini-tag" style="color:${STATUS_COLOR[r.status] || "var(--silver)"};">${r.status}</span>
+        </div>
+        ${r.notes ? `<p style="margin-top:10px;font-size:0.88rem;">"${escapeHtml(r.notes)}"</p>` : ""}
+        <p style="margin-top:10px;font-size:0.82rem;color:var(--silver);">Fee: $${(r.amount_cents / 100).toFixed(2)} &middot; Payment: ${r.payment_status}</p>
+        <div class="field" style="max-width:220px;margin-top:12px;margin-bottom:0;">
+          <label>Update status</label>
+          <select data-status-select="${r.id}">
+            <option value="pending" ${r.status === "pending" ? "selected" : ""}>Pending</option>
+            <option value="in_review" ${r.status === "in_review" ? "selected" : ""}>In review</option>
+            <option value="completed" ${r.status === "completed" ? "selected" : ""}>Completed</option>
+            <option value="canceled" ${r.status === "canceled" ? "selected" : ""}>Canceled</option>
+          </select>
+        </div>
+        <a href="dashboard.html?contract=${r.contract_id}" class="btn btn-ghost-dark btn-sm" style="margin-top:12px;">Open contract</a>
+      `;
+      wrap.appendChild(card);
+    });
+    wrap.querySelectorAll("[data-status-select]").forEach(sel => {
+      sel.addEventListener("change", async () => {
+        try {
+          await apiJson(`/api/attorney-review/${sel.dataset.statusSelect}/status`, {
+            method: "PUT",
+            body: JSON.stringify({ status: sel.value }),
+          });
+          await renderQueue();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  (async () => {
+    const user = await PactAPI.me();
+    if (!user) { window.location.href = "login.html?next=attorney-queue.html"; return; }
+    try {
+      await renderQueue();
+      document.getElementById("queueWrap").style.display = "";
+    } catch (err) {
+      document.getElementById("notAuthorized").style.display = "";
+    }
+  })();
+</script>
+</body>
+</html>

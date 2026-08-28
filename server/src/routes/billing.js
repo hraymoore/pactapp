@@ -11,6 +11,7 @@ const {
   downgradeOnCancellation,
 } = require("../services/billing-provider");
 const { fulfillPurchase } = require("../services/purchases");
+const { markPaid: markAttorneyReviewPaid } = require("../services/attorney-review");
 
 const TIER_PRICE_CENTS = { starter: 799, everyday: 1199, pro: 2099, business: 8999 };
 
@@ -28,7 +29,9 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      if (session.metadata && session.metadata.purchaseType) {
+      if (session.metadata && session.metadata.type === "attorney_review") {
+        markAttorneyReviewPaid(Number(session.metadata.requestId), session.id);
+      } else if (session.metadata && session.metadata.purchaseType) {
         const user = db.prepare("SELECT * FROM users WHERE id = ?").get(session.metadata.userId);
         if (user) {
           try {

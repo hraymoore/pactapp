@@ -64,6 +64,10 @@
         <label for="stateSelect" style="font-size:0.75rem;">Governing state</label>
         <select id="stateSelect"><option value="All">All states</option></select>
       </div>
+      <div class="field" style="max-width:220px;margin-bottom:0;display:none;" id="orgSelectWrap">
+        <label for="orgSelect" style="font-size:0.75rem;">Create for</label>
+        <select id="orgSelect"><option value="">Personal</option></select>
+      </div>
     </div>
     <p id="stateNote" style="font-size:0.82rem;margin:-14px 0 14px;color:var(--silver);"></p>
     <div class="filter-row" id="filterRow">
@@ -104,6 +108,11 @@
   let CURRENT_STATE = "All";
   let DEEP_COVERAGE_STATES = [];
 
+  function currentOrgId() {
+    const sel = document.getElementById("orgSelect");
+    return sel && sel.value ? Number(sel.value) : undefined;
+  }
+
   function renderFilters(genres) {
     const row = document.getElementById("filterRow");
     genres.forEach(g => {
@@ -136,7 +145,7 @@
     try {
       const { contract } = await apiJson("/api/contracts", {
         method: "POST",
-        body: JSON.stringify({ name: "Untitled Contract", templateId, state: CURRENT_STATE }),
+        body: JSON.stringify({ name: "Untitled Contract", templateId, state: CURRENT_STATE, organizationId: currentOrgId() }),
       });
       window.location.href = `dashboard.html?contract=${contract.id}`;
     } catch (err) {
@@ -276,6 +285,19 @@
       note.textContent = "You're browsing as a guest — templates are locked. Create a free profile to open, edit, download or send any contract.";
     } else {
       note.style.display = "none";
+      try {
+        const { organizations } = await apiJson("/api/organizations");
+        if (organizations.length) {
+          const orgSelect = document.getElementById("orgSelect");
+          organizations.forEach(o => {
+            const opt = document.createElement("option");
+            opt.value = o.id;
+            opt.textContent = o.name;
+            orgSelect.appendChild(opt);
+          });
+          document.getElementById("orgSelectWrap").style.display = "";
+        }
+      } catch (err) { /* not fatal — creation just defaults to personal */ }
     }
   })();
 </script>

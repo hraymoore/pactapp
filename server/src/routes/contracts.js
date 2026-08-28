@@ -9,6 +9,7 @@ const { applySignature, logAudit } = require("../services/signing");
 const { contentHash, createContractFromTemplate } = require("../services/contract-factory");
 const { upload, UPLOAD_DIR } = require("../services/uploads");
 const { isValidStateCode } = require("../us-states");
+const { getMembership } = require("../services/organizations");
 const fs = require("fs");
 const path = require("path");
 
@@ -28,10 +29,11 @@ function handleUpload(req, res, next) {
 }
 
 // Resolves how req.user relates to a contract: 'owner', 'edit' (a named
-// signing party, or an explicit edit share), 'view' (an explicit view-only
-// share), or null (no access at all). Being a share recipient is distinct
-// from being a signing party — sharing grants visibility/collaboration,
-// not the ability to sign (see routes/:id/sign below).
+// signing party, an explicit edit share, or an org admin/owner), 'view' (an
+// explicit view-only share, or a fellow org member browsing the shared
+// directory), or null (no access at all). Being a share recipient is
+// distinct from being a signing party — sharing grants visibility/
+// collaboration, not the ability to sign (see routes/:id/sign below).
 function resolveAccess(contract, user) {
   if (contract.owner_id === user.id) return "owner";
   const isParty = !!db
@@ -41,7 +43,14 @@ function resolveAccess(contract, user) {
   const share = db
     .prepare("SELECT permission FROM contract_shares WHERE contract_id = ? AND shared_with_user_id = ?")
     .get(contract.id, user.id);
-  return share ? share.permission : null;
+  if (share) return share.permission;
+  if (contract.organization_id) {
+    const membership = db
+      .prepare("SELECT role FROM organization_members WHERE organization_id = ? AND user_id = ?")
+      .get(contract.organization_id, user.id);
+    if (membership) return membership.role === "member" ? "view" : "edit";
+  }
+  return null;
 }
 
 function loadAuthorizedContract(req, res, { requireEdit = false } = {}) {
@@ -112,10 +121,13 @@ router.get("/", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { name, templateId, counterpartyName, counterpartyEmail, state } = req.body || {};
+  const { name, templateId, counterpartyName, counterpartyEmail, state, organizationId } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Contract name is required." });
   if (!isValidStateCode(state)) {
     return res.status(400).json({ error: "Select the state whose laws will govern this contract." });
+  }
+  if (organizationId && !getMembership(organizationId, req.user.id)) {
+    return res.status(403).json({ error: "You are not a member of that organization." });
   }
 
   let template = null;
@@ -137,6 +149,7 @@ router.post("/", (req, res) => {
     name: name.trim(),
     template,
     state,
+    organizationId: organizationId || null,
   });
 
   if (counterpartyName && counterpartyEmail) {
@@ -163,6 +176,10 @@ router.post("/upload", handleUpload, (req, res) => {
   // may already specify its own governing law, so this only tags the
   // contract for search/filtering rather than rewriting anything in it.
   const state = req.body.state && isValidStateCode(req.body.state) ? req.body.state : null;
+  const organizationId = req.body.organizationId || null;
+  if (organizationId && !getMembership(organizationId, req.user.id)) {
+    return res.status(403).json({ error: "You are not a member of that organization." });
+  }
 
   let body = `[Original file attached: ${req.file.originalname}. Download it from the Attachments panel. This text box is your editable working draft — write or paste the contract terms here.]`;
   if (req.file.mimetype === "text/plain") {
@@ -175,9 +192,9 @@ router.post("/upload", handleUpload, (req, res) => {
 
   const info = db
     .prepare(
-      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash, state) VALUES (?, ?, ?, ?, 'draft', NULL, ?, ?)"
+      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash, state, organization_id) VALUES (?, ?, ?, ?, 'draft', NULL, ?, ?, ?)"
     )
-    .run(req.user.id, name, genre, body, contentHash(body), state);
+    .run(req.user.id, name, genre, body, contentHash(body), state, organizationId);
   const contractId = info.lastInsertRowid;
 
   db.prepare(

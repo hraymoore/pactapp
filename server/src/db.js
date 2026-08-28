@@ -141,6 +141,34 @@ CREATE TABLE IF NOT EXISTS ai_audit_log (
   output_summary TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- A business account: a shared contract pool + member roster, distinct
+-- from the one-contract-at-a-time sharing above. ein is self-reported and
+-- format-validated only (no free third-party EIN/KYB verification exists
+-- today — see identity-provider.js's Stripe-Identity precedent for how a
+-- real vendor would slot in later) so it's clearly labeled as such in the
+-- UI, never presented as verified.
+CREATE TABLE IF NOT EXISTS organizations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  ein TEXT,
+  owner_user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 'owner' (created it / billing, can do anything, cannot be removed unless
+-- ownership transfers first), 'admin' (manage members, edit any org
+-- contract), 'member' (view every org contract in the shared directory,
+-- edit only the ones they personally created — same as being that
+-- contract's owner_id).
+CREATE TABLE IF NOT EXISTS organization_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (organization_id, user_id)
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -158,6 +186,7 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN stripe_customer_id TEXT",
   "ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT",
   "ALTER TABLE users ADD COLUMN stripe_subscription_status TEXT",
+  "ALTER TABLE contracts ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
 ]) {
   try {
     db.exec(stmt);

@@ -21,7 +21,7 @@ function applyGoverningLaw(body, stateCode) {
 // purchase fulfillment (services/purchases.js) so both produce an
 // identical contract + owner-party + audit-log shape. Tier/payment
 // authorization is the caller's job — this just creates the row.
-function createContractFromTemplate({ ownerId, ownerName, ownerEmail, name, template, state, sourceNote }) {
+function createContractFromTemplate({ ownerId, ownerName, ownerEmail, name, template, state, organizationId, sourceNote }) {
   let body = template ? template.body : "[Start drafting your contract here.]";
   const genre = template ? template.genre : null;
   const aiRestricted = template ? template.ai_restricted : 0;
@@ -29,9 +29,19 @@ function createContractFromTemplate({ ownerId, ownerName, ownerEmail, name, temp
 
   const info = db
     .prepare(
-      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash, state, ai_restricted) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?)"
+      "INSERT INTO contracts (owner_id, name, genre, body, status, template_id, content_hash, state, ai_restricted, organization_id) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)"
     )
-    .run(ownerId, name, genre, body, template ? template.id : null, contentHash(body), state || null, aiRestricted ? 1 : 0);
+    .run(
+      ownerId,
+      name,
+      genre,
+      body,
+      template ? template.id : null,
+      contentHash(body),
+      state || null,
+      aiRestricted ? 1 : 0,
+      organizationId || null
+    );
   const contractId = info.lastInsertRowid;
 
   db.prepare(

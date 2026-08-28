@@ -58,6 +58,11 @@ seeded (72 templates) automatically on first boot via Node's built-in
 - **Templates** — 72 templates across 20 genres, tier-gated at creation time, searchable by name/genre/description/keywords
 - **Upload & attachments** — bring your own document (PDF/Word/text/image) as a contract instead of a template, plus supporting attachments on any contract
 - **Sharing** — the owner can grant another existing Pact profile view or edit access to one specific contract
+- **Business accounts** — `routes/organizations.js`: create a business (name + optional, self-reported
+  EIN), invite existing Pact profiles as admin/member, and every contract created under it lands in one
+  shared directory (`GET /api/organizations/:id/contracts`) every member can browse. `resolveAccess()` in
+  `routes/contracts.js` grants owners/admins edit on any org contract, members edit only their own and view
+  the rest.
 - **e-Signature** — Pact's own token-based flow (`routes/sign.js` for outside
   counterparties, `POST /api/contracts/:id/sign` for the logged-in owner).
   Typed name + timestamp + IP recorded per signer; once every party has
@@ -141,6 +146,6 @@ server/
     us-states.js             # canonical state list for the state engine
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
-    routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases
-    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails, billing-provider, identity-provider, mailer
+    routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases, organizations
+    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails, billing-provider, identity-provider, mailer, organizations
 ```

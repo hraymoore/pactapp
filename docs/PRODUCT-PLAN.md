@@ -78,9 +78,19 @@ Running `server/npm start` gives you the whole product, not a mock:
   contract at a chosen reading level/audience; a user can also just ask conversationally for a different
   verbiage ("explain like I'm not a lawyer," "summarize for a 10th grader") and it adapts.
 - **Sharing a specific contract** with another existing Pact profile
-  (view-only or edit), separate from being a signing party — the promised
-  "team members" experience made concrete at the contract level rather
-  than a full multi-seat org system (see §3 for what that would still take)
+  (view-only or edit), separate from being a signing party — for a one-off
+  collaborator who doesn't need to see everything a business makes
+- **A real multi-seat business account** (`organizations`/`organization_members`)
+  — one owner, invite existing Pact profiles as admins or members, and
+  every contract created under the business lands in one shared directory
+  every member can browse (view rights by default; owners/admins can edit
+  any of them, a member can edit the ones they personally created). EIN is
+  self-reported and format-validated only — no free third-party EIN/KYB
+  verification exists (see `services/organizations.js`); this is a label,
+  not a badge, until a paid vendor (Persona, Middesk) gets wired in the same
+  way Stripe Identity is today. One-bill-for-the-org billing is not built
+  yet — an org contract's tier gating still checks its creator's own
+  personal subscription.
 - Pluggable AI (Anthropic), billing (Stripe), identity verification
   (Stripe Identity) and email (SMTP) — each is wired for real and activates
   the moment its API key is set in `server/.env`; with no key, each one
@@ -108,7 +118,7 @@ swapped in without touching the routes above it.
 |---|---|---|
 | Rich contract editor | Plain textarea | A real clause-aware editor (ProseMirror/Tiptap), inline redlining, diff view between versions |
 | Notifications | None | Push/email notifications for "awaiting your signature," "contract amended," tier changes |
-| Team accounts | Per-contract sharing exists (view/edit, see §1), but no org concept | A real multi-seat org — one bill, a shared contract pool, org-level roles — instead of sharing contracts one at a time (Everyday+ tier copy promises "team members," which today means "share contracts individually") |
+| Team accounts | Real multi-seat business accounts exist — shared contract directory, owner/admin/member roles (see §1) | One bill for the whole org (each contract still checks its creator's own personal tier); real EIN/KYB verification (currently self-reported only) |
 | Search & filtering | `LIKE`-based, fine at hundreds of templates/contracts | A real search index (Postgres full-text or a search service) once template/contract volume grows past what a simple `LIKE` scan handles well |
 | Production auth hardening | Dev-friendly JWT secret fallback; login lockout (7 attempts) and temporary-password reset are real (§1) | Enforce `JWT_SECRET` in production, add IP-based rate limiting, email verification |
 | Deployment | Local SQLite file | Managed Postgres + object storage, proper backups, horizontal scaling |

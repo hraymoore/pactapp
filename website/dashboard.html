@@ -57,6 +57,7 @@
     </div>
     <div class="dash-nav">
       <a href="#" class="active" data-section="contracts">📄 Contracts</a>
+      <a href="#" data-section="business">🏢 Business</a>
       <a href="#" data-section="purchases">🛒 Purchases</a>
       <a href="#" data-section="ai">✨ Pact AI</a>
       <a href="#" data-section="audit">🕓 Audit Trail</a>
@@ -92,6 +93,63 @@
       </div>
       <div id="contractList"></div>
       <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
+    </section>
+
+    <section id="sec-business" style="display:none;">
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Business</h2><p style="margin:0;">A shared contract directory for your organization — everyone on it sees every contract, not just their own.</p></div></div>
+
+      <div id="bizNoOrg" style="display:none;" class="card">
+        <h3>Create a business account</h3>
+        <p>Start a shared contract pool your team can all see. You'll be the owner and can invite existing Pact profiles as members or admins.</p>
+        <div class="field"><label for="bizOrgName">Business name</label><input id="bizOrgName" type="text" placeholder="e.g. Acme Contracts LLC"></div>
+        <div class="field">
+          <label for="bizOrgEin">EIN (optional)</label>
+          <input id="bizOrgEin" type="text" placeholder="12-3456789">
+          <p style="font-size:0.78rem;color:var(--silver);margin-top:6px;">Self-reported only — Pact doesn't independently verify EINs against the IRS or any registry. This is a label, not a badge.</p>
+        </div>
+        <p id="bizCreateError" class="alert alert-ruby"></p>
+        <button class="btn btn-gold" id="bizCreateOrgBtn">Create Business</button>
+      </div>
+
+      <div id="bizOrgView" style="display:none;">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+            <div>
+              <h3 id="bizOrgName2" style="margin-bottom:4px;"></h3>
+              <p id="bizOrgEinLabel" style="margin:0;font-size:0.82rem;color:var(--silver);"></p>
+            </div>
+            <span class="mini-tag" id="bizMyRole"></span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px;">
+          <h3>Members</h3>
+          <div id="bizMemberList"></div>
+          <div id="bizInviteRow" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-dark);">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field" style="margin-bottom:0;flex:1;min-width:200px;"><label>Invite by email</label><input id="bizInviteEmail" type="email" placeholder="colleague@example.com"></div>
+              <div class="field" style="margin-bottom:0;"><label>Role</label><select id="bizInviteRole"><option value="member">Member</option><option value="admin">Admin</option></select></div>
+              <button class="btn btn-gold" id="bizInviteBtn">Invite</button>
+            </div>
+            <p id="bizInviteError" class="alert alert-ruby" style="margin-top:12px;"></p>
+          </div>
+        </div>
+
+        <div class="dash-head" style="margin-top:30px;">
+          <div><h3 style="margin-bottom:4px;">Contract Directory</h3><p style="margin:0;font-size:0.85rem;">Every contract created under this business, from any member.</p></div>
+        </div>
+        <div class="field" style="max-width:360px;">
+          <input id="bizContractSearch" type="text" placeholder="Search the business directory…">
+        </div>
+        <div class="filter-row" id="bizStatusFilterRow" style="margin-bottom:8px;">
+          <button class="chip active" data-status="All">All Status</button>
+        </div>
+        <div class="filter-row" id="bizStateFilterRow" style="margin-bottom:16px;">
+          <button class="chip active" data-state="All">All States</button>
+        </div>
+        <div id="bizContractList"></div>
+        <p id="bizEmptyState" style="display:none;">No contracts in this business yet.</p>
+      </div>
     </section>
 
     <section id="sec-ai" style="display:none;">
@@ -379,7 +437,7 @@
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
         <div class="row-actions">
           ${iCanSign ? `<button class="icon-btn" title="Sign" data-sign="${c.id}" data-name="${c.name}">✔</button>` : ""}
-          ${(isOwner || c.myPermission === "edit") ? `<button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>` : ""}
+          <button class="icon-btn" title="${(isOwner || c.myPermission === "edit") ? "Edit" : "View"}" data-edit="${c.id}">${(isOwner || c.myPermission === "edit") ? "✎" : "👁"}</button>
           <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
           ${isOwner ? `<button class="icon-btn" title="Send" data-send="${c.id}" data-name="${c.name}">➤</button>` : ""}
           ${isOwner ? `<button class="icon-btn" title="Share" data-share="${c.id}" data-name="${c.name}">👤</button>` : ""}
@@ -413,13 +471,20 @@
   async function openEditor(id) {
     const { contract } = await apiJson(`/api/contracts/${id}`);
     editingId = id;
-    document.getElementById("editorTitle").textContent = contract.name;
+    const readOnly = contract.myAccess === "view";
+    document.getElementById("editorTitle").textContent = contract.name + (readOnly ? " (view only)" : "");
     document.getElementById("editorBody").value = contract.body;
+    document.getElementById("editorBody").readOnly = readOnly;
     document.getElementById("editorStateTag").textContent = contract.state ? `Governing state: ${contract.state}` : "";
     document.getElementById("editorRestrictedBanner").style.display = contract.ai_restricted ? "" : "none";
-    document.getElementById("editorNote").textContent = contract.status === "signed"
-      ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
-      : "This contract is not yet signed — edits here are unrestricted.";
+    document.getElementById("saveEditBtn").style.display = readOnly ? "none" : "";
+    document.getElementById("addAttachmentBtn").style.display = readOnly ? "none" : "";
+    document.getElementById("attachmentFile").style.display = readOnly ? "none" : "";
+    document.getElementById("editorNote").textContent = readOnly
+      ? "You have view access to this contract — you can read it and download attachments, but not edit it."
+      : contract.status === "signed"
+        ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
+        : "This contract is not yet signed — edits here are unrestricted.";
     editorModal.classList.add("show");
     await renderAttachments();
   }
@@ -642,7 +707,7 @@
       e.preventDefault();
       document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
       a.classList.add("active");
-      ["contracts", "purchases", "ai", "audit", "settings"].forEach(id => {
+      ["contracts", "business", "purchases", "ai", "audit", "settings"].forEach(id => {
         document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
       });
     });
@@ -901,6 +966,206 @@
     });
   }
 
+  // ---- business ----
+  let CURRENT_ORG = null;
+  let ALL_BIZ_CONTRACTS = [];
+  let BIZ_STATUS_FILTER = "All";
+  let BIZ_STATE_FILTER = "All";
+
+  function escapeHtmlBiz(s) { return String(s).replace(/</g, "&lt;"); }
+
+  async function setupBusiness() {
+    const { organizations } = await apiJson("/api/organizations");
+    if (organizations.length === 0) {
+      document.getElementById("bizNoOrg").style.display = "";
+      return;
+    }
+    CURRENT_ORG = organizations[0];
+    document.getElementById("bizOrgView").style.display = "";
+    document.getElementById("bizOrgName2").textContent = CURRENT_ORG.name;
+    document.getElementById("bizOrgEinLabel").textContent = CURRENT_ORG.ein
+      ? `EIN ${CURRENT_ORG.ein} (self-reported, not independently verified)`
+      : "No EIN on file";
+    document.getElementById("bizMyRole").textContent = CURRENT_ORG.myRole;
+
+    const canManage = CURRENT_ORG.myRole === "owner" || CURRENT_ORG.myRole === "admin";
+    document.getElementById("bizInviteRow").style.display = canManage ? "" : "none";
+
+    await renderBizMembers();
+    await renderBizContracts();
+
+    document.getElementById("bizInviteBtn").addEventListener("click", async () => {
+      const email = document.getElementById("bizInviteEmail").value.trim();
+      const role = document.getElementById("bizInviteRole").value;
+      const errBox = document.getElementById("bizInviteError");
+      errBox.classList.remove("show");
+      if (!email) {
+        errBox.textContent = "Enter an email address.";
+        errBox.classList.add("show");
+        return;
+      }
+      try {
+        await apiJson(`/api/organizations/${CURRENT_ORG.id}/members`, {
+          method: "POST",
+          body: JSON.stringify({ email, role }),
+        });
+        document.getElementById("bizInviteEmail").value = "";
+        await renderBizMembers();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      }
+    });
+
+    document.getElementById("bizContractSearch").addEventListener("input", filterBizContracts);
+    wireBizFilterRow("bizStatusFilterRow", "status", (v) => BIZ_STATUS_FILTER = v);
+    wireBizFilterRow("bizStateFilterRow", "state", (v) => BIZ_STATE_FILTER = v);
+  }
+
+  function wireBizFilterRow(rowId, dataKey, setter) {
+    document.getElementById(rowId).addEventListener("click", (e) => {
+      if (!e.target.classList.contains("chip")) return;
+      document.getElementById(rowId).querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      e.target.classList.add("active");
+      setter(e.target.dataset[dataKey]);
+      filterBizContracts();
+    });
+  }
+
+  async function renderBizMembers() {
+    const { members } = await apiJson(`/api/organizations/${CURRENT_ORG.id}`);
+    const canManage = CURRENT_ORG.myRole === "owner" || CURRENT_ORG.myRole === "admin";
+    const wrap = document.getElementById("bizMemberList");
+    wrap.innerHTML = "";
+    members.forEach(m => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);";
+      const canEditThisRow = canManage && m.user_id !== CURRENT_USER.id;
+      row.innerHTML = `
+        <span style="font-size:0.85rem;">${escapeHtmlBiz(m.name)} <span style="color:var(--silver);">&lt;${escapeHtmlBiz(m.email)}&gt;</span></span>
+        <span style="display:flex;gap:8px;align-items:center;">
+          ${canEditThisRow
+            ? `<select data-role-select="${m.id}" style="width:auto;padding:4px 8px;font-size:0.8rem;">
+                 <option value="member" ${m.role === "member" ? "selected" : ""}>Member</option>
+                 <option value="admin" ${m.role === "admin" ? "selected" : ""}>Admin</option>
+                 ${CURRENT_ORG.myRole === "owner" ? `<option value="owner" ${m.role === "owner" ? "selected" : ""}>Owner</option>` : ""}
+               </select>
+               <button class="icon-btn" title="Remove" data-remove-member="${m.id}">&times;</button>`
+            : `<span class="mini-tag">${m.role}</span>`}
+        </span>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll("[data-role-select]").forEach(sel => {
+      sel.addEventListener("change", async () => {
+        try {
+          await apiJson(`/api/organizations/${CURRENT_ORG.id}/members/${sel.dataset.roleSelect}`, {
+            method: "PUT",
+            body: JSON.stringify({ role: sel.value }),
+          });
+          await renderBizMembers();
+        } catch (err) {
+          alert(err.message);
+          await renderBizMembers();
+        }
+      });
+    });
+    wrap.querySelectorAll("[data-remove-member]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Remove this member from the business?")) return;
+        try {
+          await apiJson(`/api/organizations/${CURRENT_ORG.id}/members/${btn.dataset.removeMember}`, { method: "DELETE" });
+          await renderBizMembers();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  async function renderBizContracts() {
+    const { contracts } = await apiJson(`/api/organizations/${CURRENT_ORG.id}/contracts`);
+    ALL_BIZ_CONTRACTS = contracts;
+    const statusRow = document.getElementById("bizStatusFilterRow");
+    const allStatusChip = statusRow.querySelector('[data-status="All"]');
+    statusRow.innerHTML = "";
+    statusRow.appendChild(allStatusChip);
+    [...new Set(contracts.map(c => c.status))].sort().forEach(s => {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.dataset.status = s;
+      chip.textContent = s;
+      statusRow.appendChild(chip);
+    });
+    const stateRow = document.getElementById("bizStateFilterRow");
+    const allStateChip = stateRow.querySelector('[data-state="All"]');
+    stateRow.innerHTML = "";
+    stateRow.appendChild(allStateChip);
+    [...new Set(contracts.map(c => c.state).filter(Boolean))].sort().forEach(s => {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.dataset.state = s;
+      chip.textContent = s;
+      stateRow.appendChild(chip);
+    });
+    filterBizContracts();
+  }
+
+  function filterBizContracts() {
+    const q = document.getElementById("bizContractSearch").value.trim().toLowerCase();
+    const filtered = ALL_BIZ_CONTRACTS.filter(c =>
+      (!q || c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q) || c.owner_name.toLowerCase().includes(q)) &&
+      (BIZ_STATUS_FILTER === "All" || c.status === BIZ_STATUS_FILTER) &&
+      (BIZ_STATE_FILTER === "All" || c.state === BIZ_STATE_FILTER)
+    );
+    drawBizContractRows(filtered);
+  }
+
+  function drawBizContractRows(contracts) {
+    const wrap = document.getElementById("bizContractList");
+    wrap.innerHTML = "";
+    document.getElementById("bizEmptyState").style.display = ALL_BIZ_CONTRACTS.length ? "none" : "";
+    contracts.forEach(c => {
+      const isOwner = c.owner_id === CURRENT_USER.id;
+      const canEdit = isOwner || CURRENT_ORG.myRole === "owner" || CURRENT_ORG.myRole === "admin";
+      const row = document.createElement("div");
+      row.className = "contract-row";
+      row.innerHTML = `
+        <div class="name">${escapeHtmlBiz(c.name)}<small>by ${escapeHtmlBiz(c.owner_name)} &middot; ${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div>${statusPill(c.status)}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
+        <div class="row-actions">
+          <button class="icon-btn" title="${canEdit ? "Edit" : "View"}" data-edit="${c.id}">${canEdit ? "✎" : "👁"}</button>
+          <button class="icon-btn" title="Download" data-download="${c.id}">⬇</button>
+        </div>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEditor(Number(btn.dataset.edit))));
+    wrap.querySelectorAll("[data-download]").forEach(btn => btn.addEventListener("click", () => {
+      window.location.href = `/api/contracts/${btn.dataset.download}/download`;
+    }));
+  }
+
+  document.getElementById("bizCreateOrgBtn").addEventListener("click", async () => {
+    const name = document.getElementById("bizOrgName").value.trim();
+    const ein = document.getElementById("bizOrgEin").value.trim();
+    const errBox = document.getElementById("bizCreateError");
+    errBox.classList.remove("show");
+    if (!name) {
+      errBox.textContent = "Business name is required.";
+      errBox.classList.add("show");
+      return;
+    }
+    try {
+      await apiJson("/api/organizations", { method: "POST", body: JSON.stringify({ name, ein: ein || undefined }) });
+      document.getElementById("bizNoOrg").style.display = "none";
+      await setupBusiness();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
   // ---- upload modal ----
   const uploadModal = document.getElementById("uploadModal");
   document.getElementById("openUploadModalBtn").addEventListener("click", () => {
@@ -964,6 +1229,7 @@
     await renderPurchases();
     await renderAudit();
     await setupAI();
+    await setupBusiness();
     setupTierButtons();
     await setupBillingPortal();
     await setupIdentity();

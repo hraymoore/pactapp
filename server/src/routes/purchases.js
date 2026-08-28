@@ -56,7 +56,8 @@ router.post("/checkout", async (req, res) => {
   }
 
   try {
-    const session = await createOneTimeCheckoutSession({ template, purchaseType, priceCents, user: req.user, req, state });
+    const fullUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+    const session = await createOneTimeCheckoutSession({ template, purchaseType, priceCents, user: fullUser, req, state });
     res.json({ mode: "stripe", url: session.url });
   } catch (err) {
     res.status(500).json({ error: err.message });

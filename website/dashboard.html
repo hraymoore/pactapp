@@ -114,7 +114,7 @@
         <div class="ai-panel">
           <div class="ai-top"><span class="ai-dot"></span><strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ruby-bright);">Pact AI</strong></div>
           <p style="margin-bottom:10px;">Chat with Pact AI to draft, revise, navigate or summarize your contracts — it stays in the conversation, so you can follow up.</p>
-          <p style="margin-bottom:14px;font-size:0.78rem;color:var(--silver-soft);">This is not legal advice. Review with a licensed attorney before signing.</p>
+          <p style="margin-bottom:14px;font-size:0.78rem;color:var(--silver);">This is not legal advice. Review with a licensed attorney before signing.</p>
 
           <div class="field">
             <label for="aiContractSelect">Talk about a specific contract (optional)</label>
@@ -168,13 +168,14 @@
           <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
           <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
           <div class="tag-row" id="tierButtons"></div>
+          <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
         </div>
       </div>
       <div class="card" style="margin-top:24px;">
         <h3>Identity Verification</h3>
         <p id="identityStatusText">Checking status…</p>
         <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
-        <p id="identityNote" style="margin-top:14px;font-size:0.82rem;opacity:0.75;"></p>
+        <p id="identityNote" style="margin-top:14px;font-size:0.82rem;color:var(--silver);"></p>
       </div>
 
       <div class="card" style="margin-top:24px;">
@@ -196,7 +197,7 @@
     <button class="modal-close" id="closeEditor">&times;</button>
     <div class="eyebrow">Editing</div>
     <h3 id="editorTitle">Contract</h3>
-    <p id="editorStateTag" style="margin:-6px 0 12px;font-size:0.78rem;color:var(--silver-soft);"></p>
+    <p id="editorStateTag" style="margin:-6px 0 12px;font-size:0.78rem;color:var(--silver);"></p>
     <p id="editorRestrictedBanner" style="display:none;font-size:0.85rem;color:var(--ruby-bright);margin-bottom:12px;">This contract is in the Family Law category — informational only. Pact AI drafting/suggestions are disabled for it; consult a licensed attorney and your local court's resources.</p>
     <div class="field">
       <label>Contract body</label>
@@ -207,10 +208,10 @@
       <button class="btn btn-ghost-dark" id="cancelEditBtn">Cancel</button>
     </div>
     <p id="editorNote" style="margin-top:14px;font-size:0.82rem;"></p>
-    <p style="margin-top:6px;font-size:0.78rem;color:var(--silver-soft);">This is not legal advice. Review with a licensed attorney before signing.</p>
+    <p style="margin-top:6px;font-size:0.78rem;color:var(--silver);">This is not legal advice. Review with a licensed attorney before signing.</p>
 
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
-      <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:10px;">ATTACHMENTS</label>
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">ATTACHMENTS</label>
       <div id="attachmentList" style="margin-bottom:12px;"></div>
       <div style="display:flex;gap:10px;align-items:center;">
         <input id="attachmentFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" style="flex:1;">
@@ -273,7 +274,7 @@
     <button class="btn btn-gold btn-block" id="confirmShareBtn">Share</button>
     <p id="shareError" class="alert alert-ruby" style="margin-top:14px;"></p>
     <div id="shareListWrap" style="margin-top:20px;">
-      <label style="display:block;font-size:0.8rem;color:var(--silver-soft);font-family:var(--font-mono);margin-bottom:8px;">CURRENTLY SHARED WITH</label>
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:8px;">CURRENTLY SHARED WITH</label>
       <div id="shareList"></div>
     </div>
   </div>
@@ -374,8 +375,8 @@
       row.innerHTML = `
         <div class="name">${c.name}${badge}<small>${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
         <div>${statusPill(c.status)}</div>
-        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
-        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver-soft);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
         <div class="row-actions">
           ${iCanSign ? `<button class="icon-btn" title="Sign" data-sign="${c.id}" data-name="${c.name}">✔</button>` : ""}
           ${(isOwner || c.myPermission === "edit") ? `<button class="icon-btn" title="Edit" data-edit="${c.id}">✎</button>` : ""}
@@ -431,7 +432,7 @@
       const row = document.createElement("div");
       row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:0.85rem;";
       row.innerHTML = `
-        <span>${a.is_original_source ? "📎 " : ""}${a.original_filename} <span style="color:var(--silver-soft);">&middot; ${(a.size_bytes / 1024).toFixed(0)} KB &middot; ${a.uploader_name}</span></span>
+        <span>${a.is_original_source ? "📎 " : ""}${a.original_filename} <span style="color:var(--silver);">&middot; ${(a.size_bytes / 1024).toFixed(0)} KB &middot; ${a.uploader_name}</span></span>
         <a href="/api/contracts/${editingId}/attachments/${a.id}/download" class="icon-btn" title="Download">⬇</a>`;
       wrap.appendChild(row);
     });
@@ -558,7 +559,7 @@
       const row = document.createElement("div");
       row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);";
       row.innerHTML = `
-        <span style="font-size:0.85rem;">${s.name} <span style="color:var(--silver-soft);">&lt;${s.email}&gt;</span> &middot; ${s.permission}</span>
+        <span style="font-size:0.85rem;">${s.name} <span style="color:var(--silver);">&lt;${s.email}&gt;</span> &middot; ${s.permission}</span>
         <button class="icon-btn" title="Revoke" data-revoke-share="${s.id}">&times;</button>`;
       wrap.appendChild(row);
     });
@@ -815,6 +816,27 @@
     });
   }
 
+  async function setupBillingPortal() {
+    const btn = document.getElementById("manageBillingBtn");
+    try {
+      const { configured } = await apiJson("/api/billing/status");
+      if (!configured || CURRENT_USER.tier === "starter") return;
+      btn.style.display = "";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          const { url } = await apiJson("/api/billing/portal", { method: "POST", body: JSON.stringify({}) });
+          window.location.href = url;
+        } catch (err) {
+          alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    } catch (err) {
+      // status check failing shouldn't block the rest of Settings
+    }
+  }
+
   async function setupIdentity() {
     const statusText = document.getElementById("identityStatusText");
     const verifyBtn = document.getElementById("verifyIdentityBtn");
@@ -943,6 +965,7 @@
     await renderAudit();
     await setupAI();
     setupTierButtons();
+    await setupBillingPortal();
     await setupIdentity();
     setupPasswordChange();
 

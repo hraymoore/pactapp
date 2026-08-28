@@ -155,6 +155,9 @@ for (const stmt of [
   "ALTER TABLE templates ADD COLUMN ai_restricted INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE contracts ADD COLUMN state TEXT",
   "ALTER TABLE contracts ADD COLUMN ai_restricted INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN stripe_customer_id TEXT",
+  "ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT",
+  "ALTER TABLE users ADD COLUMN stripe_subscription_status TEXT",
 ]) {
   try {
     db.exec(stmt);

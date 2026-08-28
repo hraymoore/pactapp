@@ -2,7 +2,14 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
-const { billingConfigured, createCheckoutSession, applyTierFromSession } = require("../services/billing-provider");
+const {
+  billingConfigured,
+  createCheckoutSession,
+  createBillingPortalSession,
+  applyTierFromSession,
+  syncSubscriptionUpdate,
+  downgradeOnCancellation,
+} = require("../services/billing-provider");
 const { fulfillPurchase } = require("../services/purchases");
 
 const TIER_PRICE_CENTS = { starter: 799, everyday: 1199, pro: 2099, business: 8999 };
@@ -18,25 +25,42 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
     const Stripe = require("stripe");
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const event = stripe.webhooks.constructEvent(req.body, req.headers["stripe-signature"], process.env.STRIPE_WEBHOOK_SECRET);
+
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       if (session.metadata && session.metadata.purchaseType) {
         const user = db.prepare("SELECT * FROM users WHERE id = ?").get(session.metadata.userId);
         if (user) {
-          fulfillPurchase({
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            templateId: Number(session.metadata.templateId),
-            purchaseType: session.metadata.purchaseType,
-            stripeSessionId: session.id,
-            state: session.metadata.state || undefined,
-          });
+          try {
+            fulfillPurchase({
+              userId: user.id,
+              userName: user.name,
+              userEmail: user.email,
+              templateId: Number(session.metadata.templateId),
+              purchaseType: session.metadata.purchaseType,
+              stripeSessionId: session.id,
+              state: session.metadata.state || undefined,
+            });
+          } catch (fulfillErr) {
+            // Stripe retries webhook delivery on anything but a 2xx, and
+            // can redeliver an event it already sent successfully —
+            // purchases.stripe_session_id is UNIQUE, so a duplicate
+            // delivery hits a constraint error here. Treat that as an
+            // already-fulfilled no-op instead of failing the webhook
+            // (which would just make Stripe retry forever); anything
+            // else is a real error worth surfacing.
+            if (!/UNIQUE constraint failed/i.test(fulfillErr.message)) throw fulfillErr;
+          }
         }
       } else {
         applyTierFromSession(db, session);
       }
+    } else if (event.type === "customer.subscription.updated") {
+      syncSubscriptionUpdate(db, event.data.object);
+    } else if (event.type === "customer.subscription.deleted") {
+      downgradeOnCancellation(db, event.data.object);
     }
+
     res.json({ received: true });
   } catch (err) {
     res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
@@ -61,10 +85,28 @@ router.post("/checkout", requireAuth, async (req, res) => {
   }
 
   try {
-    const session = await createCheckoutSession({ tier, priceCents: TIER_PRICE_CENTS[tier], user: req.user, req });
-    res.json({ mode: "stripe", url: session.url });
+    const fullUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+    const result = await createCheckoutSession({ tier, priceCents: TIER_PRICE_CENTS[tier], user: fullUser, req });
+    if (result.mode === "updated") {
+      db.prepare("UPDATE users SET tier = ? WHERE id = ?").run(tier, req.user.id);
+      return res.json({ mode: "updated", tier, note: "Your existing subscription was updated to the new tier — no new charge to check out." });
+    }
+    res.json({ mode: "stripe", url: result.url });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/portal", requireAuth, async (req, res) => {
+  if (!billingConfigured()) {
+    return res.status(501).json({ error: "Billing is not connected yet." });
+  }
+  try {
+    const fullUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+    const session = await createBillingPortalSession({ user: fullUser, req });
+    res.json({ url: session.url });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

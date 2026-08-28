@@ -168,6 +168,7 @@
           <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
           <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
           <div class="tag-row" id="tierButtons"></div>
+          <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
         </div>
       </div>
       <div class="card" style="margin-top:24px;">
@@ -815,6 +816,27 @@
     });
   }
 
+  async function setupBillingPortal() {
+    const btn = document.getElementById("manageBillingBtn");
+    try {
+      const { configured } = await apiJson("/api/billing/status");
+      if (!configured || CURRENT_USER.tier === "starter") return;
+      btn.style.display = "";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          const { url } = await apiJson("/api/billing/portal", { method: "POST", body: JSON.stringify({}) });
+          window.location.href = url;
+        } catch (err) {
+          alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    } catch (err) {
+      // status check failing shouldn't block the rest of Settings
+    }
+  }
+
   async function setupIdentity() {
     const statusText = document.getElementById("identityStatusText");
     const verifyBtn = document.getElementById("verifyIdentityBtn");
@@ -943,6 +965,7 @@
     await renderAudit();
     await setupAI();
     setupTierButtons();
+    await setupBillingPortal();
     await setupIdentity();
     setupPasswordChange();
 

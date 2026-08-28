@@ -91,6 +91,28 @@ Pact's `identity_verifications` table only stores a status
 Persona, Onfido, Plaid Identity Verification, or Jumio — they follow the
 same "create a session, redirect, receive a webhook" shape.
 
+## Stripe billing details worth knowing
+
+- **One Customer per profile.** `getOrCreateCustomer` in `services/billing-provider.js`
+  creates a Stripe Customer once (stored as `users.stripe_customer_id`) and reuses it for
+  every checkout — required for the billing portal below and for upgrades/downgrades to
+  work correctly.
+- **Changing tier updates the existing subscription in place** (with proration) instead of
+  starting a second one, as long as the webhook has told Pact about the first subscription
+  (see below) — so `STRIPE_WEBHOOK_SECRET` isn't optional in any environment where users
+  might actually upgrade or downgrade.
+- **`POST /api/billing/portal`** opens Stripe's hosted Customer Portal (update card, view
+  invoices, self-serve cancel) for the logged-in user's stored customer — enable it once at
+  https://dashboard.stripe.com/settings/billing/portal (test mode has its own toggle) or
+  Stripe returns a "no configuration" error.
+- **Cancellations sync back automatically**: the webhook listens for
+  `customer.subscription.deleted` and downgrades the user to `starter` — without this,
+  someone who cancels (via the portal or the Stripe dashboard) would keep their paid tier
+  in Pact forever.
+- **Webhook delivery is idempotent**: `purchases.stripe_session_id` is `UNIQUE`, and the
+  webhook handler treats a duplicate `checkout.session.completed` delivery (Stripe does
+  retry) as an already-fulfilled no-op rather than erroring.
+
 ## Stripe webhooks locally
 
 `STRIPE_SECRET_KEY` alone is enough to test Checkout and Identity in
@@ -99,11 +121,14 @@ changes, verification results) instead of the client-side polling fallback,
 run the Stripe CLI against your local server:
 
 ```
-stripe listen --forward-to localhost:4000/api/billing/webhook
+stripe listen --forward-to localhost:4000/api/billing/webhook \
+  --events checkout.session.completed,customer.subscription.updated,customer.subscription.deleted
 stripe listen --forward-to localhost:4000/api/identity/webhook
 ```
 
-and put the CLI's printed signing secret in `STRIPE_WEBHOOK_SECRET`.
+and put the CLI's printed signing secret in `STRIPE_WEBHOOK_SECRET`. In production, add the
+same three event types (plus whatever Identity needs) to the webhook endpoint you configure
+in the Stripe Dashboard at https://dashboard.stripe.com/webhooks.
 
 ## Project layout
 

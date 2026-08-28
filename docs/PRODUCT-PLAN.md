@@ -95,6 +95,25 @@ Running `server/npm start` gives you the whole product, not a mock:
   (Stripe Identity) and email (SMTP) — each is wired for real and activates
   the moment its API key is set in `server/.env`; with no key, each one
   fails closed with a clear, honest message instead of faking a response
+- **Renewal/expiration reminders** — a contract can carry an expiration/renewal date and an
+  auto-renews flag (editor's "Expiration / renewal date" field); the dashboard flags anything
+  expiring within 30 days with a badge and a dedicated filter chip. A standalone script
+  (`npm run reminders` / `scripts/send-expiration-reminders.js`) — meant to run daily via a
+  scheduled job (Render Cron Job, plain crontab) since Pact has no in-process job runner —
+  emails the owner once per expiration date and logs it to the contract's audit trail; with no
+  SMTP configured it logs what it would have sent instead of failing.
+- **Contract health score** — a deterministic, rule-based check (`services/contract-health.js`,
+  `GET /api/contracts/:id/health`) for six clause categories every contract of any kind
+  typically needs (termination, payment, governing law, confidentiality, dispute resolution,
+  liability/indemnification), shown in the editor before signing. Explicitly **not** AI-based —
+  works the same with or without `ANTHROPIC_API_KEY`, and it's a structural smoke test
+  ("contains this keyword pattern"), not a substitute for actually reading the contract.
+- **Redline / version diff view** — every save snapshots the previous body into
+  `contract_versions` before overwriting it (`services/versions.js`); the editor's Version
+  History panel lists past versions and renders a real added/removed line diff (using the
+  `diff` package) against the current text, the same shape a "Compare Documents" view gives
+  you. This closes a real gap: previously `audit_log` recorded *that* an edit happened but
+  never *what* changed.
 
 ## 2. Identity / SSN verification — the deliberate design choice
 
@@ -117,7 +136,7 @@ swapped in without touching the routes above it.
 | Capability | Current state | What's missing |
 |---|---|---|
 | Rich contract editor | Plain textarea | A real clause-aware editor (ProseMirror/Tiptap), inline redlining, diff view between versions |
-| Notifications | None | Push/email notifications for "awaiting your signature," "contract amended," tier changes |
+| Notifications | Expiration reminders exist (email, via a scheduled script — see §1) | Push/email for "awaiting your signature," "contract amended," tier changes; the expiration reminder script needs an actual scheduler wired up in production (Render Cron Job or similar) — it doesn't run itself |
 | Team accounts | Real multi-seat business accounts exist — shared contract directory, owner/admin/member roles (see §1) | One bill for the whole org (each contract still checks its creator's own personal tier); real EIN/KYB verification (currently self-reported only) |
 | Search & filtering | `LIKE`-based, fine at hundreds of templates/contracts | A real search index (Postgres full-text or a search service) once template/contract volume grows past what a simple `LIKE` scan handles well |
 | Production auth hardening | Dev-friendly JWT secret fallback; login lockout (7 attempts) and temporary-password reset are real (§1) | Enforce `JWT_SECRET` in production, add IP-based rate limiting, email verification |

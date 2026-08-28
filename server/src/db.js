@@ -169,6 +169,36 @@ CREATE TABLE IF NOT EXISTS organization_members (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (organization_id, user_id)
 );
+
+-- A snapshot of contracts.body taken immediately before every save
+-- (pre-signature edit or post-signature amendment alike), so a redline/
+-- diff view has something real to compare the current text against —
+-- audit_log records THAT something changed, this records WHAT it was.
+CREATE TABLE IF NOT EXISTS contract_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  saved_by_name TEXT,
+  saved_by_email TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- A request to have a licensed attorney review one contract. Pact doesn't
+-- run a two-sided attorney marketplace yet (no attorney accounts, no
+-- state-licensing match, no automated assignment) — this is the request
+-- side only; status is moved along manually until that's built for real.
+CREATE TABLE IF NOT EXISTS attorney_review_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  requested_by_user_id INTEGER NOT NULL REFERENCES users(id),
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_review', 'completed', 'canceled')),
+  amount_cents INTEGER NOT NULL,
+  stripe_session_id TEXT UNIQUE,
+  payment_status TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -187,6 +217,9 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT",
   "ALTER TABLE users ADD COLUMN stripe_subscription_status TEXT",
   "ALTER TABLE contracts ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
+  "ALTER TABLE contracts ADD COLUMN expires_at TEXT",
+  "ALTER TABLE contracts ADD COLUMN auto_renews INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE contracts ADD COLUMN expiration_reminder_sent_at TEXT",
 ]) {
   try {
     db.exec(stmt);

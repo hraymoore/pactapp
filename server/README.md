@@ -72,6 +72,16 @@ seeded (72 templates) automatically on first boot via Node's built-in
   handler.
 - **PDF export** — real, generated per request with `pdf-lib`
   (`services/pdf.js`), including the signature block and full audit trail.
+- **Contract health score** — rule-based clause-presence check, no AI required
+  (`services/contract-health.js`, `GET /api/contracts/:id/health`).
+- **Redline/version history** — every save snapshots the prior body
+  (`services/versions.js`, `contract_versions` table); `GET /api/contracts/:id/versions`
+  and `GET /api/contracts/:id/versions/:versionId/diff` (line-level added/removed diff via the
+  `diff` package) power the editor's Version History panel.
+- **Renewal/expiration reminders** — `contracts.expires_at`/`auto_renews`; `npm run reminders`
+  (`scripts/send-expiration-reminders.js`) emails the owner once per expiration date within a
+  7-day window and logs it to the audit trail — schedule it externally (Render Cron Job, cron),
+  Pact doesn't run its own job scheduler.
 
 ## What needs a key to go live
 
@@ -147,5 +157,8 @@ server/
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
     routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases, organizations
-    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails, billing-provider, identity-provider, mailer, organizations
+    services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails,
+                              # billing-provider, identity-provider, mailer, organizations, contract-health, versions
+  scripts/
+    send-expiration-reminders.js  # run daily via an external scheduler — npm run reminders
 ```

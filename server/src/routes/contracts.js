@@ -10,6 +10,8 @@ const { contentHash, createContractFromTemplate } = require("../services/contrac
 const { upload, UPLOAD_DIR } = require("../services/uploads");
 const { isValidStateCode } = require("../us-states");
 const { getMembership } = require("../services/organizations");
+const { snapshotVersion, listVersions, diffAgainstCurrent } = require("../services/versions");
+const { computeHealthScore } = require("../services/contract-health");
 const fs = require("fs");
 const path = require("path");
 
@@ -228,15 +230,33 @@ router.get("/:id", (req, res) => {
 router.put("/:id", (req, res) => {
   const contract = loadAuthorizedContract(req, res, { requireEdit: true });
   if (!contract) return;
-  const { body, name } = req.body || {};
+  const { body, name, expiresAt, autoRenews } = req.body || {};
   if (typeof body !== "string" || !body.trim()) {
     return res.status(400).json({ error: "Contract body cannot be empty." });
   }
+  if (expiresAt !== undefined && expiresAt !== null && expiresAt !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)) {
+    return res.status(400).json({ error: "Expiration date must be in YYYY-MM-DD format." });
+  }
+
+  // A real snapshot of what the text looked like a moment ago, so the
+  // redline view has something concrete to diff against — separate from
+  // audit_log, which only records that a change happened.
+  if (body !== contract.body) {
+    snapshotVersion(contract.id, contract.body, req.user);
+  }
 
   const wasLocked = contract.status === "signed";
+  const nextExpiresAt = expiresAt !== undefined ? (expiresAt || null) : contract.expires_at;
+  const nextAutoRenews = autoRenews !== undefined ? (autoRenews ? 1 : 0) : contract.auto_renews;
+  // A changed expiration date means any previous reminder no longer
+  // applies to the new date — clear it so the reminder job can fire again.
+  const nextReminderSentAt = nextExpiresAt !== contract.expires_at ? null : contract.expiration_reminder_sent_at;
+
   db.prepare(
-    "UPDATE contracts SET body = ?, name = COALESCE(?, name), content_hash = ?, updated_at = datetime('now') WHERE id = ?"
-  ).run(body, name || null, contentHash(body), contract.id);
+    `UPDATE contracts SET body = ?, name = COALESCE(?, name), content_hash = ?, updated_at = datetime('now'),
+       expires_at = ?, auto_renews = ?, expiration_reminder_sent_at = ?
+     WHERE id = ?`
+  ).run(body, name || null, contentHash(body), nextExpiresAt, nextAutoRenews, nextReminderSentAt, contract.id);
 
   if (wasLocked) {
     logAudit(contract.id, req.user, "amended", `Post-signature amendment made by ${req.user.name}.`);
@@ -246,6 +266,31 @@ router.put("/:id", (req, res) => {
 
   const updated = db.prepare("SELECT * FROM contracts WHERE id = ?").get(contract.id);
   res.json({ contract: updated, amended: wasLocked });
+});
+
+router.get("/:id/versions", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  res.json({ versions: listVersions(contract.id) });
+});
+
+router.get("/:id/versions/:versionId/diff", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const version = db
+    .prepare("SELECT * FROM contract_versions WHERE id = ? AND contract_id = ?")
+    .get(req.params.versionId, contract.id);
+  if (!version) return res.status(404).json({ error: "Version not found." });
+  res.json({
+    version: { id: version.id, saved_by_name: version.saved_by_name, created_at: version.created_at },
+    diff: diffAgainstCurrent(version.body, contract.body),
+  });
+});
+
+router.get("/:id/health", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  res.json(computeHealthScore(contract.body));
 });
 
 router.post("/:id/send", (req, res) => {

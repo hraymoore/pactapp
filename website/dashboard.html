@@ -88,8 +88,11 @@
       <div class="filter-row" id="genreFilterRow" style="margin-bottom:8px;">
         <button class="chip active" data-genre="All">All Categories</button>
       </div>
-      <div class="filter-row" id="stateFilterRow" style="margin-bottom:16px;">
+      <div class="filter-row" id="stateFilterRow" style="margin-bottom:8px;">
         <button class="chip active" data-state="All">All States</button>
+      </div>
+      <div class="filter-row" style="margin-bottom:16px;">
+        <button class="chip" id="expiringToggleChip">⏰ Expiring within 30 days</button>
       </div>
       <div id="contractList"></div>
       <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
@@ -257,10 +260,22 @@
     <h3 id="editorTitle">Contract</h3>
     <p id="editorStateTag" style="margin:-6px 0 12px;font-size:0.78rem;color:var(--silver);"></p>
     <p id="editorRestrictedBanner" style="display:none;font-size:0.85rem;color:var(--ruby-bright);margin-bottom:12px;">This contract is in the Family Law category — informational only. Pact AI drafting/suggestions are disabled for it; consult a licensed attorney and your local court's resources.</p>
+
+    <div id="healthScoreBox" class="card" style="margin-bottom:16px;padding:14px 16px;"></div>
+
     <div class="field">
       <label>Contract body</label>
       <textarea id="editorBody" rows="12" style="background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.9rem;line-height:1.6;color:var(--silver);width:100%;font-family:var(--font-mono);"></textarea>
     </div>
+
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+      <div class="field" style="margin-bottom:0;max-width:220px;"><label>Expiration / renewal date</label><input id="editorExpiresAt" type="date"></div>
+      <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:8px;padding-top:22px;">
+        <input id="editorAutoRenews" type="checkbox" style="width:auto;">
+        <label for="editorAutoRenews" style="margin:0;display:inline;">Auto-renews</label>
+      </div>
+    </div>
+
     <div style="display:flex;gap:10px;">
       <button class="btn btn-gold" id="saveEditBtn">Save Changes</button>
       <button class="btn btn-ghost-dark" id="cancelEditBtn">Cancel</button>
@@ -276,6 +291,16 @@
         <button class="btn btn-ghost-dark btn-sm" id="addAttachmentBtn">Add</button>
       </div>
       <p id="attachmentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+    </div>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">VERSION HISTORY</label>
+      <div id="versionList" style="margin-bottom:12px;"></div>
+      <div id="versionDiffBox" style="display:none;">
+        <div class="eyebrow" style="margin-bottom:8px;">Redline vs. current text</div>
+        <pre id="versionDiffContent" style="white-space:pre-wrap;font-family:var(--font-mono);font-size:0.82rem;line-height:1.6;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:14px;max-height:300px;overflow:auto;margin:0;"></pre>
+        <button class="btn btn-ghost-dark btn-sm" id="closeVersionDiffBtn" style="margin-top:10px;">Close redline</button>
+      </div>
     </div>
   </div>
 </div>
@@ -417,6 +442,24 @@
   wireFilterRow("statusFilterRow", "status", (v) => CONTRACT_STATUS_FILTER = v);
   wireFilterRow("genreFilterRow", "genre", (v) => CONTRACT_GENRE_FILTER = v);
   wireFilterRow("stateFilterRow", "state", (v) => CONTRACT_STATE_FILTER = v);
+  document.getElementById("expiringToggleChip").addEventListener("click", (e) => {
+    CONTRACT_EXPIRING_ONLY = !CONTRACT_EXPIRING_ONLY;
+    e.target.classList.toggle("active", CONTRACT_EXPIRING_ONLY);
+    filterContracts();
+  });
+
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    return Math.ceil((new Date(dateStr + "T00:00:00Z") - Date.now()) / 86400000);
+  }
+
+  function expiryBadge(c) {
+    const days = daysUntil(c.expires_at);
+    if (days === null) return "";
+    if (days < 0) return `<span class="mini-tag" style="margin-left:8px;color:var(--ruby-bright);">Expired ${c.expires_at}</span>`;
+    if (days <= 30) return `<span class="mini-tag" style="margin-left:8px;color:var(--gold-bright);">Expires in ${days}d</span>`;
+    return `<span class="mini-tag" style="margin-left:8px;">Expires ${c.expires_at}</span>`;
+  }
 
   function drawContractRows(contracts) {
     const wrap = document.getElementById("contractList");
@@ -431,7 +474,7 @@
       const row = document.createElement("div");
       row.className = "contract-row";
       row.innerHTML = `
-        <div class="name">${c.name}${badge}<small>${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div class="name">${c.name}${badge}${expiryBadge(c)}<small>${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
         <div>${statusPill(c.status)}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
@@ -454,13 +497,16 @@
     wrap.querySelectorAll("[data-share]").forEach(btn => btn.addEventListener("click", () => openShareModal(Number(btn.dataset.share), btn.dataset.name)));
   }
 
+  let CONTRACT_EXPIRING_ONLY = false;
+
   function filterContracts() {
     const q = document.getElementById("contractSearch").value.trim().toLowerCase();
     const filtered = ALL_CONTRACTS.filter(c =>
       (!q || c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q)) &&
       (CONTRACT_STATUS_FILTER === "All" || c.status === CONTRACT_STATUS_FILTER) &&
       (CONTRACT_GENRE_FILTER === "All" || c.genre === CONTRACT_GENRE_FILTER) &&
-      (CONTRACT_STATE_FILTER === "All" || c.state === CONTRACT_STATE_FILTER)
+      (CONTRACT_STATE_FILTER === "All" || c.state === CONTRACT_STATE_FILTER) &&
+      (!CONTRACT_EXPIRING_ONLY || (daysUntil(c.expires_at) !== null && daysUntil(c.expires_at) <= 30))
     );
     drawContractRows(filtered);
   }
@@ -477,6 +523,10 @@
     document.getElementById("editorBody").readOnly = readOnly;
     document.getElementById("editorStateTag").textContent = contract.state ? `Governing state: ${contract.state}` : "";
     document.getElementById("editorRestrictedBanner").style.display = contract.ai_restricted ? "" : "none";
+    document.getElementById("editorExpiresAt").value = contract.expires_at || "";
+    document.getElementById("editorExpiresAt").disabled = readOnly;
+    document.getElementById("editorAutoRenews").checked = !!contract.auto_renews;
+    document.getElementById("editorAutoRenews").disabled = readOnly;
     document.getElementById("saveEditBtn").style.display = readOnly ? "none" : "";
     document.getElementById("addAttachmentBtn").style.display = readOnly ? "none" : "";
     document.getElementById("attachmentFile").style.display = readOnly ? "none" : "";
@@ -486,8 +536,60 @@
         ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
         : "This contract is not yet signed — edits here are unrestricted.";
     editorModal.classList.add("show");
+    document.getElementById("versionDiffBox").style.display = "none";
     await renderAttachments();
+    await renderHealthScore();
+    await renderVersionList();
   }
+
+  async function renderHealthScore() {
+    const box = document.getElementById("healthScoreBox");
+    box.innerHTML = "<p style='margin:0;font-size:0.85rem;'>Checking key clauses…</p>";
+    try {
+      const health = await apiJson(`/api/contracts/${editingId}/health`);
+      const color = health.score === health.total ? "var(--emerald-bright)" : health.score >= health.total / 2 ? "var(--gold-bright)" : "var(--ruby-bright)";
+      box.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${health.missing.length ? "8px" : "0"};">
+          <strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.06em;text-transform:uppercase;">Contract health</strong>
+          <span style="color:${color};font-family:var(--font-mono);font-weight:700;">${health.score}/${health.total} key clauses present</span>
+        </div>
+        ${health.missing.length ? `<p style="margin:0;font-size:0.82rem;color:var(--silver);">Missing: ${health.missing.join(", ")} — this is a structural check, not legal advice.</p>` : `<p style="margin:0;font-size:0.82rem;color:var(--silver);">All standard clause categories detected.</p>`}
+      `;
+    } catch (err) {
+      box.innerHTML = "";
+    }
+  }
+
+  async function renderVersionList() {
+    const { versions } = await apiJson(`/api/contracts/${editingId}/versions`);
+    const wrap = document.getElementById("versionList");
+    wrap.innerHTML = versions.length ? "" : "<p style='margin:0;font-size:0.85rem;'>No earlier versions yet — the first edit will create one.</p>";
+    versions.forEach(v => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:0.85rem;";
+      row.innerHTML = `
+        <span>${fmt(v.created_at)} <span style="color:var(--silver);">&middot; ${v.saved_by_name || "unknown"}</span></span>
+        <button class="btn btn-ghost-dark btn-sm" data-view-diff="${v.id}">View redline</button>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll("[data-view-diff]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { diff } = await apiJson(`/api/contracts/${editingId}/versions/${btn.dataset.viewDiff}/diff`);
+        const content = document.getElementById("versionDiffContent");
+        content.innerHTML = diff.map(part => {
+          const text = part.value.replace(/</g, "&lt;");
+          if (part.added) return `<span style="background:rgba(15,107,76,0.25);color:var(--emerald-bright);">${text}</span>`;
+          if (part.removed) return `<span style="background:rgba(156,31,59,0.25);color:var(--ruby-bright);text-decoration:line-through;">${text}</span>`;
+          return `<span>${text}</span>`;
+        }).join("");
+        document.getElementById("versionDiffBox").style.display = "";
+        document.getElementById("versionDiffBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+  }
+  document.getElementById("closeVersionDiffBtn").addEventListener("click", () => {
+    document.getElementById("versionDiffBox").style.display = "none";
+  });
 
   async function renderAttachments() {
     const { attachments } = await apiJson(`/api/contracts/${editingId}/attachments`);
@@ -531,7 +633,11 @@
     try {
       await apiJson(`/api/contracts/${editingId}`, {
         method: "PUT",
-        body: JSON.stringify({ body: document.getElementById("editorBody").value }),
+        body: JSON.stringify({
+          body: document.getElementById("editorBody").value,
+          expiresAt: document.getElementById("editorExpiresAt").value || null,
+          autoRenews: document.getElementById("editorAutoRenews").checked,
+        }),
       });
       editorModal.classList.remove("show");
       await renderContracts();

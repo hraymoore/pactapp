@@ -104,6 +104,33 @@ async function createOneTimeCheckoutSession({ template, purchaseType, priceCents
   return session;
 }
 
+// Flat-fee, one-time payment for a human attorney to review one contract —
+// same "payment" Checkout mode as a template purchase, different metadata
+// so the webhook routes it to fulfillAttorneyReviewPayment instead.
+async function createAttorneyReviewCheckoutSession({ requestId, contractName, priceCents, user, req }) {
+  const stripe = getStripe();
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const customerId = await getOrCreateCustomer(user);
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: customerId,
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: { name: `Pact — Attorney review: ${contractName}` },
+          unit_amount: priceCents,
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${origin}/dashboard.html?reviewRequested=1`,
+    cancel_url: `${origin}/dashboard.html`,
+    metadata: { type: "attorney_review", requestId: String(requestId) },
+  });
+  return session;
+}
+
 // Stripe's hosted portal for a customer to update their payment method,
 // view invoices, or cancel their own subscription — without emailing us.
 async function createBillingPortalSession({ user, req }) {
@@ -169,6 +196,7 @@ module.exports = {
   getOrCreateCustomer,
   createCheckoutSession,
   createOneTimeCheckoutSession,
+  createAttorneyReviewCheckoutSession,
   createBillingPortalSession,
   applyTierFromSession,
   syncSubscriptionUpdate,

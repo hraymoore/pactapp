@@ -26,8 +26,9 @@ Then open **http://localhost:4000**.
 - `features.html` — security, e-signature and Pact AI overview
 - `signup.html` / `login.html` — real profile creation/login against the backend
 - `forgot-password.html` — request a temporary password (emailed, or shown directly if SMTP isn't configured)
-- `dashboard.html` — gated app: contract list with status/category/state filter chips, editor (with a persistent legal-advice disclaimer, view-only read mode, and a Family Law restricted-category banner), send/sign, a Business tab (create/join a business account, member roles, a shared contract directory), Pact AI chat (multi-turn, contract-aware, summarization presets, hard-blocked for Family Law contracts), audit trail, billing & identity settings, password change
+- `dashboard.html` — gated app: contract list with status/category/state/expiring-soon filter chips, editor (persistent legal-advice disclaimer, view-only read mode, Family Law restricted-category banner, a rule-based health score, expiration/auto-renew fields, a Version History redline diff panel, and a "Request Attorney Review — $99" button), send/sign, a Business tab (create/join a business account, member roles, a shared contract directory), Pact AI chat (multi-turn, contract-aware, summarization presets, hard-blocked for Family Law contracts), audit trail, billing & identity settings, password change
 - `sign.html` — public page an outside counterparty opens from a signing link (no account needed)
+- `attorney-queue.html` — internal, unlinked page: every paid attorney-review request across every user, gated by `ATTORNEY_REVIEW_ADMIN_EMAIL` (see `server/README.md`)
 - `contact.html` — contact form
 
 ## How auth works

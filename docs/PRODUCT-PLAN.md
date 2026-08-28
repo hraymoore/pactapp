@@ -114,6 +114,14 @@ Running `server/npm start` gives you the whole product, not a mock:
   `diff` package) against the current text, the same shape a "Compare Documents" view gives
   you. This closes a real gap: previously `audit_log` recorded *that* an edit happened but
   never *what* changed.
+- **Attorney review requests (request + payment intake only, not a full marketplace)** — a
+  "Request Attorney Review — $99" button on any contract creates a paid request
+  (`attorney_review_requests`, same Checkout-payment pattern as a one-time template purchase).
+  Pact has no attorney accounts, no state-licensing match, and no automated assignment yet —
+  fulfillment is manual: setting `ATTORNEY_REVIEW_ADMIN_EMAIL` to your own login unlocks
+  `/attorney-queue.html` (every request across every user, with a status dropdown) and emails
+  you when a new one comes in. This is deliberately scoped as a lead-gen/waitlist intake to
+  validate demand before building real two-sided matching (see §3).
 
 ## 2. Identity / SSN verification — the deliberate design choice
 
@@ -135,9 +143,10 @@ swapped in without touching the routes above it.
 
 | Capability | Current state | What's missing |
 |---|---|---|
-| Rich contract editor | Plain textarea | A real clause-aware editor (ProseMirror/Tiptap), inline redlining, diff view between versions |
+| Rich contract editor | Plain textarea, but a real version diff/redline view now exists (see §1) | A real clause-aware editor (ProseMirror/Tiptap) with inline redlining as you type, not just diff-on-demand between saved versions |
 | Notifications | Expiration reminders exist (email, via a scheduled script — see §1) | Push/email for "awaiting your signature," "contract amended," tier changes; the expiration reminder script needs an actual scheduler wired up in production (Render Cron Job or similar) — it doesn't run itself |
 | Team accounts | Real multi-seat business accounts exist — shared contract directory, owner/admin/member roles (see §1) | One bill for the whole org (each contract still checks its creator's own personal tier); real EIN/KYB verification (currently self-reported only) |
+| Attorney marketplace | Request + payment intake exists — no real attorney pool (see §1) | Attorney accounts, state-licensing match, availability/assignment, a fulfillment-side portal instead of manual email + `/attorney-queue.html` |
 | Search & filtering | `LIKE`-based, fine at hundreds of templates/contracts | A real search index (Postgres full-text or a search service) once template/contract volume grows past what a simple `LIKE` scan handles well |
 | Production auth hardening | Dev-friendly JWT secret fallback; login lockout (7 attempts) and temporary-password reset are real (§1) | Enforce `JWT_SECRET` in production, add IP-based rate limiting, email verification |
 | Deployment | Local SQLite file | Managed Postgres + object storage, proper backups, horizontal scaling |

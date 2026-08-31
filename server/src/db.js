@@ -220,6 +220,19 @@ for (const stmt of [
   "ALTER TABLE contracts ADD COLUMN expires_at TEXT",
   "ALTER TABLE contracts ADD COLUMN auto_renews INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE contracts ADD COLUMN expiration_reminder_sent_at TEXT",
+  // 'personal' vs 'business' at signup. A personal profile's `name` is a
+  // display alias ("name to be called") separate from its legal name; a
+  // business profile's `name` is the business name itself, and business
+  // signup also provisions an `organizations` row below so it gets the
+  // full Business Directory (team invites, shared contract pool) for free
+  // instead of a second, disconnected "business profile" concept.
+  "ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'personal'",
+  "ALTER TABLE users ADD COLUMN legal_first_name TEXT",
+  "ALTER TABLE users ADD COLUMN legal_last_name TEXT",
+  "ALTER TABLE users ADD COLUMN date_of_birth TEXT",
+  "ALTER TABLE organizations ADD COLUMN address TEXT",
+  "ALTER TABLE organizations ADD COLUMN contact_email TEXT",
+  "ALTER TABLE organizations ADD COLUMN point_of_contact TEXT",
 ]) {
   try {
     db.exec(stmt);

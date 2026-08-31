@@ -24,12 +24,12 @@ const PactAPI = {
     }
   },
 
-  async signup({ name, email, password, tier }) {
+  async signup(payload) {
     const r = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ name, email, password, tier }),
+      body: JSON.stringify(payload),
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || "Signup failed.");

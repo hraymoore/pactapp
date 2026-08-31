@@ -28,15 +28,24 @@ router.get("/", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { name, ein } = req.body || {};
+  const { name, ein, address, contactEmail, pointOfContact } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Business name is required." });
   if (ein && !isValidEinFormat(ein)) {
     return res.status(400).json({ error: "EIN should look like 12-3456789." });
   }
 
   const info = db
-    .prepare("INSERT INTO organizations (name, ein, owner_user_id) VALUES (?, ?, ?)")
-    .run(name.trim(), ein ? normalizeEin(ein) : null, req.user.id);
+    .prepare(
+      "INSERT INTO organizations (name, ein, owner_user_id, address, contact_email, point_of_contact) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .run(
+      name.trim(),
+      ein ? normalizeEin(ein) : null,
+      req.user.id,
+      address ? address.trim() : null,
+      contactEmail ? contactEmail.trim().toLowerCase() : null,
+      pointOfContact ? pointOfContact.trim() : null
+    );
   const organizationId = info.lastInsertRowid;
 
   db.prepare("INSERT INTO organization_members (organization_id, user_id, role) VALUES (?, ?, 'owner')").run(
@@ -74,13 +83,21 @@ router.put("/:id", (req, res) => {
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
-  const { name, ein } = req.body || {};
+  const { name, ein, address, contactEmail, pointOfContact } = req.body || {};
   if (ein && !isValidEinFormat(ein)) {
     return res.status(400).json({ error: "EIN should look like 12-3456789." });
   }
-  db.prepare("UPDATE organizations SET name = COALESCE(?, name), ein = COALESCE(?, ein) WHERE id = ?").run(
+  db.prepare(
+    `UPDATE organizations SET
+       name = COALESCE(?, name), ein = COALESCE(?, ein), address = COALESCE(?, address),
+       contact_email = COALESCE(?, contact_email), point_of_contact = COALESCE(?, point_of_contact)
+     WHERE id = ?`
+  ).run(
     name ? name.trim() : null,
     ein ? normalizeEin(ein) : null,
+    address ? address.trim() : null,
+    contactEmail ? contactEmail.trim().toLowerCase() : null,
+    pointOfContact ? pointOfContact.trim() : null,
     org.id
   );
   const updated = db.prepare("SELECT * FROM organizations WHERE id = ?").get(org.id);

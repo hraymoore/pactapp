@@ -122,6 +122,24 @@ router.get("/", (req, res) => {
   res.json({ contracts: withParties });
 });
 
+// A profile is free, and can always view/edit/receive/sign a contract
+// someone else sends it — but SENDING one (from a template, blank, or an
+// upload) needs at least one paying party. Template-based creation already
+// enforces this indirectly (TIER_ORDER.indexOf('none') is -1, always below
+// any real template.min_tier), but a blank or uploaded contract has no
+// template to check against, so it needs its own floor here — otherwise an
+// unpaid account could route around the paywall entirely by never picking
+// a template.
+function requirePaidTier(req, res) {
+  if (TIER_ORDER.indexOf(req.user.tier) === -1) {
+    res.status(403).json({
+      error: "You need an active paid plan to create and send a contract. Unpaid profiles can still receive, view, and sign contracts sent to them — see Pricing.",
+    });
+    return false;
+  }
+  return true;
+}
+
 router.post("/", (req, res) => {
   const { name, templateId, counterpartyName, counterpartyEmail, state, organizationId } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Contract name is required." });
@@ -131,6 +149,7 @@ router.post("/", (req, res) => {
   if (organizationId && !getMembership(organizationId, req.user.id)) {
     return res.status(403).json({ error: "You are not a member of that organization." });
   }
+  if (!requirePaidTier(req, res)) return;
 
   let template = null;
   if (templateId) {
@@ -172,6 +191,7 @@ router.post("/", (req, res) => {
 // parsed into editable text — that's a real project, not a quick add).
 router.post("/upload", handleUpload, (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+  if (!requirePaidTier(req, res)) return;
   const name = (req.body.name || req.file.originalname).trim() || "Untitled Contract";
   const genre = (req.body.genre || "Other").trim() || "Other";
   // Optional here (unlike template-based creation): an uploaded document

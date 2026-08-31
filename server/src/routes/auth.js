@@ -14,8 +14,6 @@ const COOKIE_OPTS = {
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-const VALID_TIERS = ["starter", "everyday", "pro", "business"];
-
 const MAX_LOGIN_ATTEMPTS = 7;
 const TEMP_PASSWORD_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -31,7 +29,7 @@ function publicUser(row) {
 }
 
 router.post("/signup", (req, res) => {
-  const { name, email, password, tier } = req.body || {};
+  const { name, email, password } = req.body || {};
   if (!name || !name.trim() || !email || !password) {
     return res.status(400).json({ error: "Name, email and password are required." });
   }
@@ -43,10 +41,17 @@ router.post("/signup", (req, res) => {
   if (existing) {
     return res.status(409).json({ error: "An account with that email already exists. Try logging in instead." });
   }
-  const chosenTier = VALID_TIERS.includes(tier) ? tier : "starter";
+  // Every tier costs money — a new profile starts with no active plan
+  // ('none', not a real tier, deliberately outside TIER_ORDER so every
+  // tier-gated feature stays locked) instead of granting whatever tier the
+  // signup form's dropdown happened to say. The tier only gets applied once
+  // POST /api/billing/checkout actually collects payment (or, in local/
+  // pre-Stripe "direct mode", is applied directly the same way any other
+  // tier change already is) — see website/signup.html for the checkout
+  // call that immediately follows a successful signup.
   const info = db
-    .prepare("INSERT INTO users (name, email, password_hash, tier) VALUES (?, ?, ?, ?)")
-    .run(name.trim(), normalizedEmail, hashPassword(password), chosenTier);
+    .prepare("INSERT INTO users (name, email, password_hash, tier) VALUES (?, ?, ?, 'none')")
+    .run(name.trim(), normalizedEmail, hashPassword(password));
   const user = db
     .prepare("SELECT id, name, email, tier, created_at FROM users WHERE id = ?")
     .get(info.lastInsertRowid);

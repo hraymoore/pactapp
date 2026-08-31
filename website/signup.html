@@ -79,7 +79,7 @@
       <button type="submit" class="btn btn-gold btn-block">Create My Profile</button>
     </form>
     <p class="form-note">Already have a profile? <a href="login.html">Log in</a></p>
-    <p class="form-note">Your profile and password are stored for real on the Pact server (hashed, never in plain text). Billing only charges a card once Stripe is connected — see <a href="pricing.html">Pricing</a>.</p>
+    <p class="form-note">Your profile and password are stored for real on the Pact server (hashed, never in plain text). Right after you create your profile, you'll be sent to Stripe to pay for the tier you chose above — no contracts unlock until that's done. See <a href="pricing.html">Pricing</a>.</p>
   </div>
 </div>
 
@@ -107,15 +107,36 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Creating your profile…";
     try {
-      await PactAPI.signup({ name, email, password, tier });
-      const next = params.get("next") || "dashboard.html";
-      window.location.href = next;
+      await PactAPI.signup({ name, email, password });
     } catch (err) {
       alertBox.textContent = err.message;
       alertBox.classList.add("show");
       submitBtn.disabled = false;
       submitBtn.textContent = "Create My Profile";
+      return;
     }
+
+    // The account now exists with no active plan ('none') — send them
+    // straight to checkout for the tier they picked, same endpoint the
+    // Settings tab uses for a tier switch. Nothing unlocks until this
+    // actually completes (a real Stripe payment, or, only when Stripe
+    // isn't configured, the documented local "direct mode" fallback).
+    submitBtn.textContent = "Redirecting to payment…";
+    try {
+      const data = await apiJson("/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ tier }),
+      });
+      if (data.mode === "stripe") {
+        window.location.href = data.url;
+        return;
+      }
+      alert(data.note);
+    } catch (err) {
+      alert(`Your profile was created, but starting payment failed: ${err.message}\n\nYou can pick a plan any time from Settings.`);
+    }
+    const next = params.get("next") || "dashboard.html";
+    window.location.href = next;
   });
 </script>
 </body>

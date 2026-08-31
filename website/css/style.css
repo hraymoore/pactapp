@@ -367,8 +367,22 @@ p { margin: 0 0 1em; color: var(--silver); }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(11,12,15,0.7); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
 .modal-backdrop.show { display: flex; }
-.modal { width: 100%; max-width: 620px; background: var(--obsidian-2); border: 1px solid var(--border-dark); border-radius: var(--radius-l); padding: 30px; box-shadow: var(--shadow); max-height: 85vh; overflow: auto; }
-.modal-close { float: right; background: none; border: none; color: var(--silver); font-size: 1.3rem; }
+.modal { width: 100%; max-width: 620px; background: var(--obsidian-2); border: 1px solid var(--border-dark); border-radius: var(--radius-l); padding: 30px; box-shadow: var(--shadow); max-height: 85vh; overflow: auto; transition: max-width .2s ease, height .2s ease; }
+.modal-close { float: right; background: none; border: none; color: var(--silver); font-size: 1.3rem; cursor: pointer; }
+.modal-maximize { float: right; background: none; border: 1px solid var(--border-dark); border-radius: 6px; color: var(--silver); font-size: 0.75rem; padding: 4px 10px; margin-right: 10px; cursor: pointer; }
+.modal-maximize:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
+.editor-modal.maximized { max-width: 96vw; height: 92vh; max-height: 92vh; }
+
+/* Contract editor: a real "page on a canvas" look, closer to a word
+   processor than a code textarea — the app stores contract bodies as
+   plain text throughout (AI, PDF export, redline diffing all assume it),
+   so this is a visual reskin only, not a rich-text/contenteditable switch. */
+.doc-canvas { background: var(--obsidian); border: 1px solid var(--border-dark); border-radius: 8px; padding: 28px 16px; display: flex; justify-content: center; }
+.doc-canvas .doc-page { width: 100%; max-width: 720px; min-height: 480px; background: #fdfdfb; color: #1c1c1c; border: none; border-radius: 2px; box-shadow: 0 3px 14px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.06); padding: 56px 64px; font-family: Georgia, "Times New Roman", serif; font-size: 0.95rem; line-height: 1.8; resize: vertical; }
+.doc-canvas .doc-page:focus { outline: 2px solid var(--gold-bright); outline-offset: 3px; border-color: transparent; }
+.doc-canvas .doc-page:read-only { background: #f3f2ee; color: #4a4a4a; }
+.editor-modal.maximized .doc-canvas .doc-page { max-width: 900px; min-height: 68vh; }
+@media (max-width: 640px) { .doc-canvas .doc-page { padding: 32px 24px; } }
 
 /* ---------- Misc ---------- */
 .divider-gold { height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 60px 0; }

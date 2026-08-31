@@ -226,10 +226,11 @@
           ${t.ai_restricted ? '<span class="mini-tag" style="color:var(--ruby-bright);">Informational only</span>' : ""}
         </div>
         <button class="btn btn-ghost-dark btn-sm" data-use="${t.id}">${tierBlocked ? `Requires ${TIER_LABEL[t.min_tier]}` : "Use Template"}</button>
+        ${tierBlocked ? `
         <div class="tag-row" style="margin-top:10px;">
           <button class="btn btn-ghost-dark btn-sm" data-buy="${t.id}" data-buy-type="download">Download blank — $3.99</button>
           <button class="btn btn-gold btn-sm" data-buy="${t.id}" data-buy-type="edit">Buy &amp; edit — $7.99</button>
-        </div>
+        </div>` : ""}
         <div class="tpl-lock">
           <div class="lock-icon">&#128274;</div>
           <strong>Profile required</strong>

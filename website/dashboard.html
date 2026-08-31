@@ -105,6 +105,9 @@
         <h3>Create a business account</h3>
         <p>Start a shared contract pool your team can all see. You'll be the owner and can invite existing Pact profiles as members or admins.</p>
         <div class="field"><label for="bizOrgName">Business name</label><input id="bizOrgName" type="text" placeholder="e.g. Acme Contracts LLC"></div>
+        <div class="field"><label for="bizOrgAddress">Address (optional)</label><input id="bizOrgAddress" type="text" placeholder="123 Main St, Austin, TX 78701"></div>
+        <div class="field"><label for="bizOrgContactEmail">Business email (optional)</label><input id="bizOrgContactEmail" type="email" placeholder="contracts@acme.com"></div>
+        <div class="field"><label for="bizOrgPointOfContact">Point of contact (optional)</label><input id="bizOrgPointOfContact" type="text" placeholder="Who should people ask for?"></div>
         <div class="field">
           <label for="bizOrgEin">EIN (optional)</label>
           <input id="bizOrgEin" type="text" placeholder="12-3456789">
@@ -222,6 +225,9 @@
           <h3>Profile</h3>
           <p><strong>Name:</strong> <span data-user-name>—</span></p>
           <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
+          <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
+          <p id="settingsLegalNameRow" style="display:none;"><strong>Legal name:</strong> <span id="settingsLegalName">—</span></p>
+          <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
           <p style="margin-bottom:0;"><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
         </div>
         <div class="card">
@@ -1161,9 +1167,15 @@
     CURRENT_ORG = organizations[0];
     document.getElementById("bizOrgView").style.display = "";
     document.getElementById("bizOrgName2").textContent = CURRENT_ORG.name;
-    document.getElementById("bizOrgEinLabel").textContent = CURRENT_ORG.ein
+    const einLine = CURRENT_ORG.ein
       ? `EIN ${CURRENT_ORG.ein} (self-reported, not independently verified)`
       : "No EIN on file";
+    const extraLines = [
+      CURRENT_ORG.address,
+      CURRENT_ORG.contact_email,
+      CURRENT_ORG.point_of_contact ? `Contact: ${CURRENT_ORG.point_of_contact}` : null,
+    ].filter(Boolean);
+    document.getElementById("bizOrgEinLabel").textContent = [einLine, ...extraLines].join(" · ");
     document.getElementById("bizMyRole").textContent = CURRENT_ORG.myRole;
 
     const canManage = CURRENT_ORG.myRole === "owner" || CURRENT_ORG.myRole === "admin";
@@ -1326,6 +1338,9 @@
 
   document.getElementById("bizCreateOrgBtn").addEventListener("click", async () => {
     const name = document.getElementById("bizOrgName").value.trim();
+    const address = document.getElementById("bizOrgAddress").value.trim();
+    const contactEmail = document.getElementById("bizOrgContactEmail").value.trim();
+    const pointOfContact = document.getElementById("bizOrgPointOfContact").value.trim();
     const ein = document.getElementById("bizOrgEin").value.trim();
     const errBox = document.getElementById("bizCreateError");
     errBox.classList.remove("show");
@@ -1335,7 +1350,16 @@
       return;
     }
     try {
-      await apiJson("/api/organizations", { method: "POST", body: JSON.stringify({ name, ein: ein || undefined }) });
+      await apiJson("/api/organizations", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          ein: ein || undefined,
+          address: address || undefined,
+          contactEmail: contactEmail || undefined,
+          pointOfContact: pointOfContact || undefined,
+        }),
+      });
       document.getElementById("bizNoOrg").style.display = "none";
       await setupBusiness();
     } catch (err) {
@@ -1390,6 +1414,15 @@
     }
     document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
     document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
+    document.getElementById("settingsAccountType").textContent = CURRENT_USER.accountType === "business" ? "Business" : "Personal";
+    if (CURRENT_USER.accountType !== "business" && (CURRENT_USER.legalFirstName || CURRENT_USER.legalLastName)) {
+      document.getElementById("settingsLegalNameRow").style.display = "";
+      document.getElementById("settingsLegalName").textContent = `${CURRENT_USER.legalFirstName || ""} ${CURRENT_USER.legalLastName || ""}`.trim();
+    }
+    if (CURRENT_USER.accountType !== "business" && CURRENT_USER.dateOfBirth) {
+      document.getElementById("settingsDobRow").style.display = "";
+      document.getElementById("settingsDob").textContent = new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString();
+    }
 
     document.getElementById("contractSearch").addEventListener("input", filterContracts);
 

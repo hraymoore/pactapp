@@ -4,6 +4,7 @@ const db = require("../db");
 const { hashPassword, verifyPassword, signToken, generateTempPassword } = require("../auth-utils");
 const { mailerConfigured, sendMail } = require("../services/mailer");
 const { requireAuth } = require("../middleware/auth");
+const { isValidEinFormat, normalizeEin } = require("../services/organizations");
 
 router.use(express.json());
 
@@ -16,6 +17,7 @@ const COOKIE_OPTS = {
 
 const MAX_LOGIN_ATTEMPTS = 7;
 const TEMP_PASSWORD_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const MIN_SIGNUP_AGE_YEARS = 18;
 
 function publicUser(row) {
   return {
@@ -23,15 +25,30 @@ function publicUser(row) {
     name: row.name,
     email: row.email,
     tier: row.tier,
+    accountType: row.account_type,
+    legalFirstName: row.legal_first_name,
+    legalLastName: row.legal_last_name,
+    dateOfBirth: row.date_of_birth,
     created_at: row.created_at,
     passwordIsTemporary: !!row.temp_password_expires_at,
   };
 }
 
+// Contracts require legal capacity to enter into — a basic age floor here
+// is a real product concern for a platform whose entire purpose is signing
+// legally binding documents, not just a compliance formality.
+function isOldEnough(dateOfBirth) {
+  const dob = new Date(`${dateOfBirth}T00:00:00Z`);
+  if (Number.isNaN(dob.getTime())) return false;
+  const cutoff = new Date();
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - MIN_SIGNUP_AGE_YEARS);
+  return dob.getTime() <= cutoff.getTime();
+}
+
 router.post("/signup", (req, res) => {
-  const { name, email, password } = req.body || {};
-  if (!name || !name.trim() || !email || !password) {
-    return res.status(400).json({ error: "Name, email and password are required." });
+  const { email, password, accountType } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: "Password must be at least 6 characters." });
@@ -41,22 +58,65 @@ router.post("/signup", (req, res) => {
   if (existing) {
     return res.status(409).json({ error: "An account with that email already exists. Try logging in instead." });
   }
+
+  const isBusiness = accountType === "business";
+  let displayName, legalFirstName, legalLastName, dateOfBirth;
+  let businessName, businessAddress, businessEmail, pointOfContact, ein;
+
+  if (isBusiness) {
+    ({ businessName, businessAddress, businessEmail, pointOfContact, ein } = req.body || {});
+    if (!businessName || !businessName.trim()) return res.status(400).json({ error: "Business name is required." });
+    if (!businessAddress || !businessAddress.trim()) return res.status(400).json({ error: "Business address is required." });
+    if (!businessEmail || !businessEmail.trim()) return res.status(400).json({ error: "Business email is required." });
+    if (!pointOfContact || !pointOfContact.trim()) return res.status(400).json({ error: "A point of contact name is required." });
+    if (!ein || !isValidEinFormat(ein)) return res.status(400).json({ error: "A valid EIN is required (format: 12-3456789)." });
+    displayName = businessName.trim();
+  } else {
+    ({ legalFirstName, legalLastName, dateOfBirth, displayName } = req.body || {});
+    if (!legalFirstName || !legalFirstName.trim()) return res.status(400).json({ error: "Legal first name is required." });
+    if (!legalLastName || !legalLastName.trim()) return res.status(400).json({ error: "Legal last name is required." });
+    if (!dateOfBirth || !isOldEnough(dateOfBirth)) {
+      return res.status(400).json({ error: `You must be at least ${MIN_SIGNUP_AGE_YEARS} to create a Pact profile and enter into contracts.` });
+    }
+    if (!displayName || !displayName.trim()) return res.status(400).json({ error: "A name to be called (shown to others you do business with) is required." });
+  }
+
   // Every tier costs money — a new profile starts with no active plan
   // ('none', not a real tier, deliberately outside TIER_ORDER so every
-  // tier-gated feature stays locked) instead of granting whatever tier the
-  // signup form's dropdown happened to say. The tier only gets applied once
-  // POST /api/billing/checkout actually collects payment (or, in local/
-  // pre-Stripe "direct mode", is applied directly the same way any other
-  // tier change already is) — see website/signup.html for the checkout
-  // call that immediately follows a successful signup.
+  // tier-gated feature stays locked) regardless of account type. The tier
+  // only gets applied once POST /api/billing/checkout actually collects
+  // payment (or, in local/pre-Stripe "direct mode", is applied directly the
+  // same way any other tier change already is) — signup itself is free.
   const info = db
-    .prepare("INSERT INTO users (name, email, password_hash, tier) VALUES (?, ?, ?, 'none')")
-    .run(name.trim(), normalizedEmail, hashPassword(password));
-  const user = db
-    .prepare("SELECT id, name, email, tier, created_at FROM users WHERE id = ?")
-    .get(info.lastInsertRowid);
+    .prepare(
+      `INSERT INTO users
+         (name, email, password_hash, tier, account_type, legal_first_name, legal_last_name, date_of_birth)
+       VALUES (?, ?, ?, 'none', ?, ?, ?, ?)`
+    )
+    .run(
+      displayName.trim(),
+      normalizedEmail,
+      hashPassword(password),
+      isBusiness ? "business" : "personal",
+      isBusiness ? null : legalFirstName.trim(),
+      isBusiness ? null : legalLastName.trim(),
+      isBusiness ? null : dateOfBirth
+    );
+  const userId = info.lastInsertRowid;
+
+  if (isBusiness) {
+    const orgInfo = db
+      .prepare("INSERT INTO organizations (name, ein, owner_user_id, address, contact_email, point_of_contact) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(businessName.trim(), normalizeEin(ein), userId, businessAddress.trim(), businessEmail.trim().toLowerCase(), pointOfContact.trim());
+    db.prepare("INSERT INTO organization_members (organization_id, user_id, role) VALUES (?, ?, 'owner')").run(
+      orgInfo.lastInsertRowid,
+      userId
+    );
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
   res.cookie("pact_token", signToken(user), COOKIE_OPTS);
-  res.status(201).json({ user });
+  res.status(201).json({ user: publicUser(user) });
 });
 
 router.post("/login", (req, res) => {

@@ -54,11 +54,15 @@
 
     <div id="formAlert" class="alert alert-ruby"></div>
 
-    <form id="signupForm">
-      <div class="field">
-        <label for="name">Full name</label>
-        <input id="name" type="text" required placeholder="Jordan Alvarez">
+    <div class="field">
+      <label>Account type</label>
+      <div class="tag-row" style="gap:8px;">
+        <button type="button" class="chip active" id="typePersonalBtn">Personal</button>
+        <button type="button" class="chip" id="typeBusinessBtn">Business</button>
       </div>
+    </div>
+
+    <form id="signupForm">
       <div class="field">
         <label for="email">Email address</label>
         <input id="email" type="email" required placeholder="you@company.com">
@@ -67,6 +71,30 @@
         <label for="password">Password</label>
         <input id="password" type="password" required minlength="6" placeholder="At least 6 characters">
       </div>
+
+      <div id="personalFields">
+        <div class="field"><label for="legalFirstName">Legal first name</label><input id="legalFirstName" type="text" placeholder="Jordan"></div>
+        <div class="field"><label for="legalLastName">Legal last name</label><input id="legalLastName" type="text" placeholder="Alvarez"></div>
+        <div class="field"><label for="dob">Date of birth</label><input id="dob" type="date"></div>
+        <div class="field">
+          <label for="displayName">Name to be called</label>
+          <input id="displayName" type="text" placeholder="e.g. Jordan A.">
+          <p style="font-size:0.78rem;color:var(--silver);margin-top:6px;">This is what others you do business with see — it can differ from your legal name.</p>
+        </div>
+      </div>
+
+      <div id="businessFields" style="display:none;">
+        <div class="field"><label for="businessName">Business name</label><input id="businessName" type="text" placeholder="Acme Contracts LLC"></div>
+        <div class="field"><label for="businessAddress">Business address</label><input id="businessAddress" type="text" placeholder="123 Main St, Austin, TX 78701"></div>
+        <div class="field"><label for="businessEmail">Business email</label><input id="businessEmail" type="email" placeholder="contracts@acme.com"></div>
+        <div class="field"><label for="pointOfContact">Point of contact</label><input id="pointOfContact" type="text" placeholder="Who should people ask for?"></div>
+        <div class="field">
+          <label for="businessEin">EIN</label>
+          <input id="businessEin" type="text" placeholder="12-3456789">
+          <p style="font-size:0.78rem;color:var(--silver);margin-top:6px;">Self-reported only — Pact doesn't independently verify EINs against the IRS or any registry. Creates a Business Directory you own, so you can invite teammates right away.</p>
+        </div>
+      </div>
+
       <button type="submit" class="btn btn-gold btn-block">Create My Free Profile</button>
     </form>
     <p class="form-note">Already have a profile? <a href="login.html">Log in</a></p>
@@ -77,19 +105,47 @@
 <script src="js/app.js"></script>
 <script>
   const params = new URLSearchParams(window.location.search);
+  let accountType = "personal";
+  document.getElementById("dob").max = new Date().toISOString().slice(0, 10);
+
+  const personalFields = document.getElementById("personalFields");
+  const businessFields = document.getElementById("businessFields");
+  const personalInputs = ["legalFirstName", "legalLastName", "dob", "displayName"];
+  const businessInputs = ["businessName", "businessAddress", "businessEmail", "pointOfContact", "businessEin"];
+
+  function setAccountType(type) {
+    accountType = type;
+    document.getElementById("typePersonalBtn").classList.toggle("active", type === "personal");
+    document.getElementById("typeBusinessBtn").classList.toggle("active", type === "business");
+    personalFields.style.display = type === "personal" ? "" : "none";
+    businessFields.style.display = type === "business" ? "" : "none";
+    personalInputs.forEach(id => document.getElementById(id).required = type === "personal");
+    businessInputs.forEach(id => document.getElementById(id).required = type === "business");
+  }
+  setAccountType("personal");
+  document.getElementById("typePersonalBtn").addEventListener("click", () => setAccountType("personal"));
+  document.getElementById("typeBusinessBtn").addEventListener("click", () => setAccountType("business"));
 
   document.getElementById("signupForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
     const alertBox = document.getElementById("formAlert");
     const submitBtn = e.target.querySelector("button[type=submit]");
+    alertBox.classList.remove("show");
 
-    if (!name || !email || !password) {
-      alertBox.textContent = "Please fill in your name, email and password to continue.";
-      alertBox.classList.add("show");
-      return;
+    const payload = { email, password, accountType };
+    if (accountType === "personal") {
+      payload.legalFirstName = document.getElementById("legalFirstName").value.trim();
+      payload.legalLastName = document.getElementById("legalLastName").value.trim();
+      payload.dateOfBirth = document.getElementById("dob").value;
+      payload.displayName = document.getElementById("displayName").value.trim();
+    } else {
+      payload.businessName = document.getElementById("businessName").value.trim();
+      payload.businessAddress = document.getElementById("businessAddress").value.trim();
+      payload.businessEmail = document.getElementById("businessEmail").value.trim();
+      payload.pointOfContact = document.getElementById("pointOfContact").value.trim();
+      payload.ein = document.getElementById("businessEin").value.trim();
     }
 
     submitBtn.disabled = true;
@@ -100,7 +156,7 @@
       // Sending your own contracts (from a template, blank, or an upload)
       // and unlocking gated templates needs a paid tier, chosen separately
       // and later from Settings or Pricing.
-      await PactAPI.signup({ name, email, password });
+      await PactAPI.signup(payload);
     } catch (err) {
       alertBox.textContent = err.message;
       alertBox.classList.add("show");

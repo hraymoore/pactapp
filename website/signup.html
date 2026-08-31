@@ -67,34 +67,22 @@
         <label for="password">Password</label>
         <input id="password" type="password" required minlength="6" placeholder="At least 6 characters">
       </div>
-      <div class="field">
-        <label for="tier">Choose a tier</label>
-        <select id="tier">
-          <option value="starter">Starter — $7.99/mo</option>
-          <option value="everyday">Everyday — $11.99/mo</option>
-          <option value="pro">Professional (AI) — $20.99/mo</option>
-          <option value="business">Enterprise (AI) — $89.99/mo</option>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-gold btn-block">Create My Profile</button>
+      <button type="submit" class="btn btn-gold btn-block">Create My Free Profile</button>
     </form>
     <p class="form-note">Already have a profile? <a href="login.html">Log in</a></p>
-    <p class="form-note">Your profile and password are stored for real on the Pact server (hashed, never in plain text). Right after you create your profile, you'll be sent to Stripe to pay for the tier you chose above — no contracts unlock until that's done. See <a href="pricing.html">Pricing</a>.</p>
+    <p class="form-note">Your profile is free — view, edit, download, sign and receive any contract sent to you at no cost. Templates and sending your own contracts unlock once you pick a plan, any time, from Settings or <a href="pricing.html">Pricing</a>. Your profile and password are stored for real on the Pact server (hashed, never in plain text).</p>
   </div>
 </div>
 
 <script src="js/app.js"></script>
 <script>
   const params = new URLSearchParams(window.location.search);
-  const presetTier = params.get("tier");
-  if (presetTier) document.getElementById("tier").value = presetTier;
 
   document.getElementById("signupForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
-    const tier = document.getElementById("tier").value;
     const alertBox = document.getElementById("formAlert");
     const submitBtn = e.target.querySelector("button[type=submit]");
 
@@ -107,34 +95,20 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Creating your profile…";
     try {
+      // Always free — no payment step here. A profile can view, edit,
+      // download, receive and sign any contract sent to it at no cost.
+      // Sending your own contracts (from a template, blank, or an upload)
+      // and unlocking gated templates needs a paid tier, chosen separately
+      // and later from Settings or Pricing.
       await PactAPI.signup({ name, email, password });
     } catch (err) {
       alertBox.textContent = err.message;
       alertBox.classList.add("show");
       submitBtn.disabled = false;
-      submitBtn.textContent = "Create My Profile";
+      submitBtn.textContent = "Create My Free Profile";
       return;
     }
 
-    // The account now exists with no active plan ('none') — send them
-    // straight to checkout for the tier they picked, same endpoint the
-    // Settings tab uses for a tier switch. Nothing unlocks until this
-    // actually completes (a real Stripe payment, or, only when Stripe
-    // isn't configured, the documented local "direct mode" fallback).
-    submitBtn.textContent = "Redirecting to payment…";
-    try {
-      const data = await apiJson("/api/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({ tier }),
-      });
-      if (data.mode === "stripe") {
-        window.location.href = data.url;
-        return;
-      }
-      alert(data.note);
-    } catch (err) {
-      alert(`Your profile was created, but starting payment failed: ${err.message}\n\nYou can pick a plan any time from Settings.`);
-    }
     const next = params.get("next") || "dashboard.html";
     window.location.href = next;
   });

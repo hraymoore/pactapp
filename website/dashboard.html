@@ -254,8 +254,9 @@
 
 <!-- Contract editor modal -->
 <div class="modal-backdrop" id="editorModal">
-  <div class="modal">
+  <div class="modal editor-modal">
     <button class="modal-close" id="closeEditor">&times;</button>
+    <button class="modal-maximize" id="toggleMaximizeEditor" title="Maximize editor" aria-label="Maximize editor">&#10529; Maximize</button>
     <div class="eyebrow">Editing</div>
     <h3 id="editorTitle">Contract</h3>
     <p id="editorStateTag" style="margin:-6px 0 12px;font-size:0.78rem;color:var(--silver);"></p>
@@ -265,7 +266,9 @@
 
     <div class="field">
       <label>Contract body</label>
-      <textarea id="editorBody" rows="12" style="background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:16px;font-size:0.9rem;line-height:1.6;color:var(--silver);width:100%;font-family:var(--font-mono);"></textarea>
+      <div class="doc-canvas">
+        <textarea id="editorBody" class="doc-page" rows="12"></textarea>
+      </div>
     </div>
 
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
@@ -548,6 +551,8 @@
         ? "This contract is signed and locked. Saving will add a time-stamped amendment to the audit trail instead of silently overwriting the executed text."
         : "This contract is not yet signed — edits here are unrestricted.";
     editorModal.classList.add("show");
+    editorModal.querySelector(".editor-modal").classList.remove("maximized");
+    document.getElementById("toggleMaximizeEditor").innerHTML = "&#10529; Maximize";
     document.getElementById("versionDiffBox").style.display = "none";
     await renderAttachments();
     await renderHealthScore();
@@ -683,6 +688,11 @@
     }
   });
   document.getElementById("closeEditor").addEventListener("click", () => editorModal.classList.remove("show"));
+  document.getElementById("toggleMaximizeEditor").addEventListener("click", () => {
+    const box = editorModal.querySelector(".editor-modal");
+    const maximized = box.classList.toggle("maximized");
+    document.getElementById("toggleMaximizeEditor").innerHTML = maximized ? "&#10530; Minimize" : "&#10529; Maximize";
+  });
   document.getElementById("cancelEditBtn").addEventListener("click", () => editorModal.classList.remove("show"));
   document.getElementById("saveEditBtn").addEventListener("click", async () => {
     try {
@@ -1018,6 +1028,13 @@
 
   // ---- settings: billing + identity ----
   function setupTierButtons() {
+    const note = document.getElementById("billingNote");
+    if (CURRENT_USER.tier === "none") {
+      note.textContent = "You don't have an active plan yet — every tier below is paid, and contracts stay locked until you pick one and complete payment.";
+      note.style.color = "var(--ruby-bright)";
+    } else {
+      note.textContent = "";
+    }
     const wrap = document.getElementById("tierButtons");
     wrap.innerHTML = "";
     TIER_ORDER.forEach(t => {
@@ -1046,7 +1063,7 @@
     const btn = document.getElementById("manageBillingBtn");
     try {
       const { configured } = await apiJson("/api/billing/status");
-      if (!configured || CURRENT_USER.tier === "starter") return;
+      if (!configured || CURRENT_USER.tier === "starter" || CURRENT_USER.tier === "none") return;
       btn.style.display = "";
       btn.addEventListener("click", async () => {
         btn.disabled = true;

@@ -100,9 +100,9 @@
 
 <script src="js/app.js"></script>
 <script>
-  const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
-  const TIER_ICON = { starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
-  const TIER_ORDER = ["starter", "everyday", "pro", "business"];
+  const TIER_LABEL = { free: "Free", starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+  const TIER_ICON = { free: "icon-silver", starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
+  const TIER_ORDER = ["free", "starter", "everyday", "pro", "business"];
   let CURRENT_GENRE = "All";
   let CURRENT_QUERY = "";
   let CURRENT_STATE = "All";
@@ -226,6 +226,7 @@
           ${t.ai_restricted ? '<span class="mini-tag" style="color:var(--ruby-bright);">Informational only</span>' : ""}
         </div>
         <button class="btn btn-ghost-dark btn-sm" data-use="${t.id}">${tierBlocked ? `Requires ${TIER_LABEL[t.min_tier]}` : "Use Template"}</button>
+        ${!locked ? `<a href="/api/templates/${t.id}/preview.pdf" class="btn btn-ghost-dark btn-sm" style="margin-top:8px;display:inline-block;" target="_blank">Preview PDF — Free</a>` : ""}
         ${tierBlocked ? `
         <div class="tag-row" style="margin-top:10px;">
           <button class="btn btn-ghost-dark btn-sm" data-buy="${t.id}" data-buy-type="download">Download blank — $3.99</button>

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  tier TEXT NOT NULL DEFAULT 'starter',
+  tier TEXT NOT NULL DEFAULT 'free',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -279,5 +279,11 @@ for (const stmt of [
     if (!/duplicate column/i.test(err.message)) throw err;
   }
 }
+
+// One-time data migration, not a schema change: 'none' was the sentinel
+// for "no active plan" before Free became a real tier with real
+// capabilities (template preview/download, viewing/signing shared
+// contracts). Idempotent — a no-op once no row has tier='none' left.
+db.exec("UPDATE users SET tier = 'free' WHERE tier = 'none'");
 
 module.exports = db;

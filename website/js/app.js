@@ -90,13 +90,13 @@ const PactAPI = {
 
   tierMeta(id) {
     const tiers = {
-      none:     { label: "No Plan",       ai: false },
+      free:     { label: "Free",          ai: false },
       starter:  { label: "Starter",       ai: false },
       everyday: { label: "Everyday",      ai: false },
       pro:      { label: "Professional",  ai: true  },
       business: { label: "Enterprise",    ai: true  },
     };
-    return tiers[id] || tiers.none;
+    return tiers[id] || tiers.free;
   },
 
   initials(name) {

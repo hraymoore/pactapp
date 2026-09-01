@@ -90,17 +90,17 @@ router.post("/signup", (req, res) => {
     if (!displayName || !displayName.trim()) return res.status(400).json({ error: "A name to be called (shown to others you do business with) is required." });
   }
 
-  // Every tier costs money — a new profile starts with no active plan
-  // ('none', not a real tier, deliberately outside TIER_ORDER so every
-  // tier-gated feature stays locked) regardless of account type. The tier
-  // only gets applied once POST /api/billing/checkout actually collects
-  // payment (or, in local/pre-Stripe "direct mode", is applied directly the
-  // same way any other tier change already is) — signup itself is free.
+  // Every profile starts on the real $0 Free tier (browse/preview templates,
+  // view and sign whatever's shared with you — no editor, no AI, can't send
+  // a contract yourself). Every tier above Free costs money and only gets
+  // applied once POST /api/billing/checkout actually collects payment (or,
+  // in local/pre-Stripe "direct mode", is applied directly the same way any
+  // other tier change already is) — signup itself is always free.
   const info = db
     .prepare(
       `INSERT INTO users
          (name, email, password_hash, tier, account_type, legal_first_name, legal_last_name, date_of_birth)
-       VALUES (?, ?, ?, 'none', ?, ?, ?, ?)`
+       VALUES (?, ?, ?, 'free', ?, ?, ?, ?)`
     )
     .run(
       displayName.trim(),

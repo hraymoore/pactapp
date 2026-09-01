@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { US_STATES } = require("../us-states");
+const { requireAuth } = require("../middleware/auth");
+const { renderBlankTemplatePdf } = require("../services/pdf");
 
 router.get("/genres", (req, res) => {
   const rows = db.prepare("SELECT DISTINCT genre FROM templates ORDER BY genre").all();
@@ -50,6 +52,31 @@ router.get("/:id", (req, res) => {
   const row = db.prepare("SELECT * FROM templates WHERE id = ?").get(req.params.id);
   if (!row) return res.status(404).json({ error: "Template not found." });
   res.json({ template: row });
+});
+
+// Free-tier preview: a blank, unsigned copy of any template's raw text —
+// available to every profile at every tier, no purchase, no contract
+// record created. Distinct from the $3.99 "download only" one-time
+// purchase in purchases.js: that one creates a tracked `purchases` row
+// (and, for the $7.99 "edit" purchase, a real usable contract) — this is
+// just a reference copy, reusing the same PDF renderer since the blank
+// template text is identical either way.
+router.get("/:id/preview.pdf", requireAuth, (req, res) => {
+  const template = db.prepare("SELECT * FROM templates WHERE id = ?").get(req.params.id);
+  if (!template) return res.status(404).json({ error: "Template not found." });
+  renderBlankTemplatePdf(template)
+    .then((pdfBytes) => {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${template.name.replace(/[^a-z0-9]+/gi, "_")}_preview.pdf"`
+      );
+      res.send(Buffer.from(pdfBytes));
+    })
+    .catch((err) => {
+      console.error("[pact] Template preview PDF generation failed:", err);
+      res.status(500).json({ error: "Failed to generate PDF." });
+    });
 });
 
 module.exports = router;

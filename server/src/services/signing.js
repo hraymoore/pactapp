@@ -6,6 +6,28 @@ function logAudit(contractId, actor, action, detail) {
   ).run(contractId, (actor && actor.name) || null, (actor && actor.email) || null, action, detail || null);
 }
 
+// "Who viewed it," alongside audit_log's "who edited/signed it" — one row
+// per (contract, viewer email), bumped in place on repeat views. Called
+// from both the authenticated in-app GET /:id (routes/contracts.js) and
+// the public token-based review-before-sign GET /:token (routes/sign.js),
+// so userId is null for an outside counterparty who never created a
+// Pact login.
+function logView(contractId, { userId = null, name, email }) {
+  if (!email) return;
+  const existing = db
+    .prepare("SELECT id FROM contract_views WHERE contract_id = ? AND viewer_email = ?")
+    .get(contractId, email);
+  if (existing) {
+    db.prepare("UPDATE contract_views SET last_viewed_at = datetime('now'), view_count = view_count + 1 WHERE id = ?").run(
+      existing.id
+    );
+  } else {
+    db.prepare(
+      "INSERT INTO contract_views (contract_id, user_id, viewer_name, viewer_email) VALUES (?, ?, ?, ?)"
+    ).run(contractId, userId, name || null, email);
+  }
+}
+
 // Shared by the public token-based signing route (sign.js, for outside
 // counterparties) and the authenticated in-app signing route (contracts.js,
 // for the logged-in owner) so "both parties signed → lock + start the
@@ -52,4 +74,4 @@ function applySignature({ partyId, typedSignature, ip }) {
   return { allSigned };
 }
 
-module.exports = { applySignature, logAudit };
+module.exports = { applySignature, logAudit, logView };

@@ -95,7 +95,12 @@
         </div>
       </div>
 
-      <button type="submit" class="btn btn-gold btn-block">Create My Free Profile</button>
+      <div class="field" style="display:flex;gap:10px;align-items:flex-start;">
+        <input id="termsCheckbox" type="checkbox" required style="width:auto;margin-top:3px;">
+        <label for="termsCheckbox" style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;font-weight:400;">I have read and agree to Pact's <a href="terms.html" target="_blank" rel="noopener" style="color:var(--gold-bright);">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--gold-bright);">Privacy Policy</a>.</label>
+      </div>
+
+      <button type="submit" class="btn btn-gold btn-block" id="submitBtn" disabled>Create My Free Profile</button>
     </form>
     <p class="form-note">Already have a profile? <a href="login.html">Log in</a></p>
     <p class="form-note">Your profile is free — view, edit, download, sign and receive any contract sent to you at no cost. Templates and sending your own contracts unlock once you pick a plan, any time, from Settings or <a href="pricing.html">Pricing</a>. Your profile and password are stored for real on the Pact server (hashed, never in plain text).</p>
@@ -126,15 +131,22 @@
   document.getElementById("typePersonalBtn").addEventListener("click", () => setAccountType("personal"));
   document.getElementById("typeBusinessBtn").addEventListener("click", () => setAccountType("business"));
 
+  // Enforceable clickwrap: unchecked by default (see the checkbox markup
+  // above), and the submit button stays disabled until it's checked —
+  // never enable it any other way. The server independently rejects a
+  // signup without termsAccepted:true regardless of what the client sends.
+  const termsCheckbox = document.getElementById("termsCheckbox");
+  const submitBtn = document.getElementById("submitBtn");
+  termsCheckbox.addEventListener("change", () => { submitBtn.disabled = !termsCheckbox.checked; });
+
   document.getElementById("signupForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
     const alertBox = document.getElementById("formAlert");
-    const submitBtn = e.target.querySelector("button[type=submit]");
     alertBox.classList.remove("show");
 
-    const payload = { email, password, accountType };
+    const payload = { email, password, accountType, termsAccepted: termsCheckbox.checked };
     if (accountType === "personal") {
       payload.legalFirstName = document.getElementById("legalFirstName").value.trim();
       payload.legalLastName = document.getElementById("legalLastName").value.trim();

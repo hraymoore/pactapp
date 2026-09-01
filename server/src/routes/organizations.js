@@ -168,7 +168,7 @@ router.post("/:id/members", (req, res) => {
   }
   if (!email) return res.status(400).json({ error: "Email is required." });
 
-  const target = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim().toLowerCase());
+  const target = db.prepare("SELECT * FROM users WHERE email = ? AND account_status = 'active'").get(email.trim().toLowerCase());
   if (!target) {
     return res.status(404).json({ error: "No Pact account found for that email — they'll need to create one first." });
   }

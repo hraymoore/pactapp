@@ -253,6 +253,16 @@
         <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
         <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
       </div>
+
+      <div class="card" style="margin-top:24px;border-color:var(--ruby);">
+        <h3>Close Account</h3>
+        <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
+        <div id="closeAccountForm">
+          <div class="field" style="max-width:320px;"><label for="closeAccountPassword">Enter your password to confirm</label><input id="closeAccountPassword" type="password" placeholder="Password"></div>
+          <button class="btn btn-ghost-dark btn-sm" id="closeAccountBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Close My Account</button>
+        </div>
+        <p id="closeAccountNote" style="margin-top:14px;font-size:0.82rem;"></p>
+      </div>
     </section>
 
   </main>
@@ -323,6 +333,11 @@
         <button class="btn btn-ghost-dark btn-sm" id="closeVersionDiffBtn" style="margin-top:10px;">Close redline</button>
       </div>
     </div>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">VIEWED BY</label>
+      <div id="viewList" style="font-size:0.85rem;"></div>
+    </div>
   </div>
 </div>
 
@@ -338,6 +353,23 @@
     </div>
     <button class="btn btn-gold btn-block" id="confirmSendBtn">Send</button>
     <div id="sendResult" style="margin-top:16px;display:none;"></div>
+  </div>
+</div>
+
+<!-- Terms re-acceptance gate — no close button, mandatory. Shown when
+     GET /api/terms/status says the account's latest acceptance doesn't
+     match the currently-live Terms version. -->
+<div class="modal-backdrop" id="termsGateModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="eyebrow">Updated Terms</div>
+    <h3>Pact's Terms of Service have been updated</h3>
+    <p style="font-size:0.9rem;">Please review the updated Terms of Service and Privacy Policy before continuing — you must re-accept to keep using Pact.</p>
+    <div class="field" style="display:flex;gap:10px;align-items:flex-start;">
+      <input id="termsGateCheckbox" type="checkbox" style="width:auto;margin-top:3px;">
+      <label for="termsGateCheckbox" style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;font-weight:400;">I have read and agree to the updated <a href="terms.html" target="_blank" rel="noopener" style="color:var(--gold-bright);">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--gold-bright);">Privacy Policy</a>.</label>
+    </div>
+    <button class="btn btn-gold btn-block" id="termsGateContinueBtn" disabled>Continue</button>
+    <p id="termsGateError" class="alert alert-ruby" style="margin-top:10px;"></p>
   </div>
 </div>
 
@@ -564,6 +596,7 @@
     await renderHealthScore();
     await renderVersionList();
     await renderReviewStatus();
+    await renderViewList();
   }
 
   async function renderReviewStatus() {
@@ -656,6 +689,18 @@
   document.getElementById("closeVersionDiffBtn").addEventListener("click", () => {
     document.getElementById("versionDiffBox").style.display = "none";
   });
+
+  async function renderViewList() {
+    const { views } = await apiJson(`/api/contracts/${editingId}/views`);
+    const wrap = document.getElementById("viewList");
+    wrap.innerHTML = views.length ? "" : "<p style='margin:0;font-size:0.85rem;'>No views recorded yet.</p>";
+    views.forEach(v => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:6px 0;color:var(--silver);";
+      row.innerHTML = `<strong style="color:var(--silver);">${escapeHtml(v.viewer_name || v.viewer_email)}</strong> &middot; last viewed ${fmt(v.last_viewed_at)}${v.view_count > 1 ? ` &middot; ${v.view_count} views` : ""}`;
+      wrap.appendChild(row);
+    });
+  }
 
   async function renderAttachments() {
     const { attachments } = await apiJson(`/api/contracts/${editingId}/attachments`);
@@ -1150,6 +1195,30 @@
     });
   }
 
+  function setupCloseAccount() {
+    document.getElementById("closeAccountBtn").addEventListener("click", async () => {
+      const password = document.getElementById("closeAccountPassword").value;
+      const note = document.getElementById("closeAccountNote");
+      note.style.color = "";
+      if (!password) {
+        note.textContent = "Enter your password to confirm.";
+        note.style.color = "var(--ruby-bright)";
+        return;
+      }
+      if (!confirm("Close your Pact account? You'll be logged out immediately and any subscription will be canceled. You can reactivate with your password later — nothing is deleted.")) {
+        return;
+      }
+      try {
+        const data = await apiJson("/api/auth/close", { method: "POST", body: JSON.stringify({ password }) });
+        alert(data.note ? `Your account has been closed. ${data.note}` : "Your account has been closed.");
+        window.location.href = "index.html";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
   // ---- business ----
   let CURRENT_ORG = null;
   let ALL_BIZ_CONTRACTS = [];
@@ -1405,6 +1474,38 @@
     }
   });
 
+  // ---- terms re-acceptance gate ----
+  function ensureTermsAccepted() {
+    return new Promise(async (resolve) => {
+      const { mustAccept } = await apiJson("/api/terms/status");
+      if (!mustAccept) { resolve(); return; }
+      const modal = document.getElementById("termsGateModal");
+      const checkbox = document.getElementById("termsGateCheckbox");
+      const continueBtn = document.getElementById("termsGateContinueBtn");
+      const errBox = document.getElementById("termsGateError");
+      checkbox.checked = false;
+      continueBtn.disabled = true;
+      errBox.classList.remove("show");
+      modal.classList.add("show");
+      checkbox.onchange = () => { continueBtn.disabled = !checkbox.checked; };
+      continueBtn.onclick = async () => {
+        continueBtn.disabled = true;
+        continueBtn.textContent = "Continuing…";
+        try {
+          await apiJson("/api/terms/accept", { method: "POST", body: JSON.stringify({ acceptanceMethod: "checkbox_reaccept" }) });
+          modal.classList.remove("show");
+          continueBtn.textContent = "Continue";
+          resolve();
+        } catch (err) {
+          errBox.textContent = err.message;
+          errBox.classList.add("show");
+          continueBtn.disabled = false;
+          continueBtn.textContent = "Continue";
+        }
+      };
+    });
+  }
+
   // ---- boot ----
   (async () => {
     CURRENT_USER = await PactAPI.me();
@@ -1412,6 +1513,7 @@
       window.location.href = "signup.html?next=" + encodeURIComponent(window.location.pathname.split("/").pop());
       return;
     }
+    await ensureTermsAccepted();
     document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
     document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
     document.getElementById("settingsAccountType").textContent = CURRENT_USER.accountType === "business" ? "Business" : "Personal";
@@ -1445,6 +1547,7 @@
     await setupBillingPortal();
     await setupIdentity();
     setupPasswordChange();
+    setupCloseAccount();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

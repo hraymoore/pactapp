@@ -5,7 +5,7 @@ const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { renderContractPdf } = require("../services/pdf");
 const { sendMail } = require("../services/mailer");
-const { applySignature, logAudit } = require("../services/signing");
+const { applySignature, logAudit, logView } = require("../services/signing");
 const { contentHash, createContractFromTemplate } = require("../services/contract-factory");
 const { upload, UPLOAD_DIR } = require("../services/uploads");
 const { isValidStateCode } = require("../us-states");
@@ -238,6 +238,7 @@ router.post("/upload", handleUpload, (req, res) => {
 router.get("/:id", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
+  logView(contract.id, { userId: req.user.id, name: req.user.name, email: req.user.email });
   const parties = db
     .prepare("SELECT id, name, email, role, signed_at FROM contract_parties WHERE contract_id = ?")
     .all(contract.id);
@@ -311,6 +312,15 @@ router.get("/:id/health", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
   res.json(computeHealthScore(contract.body));
+});
+
+router.get("/:id/views", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const views = db
+    .prepare("SELECT viewer_name, viewer_email, first_viewed_at, last_viewed_at, view_count FROM contract_views WHERE contract_id = ? ORDER BY last_viewed_at DESC")
+    .all(contract.id);
+  res.json({ views });
 });
 
 router.post("/:id/send", (req, res) => {
@@ -482,7 +492,7 @@ router.post("/:id/share", (req, res) => {
   if (!email || !["view", "edit"].includes(permission)) {
     return res.status(400).json({ error: "A valid email and permission ('view' or 'edit') are required." });
   }
-  const target = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim().toLowerCase());
+  const target = db.prepare("SELECT * FROM users WHERE email = ? AND account_status = 'active'").get(email.trim().toLowerCase());
   if (!target) {
     return res.status(404).json({ error: "No Pact account found for that email — they'll need to create one first." });
   }

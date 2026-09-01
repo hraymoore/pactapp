@@ -148,6 +148,19 @@ async function createBillingPortalSession({ user, req }) {
   return session;
 }
 
+// Called when a user closes their Pact account — cancels immediately
+// (not "at period end") since closing an account means "stop charging me
+// now," not "let me finish out what I already paid for." Best-effort: a
+// Stripe outage or an already-canceled subscription shouldn't block the
+// account closure itself, so the caller decides what to do with a failure
+// here rather than this throwing and aborting the close.
+async function cancelSubscriptionImmediately(user) {
+  if (!billingConfigured() || !user.stripe_subscription_id) return { canceled: false };
+  const stripe = getStripe();
+  await stripe.subscriptions.cancel(user.stripe_subscription_id);
+  return { canceled: true };
+}
+
 // Call this from the Stripe webhook handler once STRIPE_WEBHOOK_SECRET is
 // configured and `checkout.session.completed` events are verified — it
 // applies the tier chosen at checkout and records the subscription id so
@@ -201,4 +214,5 @@ module.exports = {
   applyTierFromSession,
   syncSubscriptionUpdate,
   downgradeOnCancellation,
+  cancelSubscriptionImmediately,
 };

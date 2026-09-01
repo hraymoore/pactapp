@@ -45,7 +45,25 @@ const PactAPI = {
       body: JSON.stringify({ email, password }),
     });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || "Login failed.");
+    if (!r.ok) {
+      const err = new Error(data.error || "Login failed.");
+      err.status = r.status;
+      err.payload = data;
+      throw err;
+    }
+    this._cache = data.user;
+    return data.user;
+  },
+
+  async reactivate({ email, password }) {
+    const r = await fetch("/api/auth/reactivate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Reactivation failed.");
     this._cache = data.user;
     return data.user;
   },

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
-const { applySignature } = require("../services/signing");
+const { applySignature, logView } = require("../services/signing");
 
 router.use(express.json());
 
@@ -16,6 +16,8 @@ router.get("/:token", (req, res) => {
   const owner = db
     .prepare("SELECT name, email FROM contract_parties WHERE contract_id = ? AND role = 'owner'")
     .get(contract.id);
+
+  logView(contract.id, { name: party.name, email: party.email });
 
   res.json({
     contract: { id: contract.id, name: contract.name, body: contract.body, status: contract.status },

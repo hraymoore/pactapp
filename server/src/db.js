@@ -199,6 +199,36 @@ CREATE TABLE IF NOT EXISTS attorney_review_requests (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Append-only clickwrap evidence trail — never UPDATE or DELETE a row here
+-- (no code path does). One row per acceptance event, not per user, so a
+-- user who re-accepts after a Terms update keeps every prior acceptance on
+-- file. terms_version must match services/terms.js's CURRENT_TERMS_VERSION
+-- exactly for the acceptance to satisfy the current gate.
+CREATE TABLE IF NOT EXISTS terms_acceptances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  terms_version TEXT NOT NULL,
+  accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ip_address TEXT,
+  acceptance_method TEXT NOT NULL DEFAULT 'checkbox_signup'
+);
+
+-- "Who viewed it" for the contract audit trail, alongside audit_log's
+-- "who edited/signed it" — one row per (contract, viewer email), updated
+-- in place on repeat views rather than one row per page load, since the
+-- useful fact is "has X seen this and when," not a full clickstream.
+CREATE TABLE IF NOT EXISTS contract_views (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  viewer_name TEXT,
+  viewer_email TEXT NOT NULL,
+  first_viewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_viewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  view_count INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (contract_id, viewer_email)
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

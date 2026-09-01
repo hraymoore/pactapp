@@ -5,6 +5,7 @@ const { hashPassword, verifyPassword, signToken, generateTempPassword } = requir
 const { mailerConfigured, sendMail } = require("../services/mailer");
 const { requireAuth } = require("../middleware/auth");
 const { isValidEinFormat, normalizeEin } = require("../services/organizations");
+const { recordAcceptance, clientIp } = require("../services/terms");
 
 router.use(express.json());
 
@@ -46,12 +47,19 @@ function isOldEnough(dateOfBirth) {
 }
 
 router.post("/signup", (req, res) => {
-  const { email, password, accountType } = req.body || {};
+  const { email, password, accountType, termsAccepted } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: "Password must be at least 6 characters." });
+  }
+  // Enforceable clickwrap: the checkbox is unchecked by default and the
+  // submit button stays disabled until it's checked (see signup.html), but
+  // the server never trusts client-side disabling alone — a request without
+  // it is rejected outright, same as any other required field.
+  if (termsAccepted !== true) {
+    return res.status(400).json({ error: "You must agree to the Terms of Service and Privacy Policy to create a profile." });
   }
   const normalizedEmail = email.trim().toLowerCase();
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(normalizedEmail);
@@ -113,6 +121,8 @@ router.post("/signup", (req, res) => {
       userId
     );
   }
+
+  recordAcceptance({ userId, ipAddress: clientIp(req), acceptanceMethod: "checkbox_signup" });
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
   res.cookie("pact_token", signToken(user), COOKIE_OPTS);

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Pact</title>
+<meta name="description" content="Pact's Privacy Policy.">
+<link rel="canonical" href="https://www.pactappstore.com/privacy.html">
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .legal-wrap { max-width: 760px; margin: 0 auto; }
+  .legal-wrap h2 { font-size: 1.15rem; margin-top: 2.2em; }
+  .legal-wrap h2:first-of-type { margin-top: 0; }
+  .legal-wrap p { line-height: 1.7; }
+  .legal-wrap li { line-height: 1.7; margin-bottom: 0.5em; }
+  .legal-wrap .placeholder { background: rgba(156,31,59,0.12); color: var(--ruby); padding: 0 4px; border-radius: 3px; font-family: var(--font-mono); font-size: 0.92em; }
+  .draft-banner { background: rgba(156,31,59,0.08); border: 1px solid var(--ruby); color: var(--ink); padding: 16px 20px; border-radius: var(--radius-m); font-size: 0.9rem; margin-bottom: 30px; }
+  .draft-banner strong { color: var(--ruby); }
+  .legal-wrap table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.88rem; }
+  .legal-wrap th, .legal-wrap td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+  .legal-wrap th { color: var(--ink); font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<section class="section section-paper" style="padding-top:60px;">
+  <div class="wrap">
+    <div class="legal-wrap">
+      <div class="eyebrow">Legal</div>
+      <h1 style="margin-bottom:6px;">Pact — Privacy Policy</h1>
+      <p style="color:var(--ink-soft);margin-bottom:0;">Draft v0.1 &middot; Last Updated: <span class="placeholder">[DATE]</span></p>
+
+      <div class="draft-banner">
+        <strong>DRAFT — REQUIRES ATTORNEY REVIEW BEFORE PUBLICATION.</strong> This describes what Pact's software actually collects and does with it today, written directly from the codebase rather than generic boilerplate — but it has not been reviewed against CCPA, GDPR, state privacy statutes, or any other applicable law, and Pact's owner has not yet named a real legal entity (see <span class="placeholder">[PACT LEGAL ENTITY NAME]</span> in the <a href="terms.html">Terms of Service</a>) or finalized how data-subject requests (access, deletion, correction) get fulfilled in practice. Do not publish this as binding until an attorney has reviewed it.
+      </div>
+
+      <h2>1. What This Policy Covers</h2>
+      <p>This Privacy Policy explains what personal information Pact collects when you use the Service, why, who else sees it, and what choices you have. It's incorporated by reference into Pact's <a href="terms.html">Terms of Service</a>; terms defined there have the same meaning here.</p>
+
+      <h2>2. Information We Collect</h2>
+      <table>
+        <tr><th>Category</th><th>What</th><th>Why</th></tr>
+        <tr><td>Account (all profiles)</td><td>Name or display name, email address, password (stored as a salted hash — Pact never sees or stores your plaintext password)</td><td>Create and secure your login</td></tr>
+        <tr><td>Personal profile</td><td>Legal first/last name, date of birth</td><td>Legal capacity to contract (must be 18+) and identity records; never shown to other users — only your chosen display name is</td></tr>
+        <tr><td>Business profile</td><td>Business name, address, business email, point of contact, EIN</td><td>Runs your Business Directory (shared contract pool, team invites); EIN is self-reported and not independently verified against the IRS or any registry</td></tr>
+        <tr><td>Contract content</td><td>The text, attachments, parties, versions, and signatures of every contract you create, receive, or are added to</td><td>The core of the Service — storing and managing your agreements</td></tr>
+        <tr><td>Identity verification</td><td>A verification result (pass/fail) and your verified name</td><td>Confirms you're a real, named person — see Section 5, "Identity Verification," for what we deliberately do <em>not</em> store</td></tr>
+        <tr><td>Billing</td><td>Your Stripe customer ID and subscription status</td><td>Your card number itself is never sent to or stored by Pact — it goes directly to Stripe's hosted Checkout page</td></tr>
+        <tr><td>Usage &amp; audit records</td><td>Who viewed, edited, or signed a contract and when; IP address at signing and at Terms acceptance</td><td>The audit trail that makes an executed contract meaningful evidence, and the record that proves you agreed to these Terms</td></tr>
+        <tr><td>AI interactions (Pro/Enterprise tiers only)</td><td>Prompts you send Pact AI and, when you ask it to draft, revise, or analyze a contract, that contract's text</td><td>Powers the drafting/summarization/chat features — sent to our AI provider (Anthropic) to generate a response; see Section 4</td></tr>
+        <tr><td>Device &amp; connection</td><td>IP address, browser type, basic request logs</td><td>Security, abuse prevention, and the audit trail above</td></tr>
+      </table>
+      <p>Pact does not use third-party advertising trackers, ad pixels, or behavioral analytics scripts — there is nothing like that in the site today.</p>
+
+      <h2>3. Cookies</h2>
+      <p>Pact sets one cookie: a session token (<code>pact_token</code>) that keeps you logged in. It's marked <code>httpOnly</code> (not readable by page scripts) and, in production, <code>secure</code> (HTTPS-only). We don't use third-party or advertising cookies.</p>
+
+      <h2>4. Who We Share Information With</h2>
+      <p>Pact shares information only with the service providers ("sub-processors") needed to run the features you use, and with the other parties on a contract you send or are added to. We do not sell personal information.</p>
+      <ul>
+        <li><strong>Stripe</strong> — payment processing, subscription billing, and (if you use it) identity verification. Stripe receives and stores your payment details and, for identity verification, your government ID/selfie or SSN directly — Pact never receives or stores that data itself, only Stripe's verification result.</li>
+        <li><strong>Anthropic</strong> — if you're on a tier with Pact AI and you use it, your prompt (and the contract text you're asking about, if any) is sent to Anthropic's API to generate a response. This only happens when you actively use an AI feature.</li>
+        <li><strong>Email delivery</strong> — transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via <span class="placeholder">[SMTP/EMAIL PROVIDER NAME — not yet finalized]</span>. No marketing email is sent.</li>
+        <li><strong>Other users you designate</strong> — a contract's counterparty, a share recipient, or a fellow member of your Business Directory can see the contract(s) you've given them access to, and your name/email as it appears on that contract.</li>
+        <li><strong>Legal requirements</strong> — we may disclose information if required by law, subpoena, or to protect the rights, property, or safety of Pact or others.</li>
+      </ul>
+
+      <h2>5. Identity Verification — What We Deliberately Don't Store</h2>
+      <p>If you complete identity verification, Pact hands you off to Stripe Identity's own hosted, compliant verification flow. Stripe captures and stores the sensitive document image, selfie, or SSN data — Pact's own database stores only the verification result (pass/fail) and your verified name, never the raw document or SSN itself. This is a deliberate design choice: that data carries compliance obligations (breach-notice laws, state biometric-privacy statutes) that make sense for a dedicated identity-verification company to carry, not a platform like Pact.</p>
+
+      <h2>6. Data Retention</h2>
+      <p>We retain your account and contract data for as long as your account is active, since a contract's whole value is being retrievable later — including after a contract is fully signed. Terms-of-Service acceptance records (Section 8) are kept permanently as an append-only audit trail and are never deleted, even if you close your account, since they're the evidence that an agreement was formed. <span class="placeholder">[Retention period after account closure for other data, and a self-serve export/delete flow, are not yet built or finalized — flag for attorney and product review before publishing.]</span></p>
+
+      <h2>7. Your Choices</h2>
+      <p>You can update your name, password, and (where applicable) business details from Settings at any time. For anything else — including a request to access, correct, or delete your personal information — contact <a href="mailto:privacy@pactappstore.com">privacy@pactappstore.com</a>; Pact does not yet have a self-serve data export or account-deletion tool, so these requests are handled manually today.</p>
+
+      <h2>8. Terms-of-Service Acceptance Records</h2>
+      <p>When you check the box to accept Pact's Terms of Service (at signup, and again if the Terms materially change), we record which version you accepted, when, the IP address you accepted from, and how (e.g., the signup checkbox). This is kept as permanent evidence that the agreement was formed and is never edited or deleted.</p>
+
+      <h2>9. Security</h2>
+      <p>Passwords are hashed (never stored in plain text). Session cookies are httpOnly and, in production, HTTPS-only. Payment details never touch Pact's servers — they go directly to Stripe. That said, no system is perfectly secure, and we can't guarantee absolute security of information transmitted to or stored by the Service.</p>
+
+      <h2>10. Children's Privacy</h2>
+      <p>Pact is not directed at, and does not knowingly collect information from, anyone under 18 — consistent with the Terms of Service's eligibility requirement (Section 2).</p>
+
+      <h2>11. Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time. Material changes will be communicated the same way Terms updates are — see the Terms of Service, Section 19.</p>
+
+      <h2>12. Contact</h2>
+      <p>Questions about this policy, or a request regarding your data: <a href="mailto:privacy@pactappstore.com">privacy@pactappstore.com</a></p>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <div class="brand" style="margin-bottom:14px;"><span class="mark">P</span> Pact</div>
+        <p style="max-width:280px;">The contract platform built for how modern business actually gets agreed to.</p>
+      </div>
+      <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
+      <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
+      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="#">Security</a><a href="#">e-Signature Disclosure</a></div>
+    </div>
+    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
+  </div>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -6,7 +6,7 @@ const db = require("../db");
 // gate compare against. Keep the human-readable date in it so a support
 // request ("what did this user actually agree to on version X") can be
 // answered by eye without cross-referencing a changelog.
-const CURRENT_TERMS_VERSION = "tos_v0.1_2026-09-01";
+const CURRENT_TERMS_VERSION = "tos_v1.0_2026-09-01";
 
 function recordAcceptance({ userId, ipAddress, acceptanceMethod }) {
   db.prepare(

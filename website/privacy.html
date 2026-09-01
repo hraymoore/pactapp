@@ -58,10 +58,10 @@
     <div class="legal-wrap">
       <div class="eyebrow">Legal</div>
       <h1 style="margin-bottom:6px;">Pact — Privacy Policy</h1>
-      <p style="color:var(--ink-soft);margin-bottom:0;">Draft v0.1 &middot; Last Updated: <span class="placeholder">[DATE]</span></p>
+      <p style="color:var(--ink-soft);margin-bottom:0;">Draft v0.2 &middot; Last Updated: September 1, 2026</p>
 
       <div class="draft-banner">
-        <strong>DRAFT — REQUIRES ATTORNEY REVIEW BEFORE PUBLICATION.</strong> This describes what Pact's software actually collects and does with it today, written directly from the codebase rather than generic boilerplate — but it has not been reviewed against CCPA, GDPR, state privacy statutes, or any other applicable law, and Pact's owner has not yet named a real legal entity (see <span class="placeholder">[PACT LEGAL ENTITY NAME]</span> in the <a href="terms.html">Terms of Service</a>) or finalized how data-subject requests (access, deletion, correction) get fulfilled in practice. Do not publish this as binding until an attorney has reviewed it.
+        <strong>DRAFT — REQUIRES ATTORNEY REVIEW BEFORE PUBLICATION.</strong> This describes what Pact App Store's software actually collects and does with it today, written directly from the codebase rather than generic boilerplate — but it has not been reviewed against the California Consumer Privacy Act, the General Data Protection Regulation, other state privacy statutes, or any other applicable law, and Pact App Store has not yet finalized its transactional-email provider (Section 4) or how data-subject requests (access, deletion, correction) get fulfilled in practice (Sections 6 and 7). Do not publish this as binding until an attorney has reviewed it and those two items are settled.
       </div>
 
       <h2>1. What This Policy Covers</h2>
@@ -72,7 +72,7 @@
         <tr><th>Category</th><th>What</th><th>Why</th></tr>
         <tr><td>Account (all profiles)</td><td>Name or display name, email address, password (stored as a salted hash — Pact never sees or stores your plaintext password)</td><td>Create and secure your login</td></tr>
         <tr><td>Personal profile</td><td>Legal first/last name, date of birth</td><td>Legal capacity to contract (must be 18+) and identity records; never shown to other users — only your chosen display name is</td></tr>
-        <tr><td>Business profile</td><td>Business name, address, business email, point of contact, EIN</td><td>Runs your Business Directory (shared contract pool, team invites); EIN is self-reported and not independently verified against the IRS or any registry</td></tr>
+        <tr><td>Business profile</td><td>Business name, address, business email, point of contact, Employer Identification Number</td><td>Runs your Business Directory (shared contract pool, team invites); the Employer Identification Number is self-reported and not independently verified against the Internal Revenue Service or any registry</td></tr>
         <tr><td>Contract content</td><td>The text, attachments, parties, versions, and signatures of every contract you create, receive, or are added to</td><td>The core of the Service — storing and managing your agreements</td></tr>
         <tr><td>Identity verification</td><td>A verification result (pass/fail) and your verified name</td><td>Confirms you're a real, named person — see Section 5, "Identity Verification," for what we deliberately do <em>not</em> store</td></tr>
         <tr><td>Billing</td><td>Your Stripe customer ID and subscription status</td><td>Your card number itself is never sent to or stored by Pact — it goes directly to Stripe's hosted Checkout page</td></tr>
@@ -88,7 +88,7 @@
       <h2>4. Who We Share Information With</h2>
       <p>Pact shares information only with the service providers ("sub-processors") needed to run the features you use, and with the other parties on a contract you send or are added to. We do not sell personal information.</p>
       <ul>
-        <li><strong>Stripe</strong> — payment processing, subscription billing, and (if you use it) identity verification. Stripe receives and stores your payment details and, for identity verification, your government ID/selfie or SSN directly — Pact never receives or stores that data itself, only Stripe's verification result.</li>
+        <li><strong>Stripe</strong> — payment processing, subscription billing, and (if you use it) identity verification. Stripe receives and stores your payment details and, for identity verification, your government-issued identification, photograph, or Social Security Number directly — Pact never receives or stores that data itself, only Stripe's verification result.</li>
         <li><strong>Anthropic</strong> — if you're on a tier with Pact AI and you use it, your prompt (and the contract text you're asking about, if any) is sent to Anthropic's API to generate a response. This only happens when you actively use an AI feature.</li>
         <li><strong>Email delivery</strong> — transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via <span class="placeholder">[SMTP/EMAIL PROVIDER NAME — not yet finalized]</span>. No marketing email is sent.</li>
         <li><strong>Other users you designate</strong> — a contract's counterparty, a share recipient, or a fellow member of your Business Directory can see the contract(s) you've given them access to, and your name/email as it appears on that contract.</li>
@@ -96,7 +96,7 @@
       </ul>
 
       <h2>5. Identity Verification — What We Deliberately Don't Store</h2>
-      <p>If you complete identity verification, Pact hands you off to Stripe Identity's own hosted, compliant verification flow. Stripe captures and stores the sensitive document image, selfie, or SSN data — Pact's own database stores only the verification result (pass/fail) and your verified name, never the raw document or SSN itself. This is a deliberate design choice: that data carries compliance obligations (breach-notice laws, state biometric-privacy statutes) that make sense for a dedicated identity-verification company to carry, not a platform like Pact.</p>
+      <p>If you complete identity verification, Pact hands you off to Stripe Identity's own hosted, compliant verification flow. Stripe captures and stores the sensitive document image, photograph, or Social Security Number data — Pact's own database stores only the verification result (pass/fail) and your verified name, never the raw document or Social Security Number itself. This is a deliberate design choice: that data carries compliance obligations (breach-notice laws, state biometric-privacy statutes) that make sense for a dedicated identity-verification company to carry, not a platform like Pact.</p>
 
       <h2>6. Data Retention</h2>
       <p>We retain your account and contract data for as long as your account is active, since a contract's whole value is being retrievable later — including after a contract is fully signed. Terms-of-Service acceptance records (Section 8) are kept permanently as an append-only audit trail and are never deleted, even if you close your account, since they're the evidence that an agreement was formed. <span class="placeholder">[Retention period after account closure for other data, and a self-serve export/delete flow, are not yet built or finalized — flag for attorney and product review before publishing.]</span></p>

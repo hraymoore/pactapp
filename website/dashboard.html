@@ -253,6 +253,16 @@
         <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
         <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
       </div>
+
+      <div class="card" style="margin-top:24px;border-color:var(--ruby);">
+        <h3>Close Account</h3>
+        <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
+        <div id="closeAccountForm">
+          <div class="field" style="max-width:320px;"><label for="closeAccountPassword">Enter your password to confirm</label><input id="closeAccountPassword" type="password" placeholder="Password"></div>
+          <button class="btn btn-ghost-dark btn-sm" id="closeAccountBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Close My Account</button>
+        </div>
+        <p id="closeAccountNote" style="margin-top:14px;font-size:0.82rem;"></p>
+      </div>
     </section>
 
   </main>
@@ -1185,6 +1195,30 @@
     });
   }
 
+  function setupCloseAccount() {
+    document.getElementById("closeAccountBtn").addEventListener("click", async () => {
+      const password = document.getElementById("closeAccountPassword").value;
+      const note = document.getElementById("closeAccountNote");
+      note.style.color = "";
+      if (!password) {
+        note.textContent = "Enter your password to confirm.";
+        note.style.color = "var(--ruby-bright)";
+        return;
+      }
+      if (!confirm("Close your Pact account? You'll be logged out immediately and any subscription will be canceled. You can reactivate with your password later — nothing is deleted.")) {
+        return;
+      }
+      try {
+        const data = await apiJson("/api/auth/close", { method: "POST", body: JSON.stringify({ password }) });
+        alert(data.note ? `Your account has been closed. ${data.note}` : "Your account has been closed.");
+        window.location.href = "index.html";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
   // ---- business ----
   let CURRENT_ORG = null;
   let ALL_BIZ_CONTRACTS = [];
@@ -1513,6 +1547,7 @@
     await setupBillingPortal();
     await setupIdentity();
     setupPasswordChange();
+    setupCloseAccount();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

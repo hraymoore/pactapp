@@ -263,6 +263,15 @@ for (const stmt of [
   "ALTER TABLE organizations ADD COLUMN address TEXT",
   "ALTER TABLE organizations ADD COLUMN contact_email TEXT",
   "ALTER TABLE organizations ADD COLUMN point_of_contact TEXT",
+  // Soft delete only — closing an account NEVER deletes or nulls a row.
+  // Every contract, signature, audit entry and terms_acceptances record
+  // tied to a closed user's id stays exactly as it was, so a counterparty
+  // still sees the correct name on a contract signed before closure.
+  // Actual data deletion, if any is ever built, is a separate scheduled
+  // retention job that reads closed_at — never something close-time does.
+  "ALTER TABLE users ADD COLUMN account_status TEXT NOT NULL DEFAULT 'active'",
+  "ALTER TABLE users ADD COLUMN closed_at TEXT",
+  "ALTER TABLE users ADD COLUMN closed_by TEXT",
 ]) {
   try {
     db.exec(stmt);

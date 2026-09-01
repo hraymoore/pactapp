@@ -8,10 +8,16 @@ function attachUser(req, res, next) {
     if (payload) {
       const user = db
         .prepare(
-          "SELECT id, name, email, tier, account_type, legal_first_name, legal_last_name, date_of_birth, created_at, temp_password_expires_at FROM users WHERE id = ?"
+          "SELECT id, name, email, tier, account_type, legal_first_name, legal_last_name, date_of_birth, created_at, temp_password_expires_at, account_status FROM users WHERE id = ?"
         )
         .get(payload.sub);
-      if (user) {
+      // A closed account's token can still be cryptographically valid (JWTs
+      // aren't revoked on close, they're stateless) — this per-request DB
+      // check is what actually invalidates every existing session the
+      // instant an account closes, without needing a separate token
+      // blacklist. req.user simply never gets attached, same as being
+      // logged out, so every requireAuth route rejects it automatically.
+      if (user && user.account_status === "active") {
         req.user = {
           id: user.id,
           name: user.name,

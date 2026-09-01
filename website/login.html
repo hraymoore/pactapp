@@ -65,6 +65,9 @@
       </div>
       <button type="submit" class="btn btn-gold btn-block">Log In</button>
     </form>
+    <div id="reactivateBox" style="display:none;margin-top:16px;text-align:center;">
+      <button class="btn btn-ghost-dark btn-block" id="reactivateBtn">Reactivate This Account</button>
+    </div>
     <p class="form-note"><a href="forgot-password.html">Forgot your password?</a></p>
     <p class="form-note">New to Pact? <a href="signup.html">Create your free profile</a></p>
   </div>
@@ -72,12 +75,15 @@
 
 <script src="js/app.js"></script>
 <script>
+  const alertBox = document.getElementById("formAlert");
+  const reactivateBox = document.getElementById("reactivateBox");
+
   document.getElementById("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
-    const alertBox = document.getElementById("formAlert");
     const submitBtn = e.target.querySelector("button[type=submit]");
+    reactivateBox.style.display = "none";
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Logging in…";
@@ -90,6 +96,30 @@
       alertBox.classList.add("show");
       submitBtn.disabled = false;
       submitBtn.textContent = "Log In";
+      // A closed account can't complete a normal login (see middleware/
+      // auth.js — attachUser refuses to attach a closed account, and
+      // /login rejects it before password verification), but the same
+      // credentials can reactivate it — offer that instead of a dead end.
+      if (err.payload && err.payload.accountClosed) {
+        reactivateBox.style.display = "";
+      }
+    }
+  });
+
+  document.getElementById("reactivateBtn").addEventListener("click", async () => {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const btn = document.getElementById("reactivateBtn");
+    btn.disabled = true;
+    btn.textContent = "Reactivating…";
+    try {
+      await PactAPI.reactivate({ email, password });
+      window.location.href = "dashboard.html";
+    } catch (err) {
+      alertBox.textContent = err.message;
+      alertBox.classList.add("show");
+      btn.disabled = false;
+      btn.textContent = "Reactivate This Account";
     }
   });
 </script>

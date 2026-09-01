@@ -6,6 +6,7 @@ const { mailerConfigured, sendMail } = require("../services/mailer");
 const { requireAuth } = require("../middleware/auth");
 const { isValidEinFormat, normalizeEin } = require("../services/organizations");
 const { recordAcceptance, clientIp } = require("../services/terms");
+const { cancelSubscriptionImmediately } = require("../services/billing-provider");
 
 router.use(express.json());
 
@@ -139,6 +140,10 @@ router.post("/login", (req, res) => {
     return res.status(401).json({ error: "Invalid email or password." });
   }
 
+  if (row.account_status === "closed") {
+    return res.status(403).json({ error: "This account has been closed.", accountClosed: true });
+  }
+
   if (row.locked_at) {
     return res.status(423).json({
       error: "This account is locked after too many failed login attempts. Request a temporary password to unlock it.",
@@ -165,6 +170,33 @@ router.post("/login", (req, res) => {
   }
 
   db.prepare("UPDATE users SET failed_login_attempts = 0, locked_at = NULL WHERE id = ?").run(row.id);
+  const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
+  const user = publicUser(refreshed);
+  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.json({ user });
+});
+
+// Credential-verified reactivation for a closed account — not a full
+// login, since login is intentionally blocked while closed (see the
+// account_status check above). Reuses the same email+password check
+// rather than an email link/token: cheap to build now, and password
+// verification is already the trust boundary this app uses everywhere
+// else for "prove you're really the account holder" (see /close, /change-
+// password). Only reverses closure — never touches any other data, since
+// nothing was ever deleted or anonymized in the first place.
+router.post("/reactivate", (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
+  }
+  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim().toLowerCase());
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    return res.status(401).json({ error: "Invalid email or password." });
+  }
+  if (row.account_status !== "closed") {
+    return res.status(400).json({ error: "This account is not closed." });
+  }
+  db.prepare("UPDATE users SET account_status = 'active', closed_at = NULL, closed_by = NULL WHERE id = ?").run(row.id);
   const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
   const user = publicUser(refreshed);
   res.cookie("pact_token", signToken(user), COOKIE_OPTS);
@@ -237,6 +269,38 @@ router.post("/change-password", requireAuth, (req, res) => {
   const user = publicUser(refreshed);
   res.cookie("pact_token", signToken(user), COOKIE_OPTS);
   res.json({ user });
+});
+
+// Soft delete only. This is purely an UPDATE — account_status/closed_at/
+// closed_by — never a DELETE. Every contract this user is a party to,
+// their name/info as it appears on those contracts, the full audit trail
+// (views/edits/signatures) tied to their user id, and their
+// terms_acceptances history all stay completely untouched: nothing here
+// is nulled out, anonymized, or cascade-deleted. Any real data purge is a
+// separate, later, scheduled retention job that reads closed_at — closing
+// an account never triggers one directly.
+router.post("/close", requireAuth, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password) return res.status(400).json({ error: "Enter your password to confirm." });
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    return res.status(401).json({ error: "Password is incorrect." });
+  }
+
+  let billingNote = null;
+  try {
+    const { canceled } = await cancelSubscriptionImmediately(row);
+    if (canceled) billingNote = "Your subscription was canceled — no further charges will occur.";
+  } catch (err) {
+    // Don't let a Stripe hiccup block the account from closing — the
+    // account status change is the source of truth for access; billing
+    // gets flagged for manual follow-up instead of blocking the user.
+    billingNote = "Your account was closed, but canceling your subscription with Stripe failed — contact support to confirm no further charges occur.";
+  }
+
+  db.prepare("UPDATE users SET account_status = 'closed', closed_at = datetime('now'), closed_by = 'user' WHERE id = ?").run(row.id);
+  res.clearCookie("pact_token");
+  res.json({ ok: true, note: billingNote });
 });
 
 router.post("/logout", (req, res) => {

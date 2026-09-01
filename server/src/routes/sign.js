@@ -17,12 +17,21 @@ router.get("/:token", (req, res) => {
     .prepare("SELECT name, email FROM contract_parties WHERE contract_id = ? AND role = 'owner'")
     .get(contract.id);
 
+  // A business-account sender's EIN is self-reported and never
+  // independently verified (see services/organizations.js) — an outside
+  // signer following a public link has no other way to see that caveat
+  // before they sign, so it travels with the contract itself rather than
+  // living only in the Privacy Policy.
+  const ownerUser = db.prepare("SELECT account_type FROM users WHERE id = ?").get(contract.owner_id);
+  const ownerIsBusiness = !!(ownerUser && ownerUser.account_type === "business");
+
   logView(contract.id, { name: party.name, email: party.email });
 
   res.json({
     contract: { id: contract.id, name: contract.name, body: contract.body, status: contract.status },
     party: { name: party.name, email: party.email, signed_at: party.signed_at },
     owner,
+    ownerIsBusiness,
   });
 });
 

@@ -10,6 +10,15 @@ router.get("/genres", (req, res) => {
   res.json({ genres: rows.map((r) => r.genre) });
 });
 
+// Public counts for marketing copy (index.html's hero stats) — computed
+// from the live template table instead of a hand-typed number, so the two
+// can never drift the way "39+ templates" / "12 genres" had before this.
+router.get("/stats", (req, res) => {
+  const { count: templateCount } = db.prepare("SELECT COUNT(*) as count FROM templates").get();
+  const { count: genreCount } = db.prepare("SELECT COUNT(DISTINCT genre) as count FROM templates").get();
+  res.json({ templateCount, genreCount });
+});
+
 // The full state list for the governing-law selector, plus which states
 // currently have deep, state-specific template coverage (beyond the
 // generic 'ALL' fallback every state can already use).

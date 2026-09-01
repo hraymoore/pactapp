@@ -228,7 +228,8 @@
           <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
           <p id="settingsLegalNameRow" style="display:none;"><strong>Legal name:</strong> <span id="settingsLegalName">—</span></p>
           <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
-          <p style="margin-bottom:0;"><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
+          <p><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
+          <button class="btn btn-ghost-dark btn-sm" id="downloadDataBtn" style="margin-top:4px;">Download My Data</button>
         </div>
         <div class="card">
           <h3>Subscription</h3>
@@ -1698,6 +1699,29 @@
       document.getElementById("settingsDobRow").style.display = "";
       document.getElementById("settingsDob").textContent = new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString();
     }
+    document.getElementById("downloadDataBtn").addEventListener("click", async (e) => {
+      const btn = e.target;
+      btn.disabled = true;
+      btn.textContent = "Preparing…";
+      try {
+        const r = await fetch("/api/auth/export", { credentials: "include" });
+        if (!r.ok) throw new Error("Could not prepare your data export.");
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "pact-data-export.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Download My Data";
+      }
+    });
 
     document.getElementById("contractSearch").addEventListener("input", filterContracts);
 

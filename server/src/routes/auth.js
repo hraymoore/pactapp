@@ -347,6 +347,53 @@ router.post("/close", requireAuth, async (req, res) => {
   res.json({ ok: true, note: billingNote });
 });
 
+// Self-serve export of "your own data" — the profile fields you entered,
+// your organization if you have one, and every contract where you're
+// either the owner or a named signing party (contract_parties). Deliberately
+// excludes contracts you can merely view/edit via a per-contract share or a
+// Business Directory membership you're not actually a party to — those
+// aren't "your" data, they're someone else's contract you were granted
+// access to, so a personal data export isn't the right channel to bulk-copy
+// them out.
+router.get("/export", requireAuth, (req, res) => {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  const profile = publicUser(row);
+
+  let organization = null;
+  const membership = db.prepare("SELECT organization_id FROM organization_members WHERE user_id = ?").get(row.id);
+  if (membership) {
+    organization = db.prepare("SELECT * FROM organizations WHERE id = ?").get(membership.organization_id);
+  }
+
+  const contracts = db
+    .prepare(
+      `SELECT DISTINCT c.* FROM contracts c
+       LEFT JOIN contract_parties p ON p.contract_id = c.id
+       WHERE c.owner_id = @userId OR p.user_id = @userId OR p.email = @email
+       ORDER BY c.created_at ASC`
+    )
+    .all({ userId: row.id, email: row.email })
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      genre: c.genre,
+      state: c.state,
+      status: c.status,
+      body: c.body,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
+      parties: db.prepare("SELECT name, email, role, signed_at FROM contract_parties WHERE contract_id = ?").all(c.id),
+    }));
+
+  res.setHeader("Content-Disposition", "attachment; filename=pact-data-export.json");
+  res.json({
+    exportedAt: new Date().toISOString(),
+    profile,
+    organization,
+    contracts,
+  });
+});
+
 router.post("/logout", (req, res) => {
   res.clearCookie("pact_token");
   res.json({ ok: true });

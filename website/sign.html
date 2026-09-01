@@ -36,6 +36,7 @@
     <div class="eyebrow" style="justify-content:center;display:flex;">Electronic signature request</div>
     <h2 class="center" id="contractTitle">Loading contract…</h2>
     <p class="center" id="fromLine" style="font-size:0.9rem;"></p>
+    <p class="center" id="businessCaveat" style="display:none;font-size:0.8rem;color:var(--silver);">This is sent from a business account. Business details on Pact are self-reported and not independently verified.</p>
 
     <div id="loadError" class="alert alert-ruby"></div>
 
@@ -83,6 +84,7 @@
 
         document.getElementById("contractTitle").textContent = data.contract.name;
         document.getElementById("fromLine").textContent = `Sent by ${data.owner.name} <${data.owner.email}> to ${data.party.name}`;
+        if (data.ownerIsBusiness) document.getElementById("businessCaveat").style.display = "";
         document.getElementById("contractBody").textContent = data.contract.body;
         document.getElementById("signBody").style.display = "";
         document.getElementById("typedSignature").value = data.party.name || "";

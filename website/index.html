@@ -56,8 +56,8 @@
         <a href="templates.html" class="btn btn-ghost-dark">Browse Templates</a>
       </div>
       <div class="hero-stats">
-        <div><strong>39+</strong><span>contract templates at launch</span></div>
-        <div><strong>12</strong><span>business genres covered</span></div>
+        <div><strong id="heroTemplateCount">—</strong><span>contract templates at launch</span></div>
+        <div><strong id="heroGenreCount">—</strong><span>business genres covered</span></div>
         <div><strong>100%</strong><span>of edits time-stamped after signing</span></div>
       </div>
     </div>
@@ -213,11 +213,17 @@
     </div>
     <div class="footer-bottom">
       <span>&copy; 2026 Pact. All rights reserved.</span>
-      <span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span>
+      <span>Free &middot; Starter &middot; Everyday &middot; Professional &middot; Enterprise</span>
     </div>
   </div>
 </footer>
 
 <script src="js/app.js"></script>
+<script>
+  fetch("/api/templates/stats").then(r => r.json()).then(({ templateCount, genreCount }) => {
+    document.getElementById("heroTemplateCount").textContent = `${templateCount}+`;
+    document.getElementById("heroGenreCount").textContent = genreCount;
+  }).catch(() => {});
+</script>
 </body>
 </html>

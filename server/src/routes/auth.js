@@ -1,12 +1,20 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
-const { hashPassword, verifyPassword, signToken, generateTempPassword } = require("../auth-utils");
+const {
+  hashPassword,
+  verifyPassword,
+  signToken,
+  generateTempPassword,
+  signMfaChallengeToken,
+  verifyMfaChallengeToken,
+} = require("../auth-utils");
 const { mailerConfigured, sendMail } = require("../services/mailer");
 const { requireAuth } = require("../middleware/auth");
 const { isValidEinFormat, normalizeEin } = require("../services/organizations");
 const { recordAcceptance, clientIp } = require("../services/terms");
 const { cancelSubscriptionImmediately } = require("../services/billing-provider");
+const { verifyMfaCode } = require("../services/mfa");
 
 router.use(express.json());
 
@@ -33,6 +41,7 @@ function publicUser(row) {
     dateOfBirth: row.date_of_birth,
     created_at: row.created_at,
     passwordIsTemporary: !!row.temp_password_expires_at,
+    mfaEnabled: !!row.mfa_enabled,
   };
 }
 
@@ -171,7 +180,42 @@ router.post("/login", (req, res) => {
 
   db.prepare("UPDATE users SET failed_login_attempts = 0, locked_at = NULL WHERE id = ?").run(row.id);
   const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
+
+  // Password is correct, but that's only step one for an MFA-enrolled
+  // account — issue a short-lived challenge token instead of the real
+  // session cookie, and make the client complete the code step below
+  // before it gets one.
+  if (refreshed.mfa_enabled) {
+    return res.json({ mfaRequired: true, challengeToken: signMfaChallengeToken(refreshed) });
+  }
+
   const user = publicUser(refreshed);
+  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.json({ user });
+});
+
+// Step two of an MFA login: the challenge token proves the password was
+// already verified moments ago; a matching TOTP (or one-time backup) code
+// proves the second factor. Only then does the real session cookie get
+// issued.
+router.post("/mfa/verify-login", (req, res) => {
+  const { challengeToken, code } = req.body || {};
+  if (!challengeToken || !code) {
+    return res.status(400).json({ error: "A verification code is required." });
+  }
+  const payload = verifyMfaChallengeToken(challengeToken);
+  if (!payload) {
+    return res.status(401).json({ error: "That login attempt expired. Log in again." });
+  }
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  if (!row || row.account_status !== "active" || !row.mfa_enabled) {
+    return res.status(401).json({ error: "That login attempt is no longer valid. Log in again." });
+  }
+  const result = verifyMfaCode(row, code);
+  if (!result.ok) {
+    return res.status(401).json({ error: "Invalid verification code." });
+  }
+  const user = publicUser(row);
   res.cookie("pact_token", signToken(user), COOKIE_OPTS);
   res.json({ user });
 });

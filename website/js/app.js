@@ -51,6 +51,23 @@ const PactAPI = {
       err.payload = data;
       throw err;
     }
+    // MFA-enrolled accounts don't get a session on the first call — the
+    // caller sees { mfaRequired, challengeToken } and must call
+    // verifyMfaLogin() with a code before a real session exists.
+    if (data.mfaRequired) return data;
+    this._cache = data.user;
+    return data.user;
+  },
+
+  async verifyMfaLogin({ challengeToken, code }) {
+    const r = await fetch("/api/auth/mfa/verify-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ challengeToken, code }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Verification failed.");
     this._cache = data.user;
     return data.user;
   },

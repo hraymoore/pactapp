@@ -13,6 +13,22 @@ function orgWithRole(org, userId) {
   return { ...org, myRole: membership ? membership.role : null };
 }
 
+// Team-invite and role-management are the two permissions the site audit
+// calls out as needing MFA once an admin's account has real money/scale
+// behind it (Everyday tier and above) — Free/Starter admins aren't gated,
+// since those tiers don't carry a paid team seat structure worth protecting
+// this way yet.
+const MFA_REQUIRED_TIERS = ["everyday", "pro", "business"];
+function requireMfaForOrgAdmin(req, res, next) {
+  if (MFA_REQUIRED_TIERS.includes(req.user.tier) && !req.user.mfaEnabled) {
+    return res.status(403).json({
+      error: "Team invites and role changes require two-factor authentication on your account. Turn it on in Settings first.",
+      mfaRequired: true,
+    });
+  }
+  next();
+}
+
 // The organizations the current user belongs to, with their role in each —
 // almost always one, but nothing stops someone being a member of several.
 router.get("/", (req, res) => {
@@ -151,7 +167,7 @@ router.get("/:id/contracts", (req, res) => {
 // Members — invite an existing Pact profile by email, same "must already
 // have an account" rule as per-contract sharing. owner/admin only; only an
 // owner can grant the admin role (an admin can only add plain members).
-router.post("/:id/members", (req, res) => {
+router.post("/:id/members", requireMfaForOrgAdmin, (req, res) => {
   const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
   if (!org) return res.status(404).json({ error: "Organization not found." });
   let membership;
@@ -184,7 +200,7 @@ router.post("/:id/members", (req, res) => {
   res.status(201).json({ ok: true });
 });
 
-router.put("/:id/members/:memberId", (req, res) => {
+router.put("/:id/members/:memberId", requireMfaForOrgAdmin, (req, res) => {
   const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
   if (!org) return res.status(404).json({ error: "Organization not found." });
   try {

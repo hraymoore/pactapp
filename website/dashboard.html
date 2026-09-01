@@ -254,6 +254,28 @@
         <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
       </div>
 
+      <div class="card" style="margin-top:24px;">
+        <h3>Two-Factor Authentication</h3>
+        <p id="mfaStatusText" style="font-size:0.85rem;">Checking status…</p>
+        <div id="mfaEnrollBox" style="display:none;">
+          <p style="font-size:0.85rem;">Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code it shows.</p>
+          <img id="mfaQrCode" alt="MFA QR code" style="background:#fff;padding:10px;border-radius:8px;max-width:200px;display:block;margin:12px 0;">
+          <p style="font-size:0.78rem;color:var(--silver);">Can't scan? Enter this key manually: <code id="mfaSecretText"></code></p>
+          <div class="field" style="max-width:220px;"><label for="mfaEnrollCode">Verification code</label><input id="mfaEnrollCode" placeholder="123456" autocomplete="one-time-code"></div>
+          <button class="btn btn-gold btn-sm" id="mfaVerifyEnrollBtn">Confirm and Turn On</button>
+        </div>
+        <div id="mfaBackupCodesBox" style="display:none;margin-top:16px;">
+          <p style="font-size:0.85rem;color:var(--emerald-bright);">Two-factor authentication is on. Save these one-time backup codes somewhere safe — each works once if you lose access to your authenticator app, and they won't be shown again.</p>
+          <pre id="mfaBackupCodesList" style="background:rgba(255,255,255,0.04);padding:12px;border-radius:8px;font-size:0.85rem;line-height:1.6;"></pre>
+        </div>
+        <button class="btn btn-ghost-dark btn-sm" id="mfaEnableBtn" style="display:none;">Turn On Two-Factor Authentication</button>
+        <div id="mfaDisableForm" style="display:none;">
+          <div class="field" style="max-width:220px;"><label for="mfaDisablePassword">Enter your password to confirm</label><input id="mfaDisablePassword" type="password" placeholder="Password"></div>
+          <button class="btn btn-ghost-dark btn-sm" id="mfaDisableBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Turn Off Two-Factor Authentication</button>
+        </div>
+        <p id="mfaNote" style="margin-top:14px;font-size:0.82rem;"></p>
+      </div>
+
       <div class="card" style="margin-top:24px;border-color:var(--ruby);">
         <h3>Close Account</h3>
         <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
@@ -1219,6 +1241,91 @@
     });
   }
 
+  // ---- settings: two-factor authentication ----
+  async function setupMfa() {
+    const statusText = document.getElementById("mfaStatusText");
+    const enrollBox = document.getElementById("mfaEnrollBox");
+    const backupBox = document.getElementById("mfaBackupCodesBox");
+    const enableBtn = document.getElementById("mfaEnableBtn");
+    const disableForm = document.getElementById("mfaDisableForm");
+    const note = document.getElementById("mfaNote");
+
+    async function refreshStatus(keepBackupCodesVisible) {
+      const { enabled } = await apiJson("/api/mfa/status");
+      enrollBox.style.display = "none";
+      if (!keepBackupCodesVisible) backupBox.style.display = "none";
+      if (enabled) {
+        statusText.innerHTML = `<span style="color:var(--emerald-bright);">On</span> — your account requires a code from your authenticator app to log in.`;
+        enableBtn.style.display = "none";
+        disableForm.style.display = "";
+      } else {
+        statusText.textContent = "Off. Turning this on adds a second step at login using an authenticator app.";
+        enableBtn.style.display = "";
+        disableForm.style.display = "none";
+      }
+      return enabled;
+    }
+
+    await refreshStatus();
+
+    enableBtn.addEventListener("click", async () => {
+      note.textContent = "";
+      try {
+        const { secret, qrCode } = await apiJson("/api/mfa/enroll/start", { method: "POST", body: JSON.stringify({}) });
+        document.getElementById("mfaQrCode").src = qrCode;
+        document.getElementById("mfaSecretText").textContent = secret;
+        document.getElementById("mfaEnrollCode").value = "";
+        enrollBox.style.display = "";
+        enableBtn.style.display = "none";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("mfaVerifyEnrollBtn").addEventListener("click", async () => {
+      const code = document.getElementById("mfaEnrollCode").value.trim();
+      note.style.color = "";
+      if (!code) {
+        note.textContent = "Enter the code from your authenticator app.";
+        note.style.color = "var(--ruby-bright)";
+        return;
+      }
+      try {
+        const { backupCodes } = await apiJson("/api/mfa/enroll/verify", { method: "POST", body: JSON.stringify({ code }) });
+        document.getElementById("mfaBackupCodesList").textContent = backupCodes.join("\n");
+        backupBox.style.display = "";
+        note.textContent = "";
+        CURRENT_USER.mfaEnabled = true;
+        await refreshStatus(true);
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("mfaDisableBtn").addEventListener("click", async () => {
+      const password = document.getElementById("mfaDisablePassword").value;
+      note.style.color = "";
+      if (!password) {
+        note.textContent = "Enter your password to confirm.";
+        note.style.color = "var(--ruby-bright)";
+        return;
+      }
+      if (!confirm("Turn off two-factor authentication? Your account will only need a password to log in.")) return;
+      try {
+        await apiJson("/api/mfa/disable", { method: "POST", body: JSON.stringify({ password }) });
+        document.getElementById("mfaDisablePassword").value = "";
+        note.textContent = "Two-factor authentication turned off.";
+        CURRENT_USER.mfaEnabled = false;
+        await refreshStatus();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
   function setupCloseAccount() {
     document.getElementById("closeAccountBtn").addEventListener("click", async () => {
       const password = document.getElementById("closeAccountPassword").value;
@@ -1613,6 +1720,7 @@
     await setupBillingPortal();
     await setupIdentity();
     setupPasswordChange();
+    await setupMfa();
     setupCloseAccount();
 
     const openId = new URLSearchParams(window.location.search).get("contract");

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  tier TEXT NOT NULL DEFAULT 'starter',
+  tier TEXT NOT NULL DEFAULT 'free',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -229,6 +229,24 @@ CREATE TABLE IF NOT EXISTS contract_views (
   view_count INTEGER NOT NULL DEFAULT 1,
   UNIQUE (contract_id, viewer_email)
 );
+
+-- Append-only, same evidentiary pattern as terms_acceptances — the E-SIGN
+-- Act disclosure/consent is a one-time gate per registered Pact user (any
+-- row at all satisfies it, not a version match like Terms), required
+-- before they send OR sign a contract in-app for the first time. Scoped to
+-- registered users only: an outside counterparty signing via the public
+-- token link (routes/sign.js) has no user_id and isn't gated here — that
+-- flow already carries its own per-signature "I consent to sign
+-- electronically" checkbox, which is adequate consent for that one
+-- transaction without an ongoing Pact account relationship to attach a
+-- record to.
+CREATE TABLE IF NOT EXISTS esign_consent_acceptances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  consent_version TEXT NOT NULL,
+  accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ip_address TEXT
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -272,6 +290,17 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN account_status TEXT NOT NULL DEFAULT 'active'",
   "ALTER TABLE users ADD COLUMN closed_at TEXT",
   "ALTER TABLE users ADD COLUMN closed_by TEXT",
+  // TOTP-based MFA. mfa_secret is written as soon as enrollment starts
+  // (services/mfa.js needs it on-hand to check the code the user types
+  // back), but mfa_enabled only flips to 1 once that first code is
+  // verified — an abandoned enrollment never leaves a half-armed account.
+  // mfa_backup_codes is a JSON array of bcrypt hashes, one-time-use,
+  // consumed (removed from the array) on use; regenerated wholesale only
+  // by turning MFA off and back on.
+  "ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN mfa_secret TEXT",
+  "ALTER TABLE users ADD COLUMN mfa_enabled_at TEXT",
+  "ALTER TABLE users ADD COLUMN mfa_backup_codes TEXT",
 ]) {
   try {
     db.exec(stmt);
@@ -279,5 +308,11 @@ for (const stmt of [
     if (!/duplicate column/i.test(err.message)) throw err;
   }
 }
+
+// One-time data migration, not a schema change: 'none' was the sentinel
+// for "no active plan" before Free became a real tier with real
+// capabilities (template preview/download, viewing/signing shared
+// contracts). Idempotent — a no-op once no row has tier='none' left.
+db.exec("UPDATE users SET tier = 'free' WHERE tier = 'none'");
 
 module.exports = db;

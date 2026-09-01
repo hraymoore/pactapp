@@ -65,11 +65,20 @@
       </div>
       <button type="submit" class="btn btn-gold btn-block">Log In</button>
     </form>
+    <form id="mfaForm" style="display:none;">
+      <div class="eyebrow" style="justify-content:center;display:flex;margin-top:4px;">Two-factor authentication</div>
+      <p class="center" style="font-size:0.85rem;">Enter the 6-digit code from your authenticator app, or one of your backup codes.</p>
+      <div class="field">
+        <label for="mfaCode">Verification code</label>
+        <input id="mfaCode" required placeholder="123456" autocomplete="one-time-code">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">Verify</button>
+    </form>
     <div id="reactivateBox" style="display:none;margin-top:16px;text-align:center;">
       <button class="btn btn-ghost-dark btn-block" id="reactivateBtn">Reactivate This Account</button>
     </div>
-    <p class="form-note"><a href="forgot-password.html">Forgot your password?</a></p>
-    <p class="form-note">New to Pact? <a href="signup.html">Create your free profile</a></p>
+    <p class="form-note" id="forgotNote"><a href="forgot-password.html">Forgot your password?</a></p>
+    <p class="form-note" id="signupNote">New to Pact? <a href="signup.html">Create your free profile</a></p>
   </div>
 </div>
 
@@ -77,8 +86,16 @@
 <script>
   const alertBox = document.getElementById("formAlert");
   const reactivateBox = document.getElementById("reactivateBox");
+  const loginForm = document.getElementById("loginForm");
+  const mfaForm = document.getElementById("mfaForm");
+  let pendingChallengeToken = null;
 
-  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  function goToNext() {
+    const params = new URLSearchParams(window.location.search);
+    window.location.href = params.get("next") || "dashboard.html";
+  }
+
+  loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
@@ -88,9 +105,17 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Logging in…";
     try {
-      await PactAPI.login({ email, password });
-      const params = new URLSearchParams(window.location.search);
-      window.location.href = params.get("next") || "dashboard.html";
+      const result = await PactAPI.login({ email, password });
+      if (result && result.mfaRequired) {
+        pendingChallengeToken = result.challengeToken;
+        loginForm.style.display = "none";
+        document.getElementById("forgotNote").style.display = "none";
+        document.getElementById("signupNote").style.display = "none";
+        mfaForm.style.display = "";
+        document.getElementById("mfaCode").focus();
+        return;
+      }
+      goToNext();
     } catch (err) {
       alertBox.textContent = err.message;
       alertBox.classList.add("show");
@@ -103,6 +128,23 @@
       if (err.payload && err.payload.accountClosed) {
         reactivateBox.style.display = "";
       }
+    }
+  });
+
+  mfaForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("mfaCode").value.trim();
+    const submitBtn = e.target.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Verifying…";
+    try {
+      await PactAPI.verifyMfaLogin({ challengeToken: pendingChallengeToken, code });
+      goToNext();
+    } catch (err) {
+      alertBox.textContent = err.message;
+      alertBox.classList.add("show");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Verify";
     }
   });
 

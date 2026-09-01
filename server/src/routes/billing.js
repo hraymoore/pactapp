@@ -9,10 +9,15 @@ const {
   applyTierFromSession,
   syncSubscriptionUpdate,
   downgradeOnCancellation,
+  cancelSubscriptionImmediately,
 } = require("../services/billing-provider");
 const { fulfillPurchase } = require("../services/purchases");
 const { markPaid: markAttorneyReviewPaid } = require("../services/attorney-review");
 
+// Free is a real tier ($0), not "no plan" — it never goes through Stripe at
+// all, paid or not, so it's validated separately from TIER_PRICE_CENTS
+// rather than added to it as 0 (a falsy price would break the `!TIER_
+// PRICE_CENTS[tier]` unknown-tier check below).
 const TIER_PRICE_CENTS = { starter: 799, everyday: 1199, pro: 2099, business: 8999 };
 
 // Stripe requires the raw body for signature verification, so this route is
@@ -76,6 +81,25 @@ router.get("/status", requireAuth, (req, res) => res.json({ configured: billingC
 
 router.post("/checkout", requireAuth, async (req, res) => {
   const { tier } = req.body || {};
+
+  // Downgrading (or landing back) on Free never touches Stripe — it's not
+  // a $0 subscription, it's the absence of one. If they had a real paid
+  // subscription, cancel it immediately (best-effort, same as closing an
+  // account) so it actually stops billing instead of running alongside a
+  // Free-tier profile.
+  if (tier === "free") {
+    const fullUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+    let billingNote = null;
+    try {
+      const { canceled } = await cancelSubscriptionImmediately(fullUser);
+      if (canceled) billingNote = "Your subscription was canceled — no further charges will occur.";
+    } catch (err) {
+      billingNote = "Your tier was switched to Free, but canceling your subscription with Stripe failed — contact support to confirm no further charges occur.";
+    }
+    db.prepare("UPDATE users SET tier = 'free' WHERE id = ?").run(req.user.id);
+    return res.json({ mode: "direct", tier: "free", note: billingNote || "You're now on the Free tier." });
+  }
+
   if (!TIER_PRICE_CENTS[tier]) return res.status(400).json({ error: "Unknown tier." });
 
   if (!billingConfigured()) {

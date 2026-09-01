@@ -12,13 +12,14 @@ const { isValidStateCode } = require("../us-states");
 const { getMembership } = require("../services/organizations");
 const { snapshotVersion, listVersions, diffAgainstCurrent } = require("../services/versions");
 const { computeHealthScore } = require("../services/contract-health");
+const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const fs = require("fs");
 const path = require("path");
 
 router.use(express.json());
 router.use(requireAuth);
 
-const TIER_ORDER = ["starter", "everyday", "pro", "business"];
+const TIER_ORDER = ["free", "starter", "everyday", "pro", "business"];
 
 // multer's fileFilter/size-limit errors go to Express's error-handling
 // chain via next(err) — wrap so they come back as JSON, not a default
@@ -122,18 +123,17 @@ router.get("/", (req, res) => {
   res.json({ contracts: withParties });
 });
 
-// A profile is free, and can always view/edit/receive/sign a contract
-// someone else sends it — but SENDING one (from a template, blank, or an
-// upload) needs at least one paying party. Template-based creation already
-// enforces this indirectly (TIER_ORDER.indexOf('none') is -1, always below
-// any real template.min_tier), but a blank or uploaded contract has no
-// template to check against, so it needs its own floor here — otherwise an
-// unpaid account could route around the paywall entirely by never picking
-// a template.
+// The Free tier can always view/receive/sign a contract someone else sends
+// it — but SENDING one (from a template, blank, or an upload) needs at
+// least Starter. Template-based creation already enforces this indirectly
+// (Free's TIER_ORDER index is always below any real template.min_tier),
+// but a blank or uploaded contract has no template to check against, so it
+// needs its own floor here — otherwise a Free account could route around
+// the paywall entirely by never picking a template.
 function requirePaidTier(req, res) {
-  if (TIER_ORDER.indexOf(req.user.tier) === -1) {
+  if (TIER_ORDER.indexOf(req.user.tier) < TIER_ORDER.indexOf("starter")) {
     res.status(403).json({
-      error: "You need an active paid plan to create and send a contract. Unpaid profiles can still receive, view, and sign contracts sent to them — see Pricing.",
+      error: "You need an active paid plan to create and send a contract. Free profiles can still receive, view, and sign contracts sent to them — see Pricing.",
     });
     return false;
   }
@@ -329,6 +329,12 @@ router.post("/:id/send", (req, res) => {
   if (contract.owner_id !== req.user.id) {
     return res.status(403).json({ error: "Only the contract owner can send it for signature." });
   }
+  if (!hasEsignConsent(req.user.id)) {
+    return res.status(403).json({
+      error: "Read and consent to Pact's Electronic Signature Disclosure before sending a contract for signature.",
+      needsEsignConsent: true,
+    });
+  }
 
   const { counterpartyName, counterpartyEmail } = req.body || {};
   let counterparty = db
@@ -367,6 +373,12 @@ router.post("/:id/send", (req, res) => {
 router.post("/:id/sign", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
+  if (!hasEsignConsent(req.user.id)) {
+    return res.status(403).json({
+      error: "Read and consent to Pact's Electronic Signature Disclosure before signing a contract.",
+      needsEsignConsent: true,
+    });
+  }
   const { typedSignature, consent } = req.body || {};
   if (!consent) return res.status(400).json({ error: "You must consent to signing electronically." });
   if (!typedSignature || !typedSignature.trim()) {

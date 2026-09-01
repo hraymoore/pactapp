@@ -58,10 +58,10 @@
     <div class="legal-wrap">
       <div class="eyebrow">Legal</div>
       <h1 style="margin-bottom:6px;">Pact — Privacy Policy</h1>
-      <p style="color:var(--ink-soft);margin-bottom:0;">Draft v0.3 &middot; Last Updated: September 1, 2026</p>
+      <p style="color:var(--ink-soft);margin-bottom:0;">Draft v0.4 &middot; Last Updated: September 1, 2026</p>
 
       <div class="draft-banner">
-        <strong>DRAFT — REQUIRES ATTORNEY REVIEW BEFORE PUBLICATION.</strong> This describes what Pact App Store's software actually collects and does with it today, written directly from the codebase rather than generic boilerplate — but it has not been reviewed against the California Consumer Privacy Act, the General Data Protection Regulation, other state privacy statutes, or any other applicable law, and Pact App Store has not yet finalized its transactional-email provider (Section 4). Do not publish this as binding until an attorney has reviewed it and that item is settled.
+        <strong>DRAFT — REQUIRES ATTORNEY REVIEW BEFORE PUBLICATION.</strong> This describes what Pact App Store's software actually collects and does with it today, written directly from the codebase rather than generic boilerplate — but it has not been reviewed against the California Consumer Privacy Act, the General Data Protection Regulation, other state privacy statutes, or any other applicable law. Do not publish this as binding until an attorney has reviewed it.
       </div>
 
       <h2>1. What This Policy Covers</h2>
@@ -85,12 +85,10 @@
       <h2>3. Cookies</h2>
       <p>Pact sets one cookie: a session token (<code>pact_token</code>) that keeps you logged in. It's marked <code>httpOnly</code> (not readable by page scripts) and, in production, <code>secure</code> (HTTPS-only). We don't use third-party or advertising cookies.</p>
 
-      <h2>4. Who We Share Information With</h2>
-      <p>Pact shares information only with the service providers ("sub-processors") needed to run the features you use, and with the other parties on a contract you send or are added to. We do not sell personal information.</p>
+      <h2 id="s4">4. Who We Share Information With</h2>
+      <p>Pact shares information only with the service providers ("sub-processors") needed to run the features you use, and with the other parties on a contract you send or are added to. We do not sell personal information. The current sub-processor list — kept in sync with the same list published on the <a href="security.html#subprocessors">Security page</a> — is:</p>
+      <ul id="privacySubProcessors"></ul>
       <ul>
-        <li><strong>Stripe</strong> — payment processing, subscription billing, and (if you use it) identity verification. Stripe receives and stores your payment details and, for identity verification, your government-issued identification, photograph, or Social Security Number directly — Pact never receives or stores that data itself, only Stripe's verification result.</li>
-        <li><strong>Anthropic</strong> — if you're on a tier with Pact AI and you use it, your prompt (and the contract text you're asking about, if any) is sent to Anthropic's API to generate a response. This only happens when you actively use an AI feature.</li>
-        <li><strong>Email delivery</strong> — transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via <span class="placeholder">[SMTP/EMAIL PROVIDER NAME — not yet finalized]</span>. No marketing email is sent.</li>
         <li><strong>Other users you designate</strong> — a contract's counterparty, a share recipient, or a fellow member of your Business Directory can see the contract(s) you've given them access to, and your name/email as it appears on that contract.</li>
         <li><strong>Legal requirements</strong> — we may disclose information if required by law, subpoena, or to protect the rights, property, or safety of Pact or others.</li>
       </ul>
@@ -106,7 +104,7 @@
       <p>Pact keeps an internal record of each account closure and deletion request — what was deleted, what was retained, and why — for our own compliance and audit purposes.</p>
 
       <h2>7. Your Choices</h2>
-      <p>You can update your name, password, and (where applicable) business details from Settings at any time, and close your account yourself from the same page (see Section 6). Where applicable law — such as the California Consumer Privacy Act or comparable state privacy laws — gives you the right to request access to, correction of, or deletion of your personal information beyond what account closure already covers, submit that request to <a href="mailto:privacy@pactappstore.com">privacy@pactappstore.com</a>; we will respond within the time required by applicable law. We may deny or limit a request to the extent retention is necessary to complete a transaction, detect security incidents, comply with a legal obligation, or as otherwise permitted by law, including the contract-retention period described in Section 6. Pact does not yet have a fully automated self-serve data-export tool — an export request today is fulfilled manually.</p>
+      <p>You can update your name, password, and (where applicable) business details from Settings at any time, close your account yourself from the same page (see Section 6), and download a copy of your own profile data and the contracts you own or are a signing party to at any time using the "Download My Data" button in Settings. Where applicable law — such as the California Consumer Privacy Act or comparable state privacy laws — gives you the right to request access to, correction of, or deletion of your personal information beyond what account closure and self-serve export already cover, submit that request to <a href="mailto:privacy@pactappstore.com">privacy@pactappstore.com</a>; we will respond within the time required by applicable law. We may deny or limit a request to the extent retention is necessary to complete a transaction, detect security incidents, comply with a legal obligation, or as otherwise permitted by law, including the contract-retention period described in Section 6.</p>
 
       <h2>8. Terms-of-Service Acceptance Records</h2>
       <p>When you check the box to accept Pact's Terms of Service (at signup, and again if the Terms materially change), we record which version you accepted, when, the IP address you accepted from, and how (e.g., the signup checkbox). This is kept as permanent evidence that the agreement was formed and is never edited or deleted.</p>
@@ -135,12 +133,14 @@
       </div>
       <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
       <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
-      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="#">Security</a><a href="#">e-Signature Disclosure</a></div>
+      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="security.html">Security</a><a href="esignature-disclosure.html">e-Signature Disclosure</a></div>
     </div>
-    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
+    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Free &middot; Starter &middot; Everyday &middot; Professional &middot; Enterprise</span></div>
   </div>
 </footer>
 
+<script src="js/sub-processors.js"></script>
 <script src="js/app.js"></script>
+<script>renderSubProcessorList(document.getElementById("privacySubProcessors"));</script>
 </body>
 </html>

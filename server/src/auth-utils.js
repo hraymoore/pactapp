@@ -35,6 +35,25 @@ function verifyToken(token) {
   }
 }
 
+// A separate, short-lived, purpose-tagged JWT for the gap between "password
+// verified" and "TOTP code verified" during MFA login. It carries no more
+// authority than proving that gap — attachUser only ever looks at tokens
+// without a purpose claim, so a challenge token can't be replayed as a real
+// session token even if it leaked.
+const MFA_CHALLENGE_PURPOSE = "mfa_challenge";
+function signMfaChallengeToken(user) {
+  return jwt.sign({ sub: user.id, purpose: MFA_CHALLENGE_PURPOSE }, getSecret(), { expiresIn: "5m" });
+}
+
+function verifyMfaChallengeToken(token) {
+  try {
+    const payload = jwt.verify(token, getSecret());
+    return payload.purpose === MFA_CHALLENGE_PURPOSE ? payload : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 // Unambiguous alphabet (no 0/O/1/I/l) so a temp password read out of an
 // email doesn't get mistyped.
 const TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -47,4 +66,12 @@ function generateTempPassword(length = 12) {
   return out;
 }
 
-module.exports = { hashPassword, verifyPassword, signToken, verifyToken, generateTempPassword };
+module.exports = {
+  hashPassword,
+  verifyPassword,
+  signToken,
+  verifyToken,
+  generateTempPassword,
+  signMfaChallengeToken,
+  verifyMfaChallengeToken,
+};

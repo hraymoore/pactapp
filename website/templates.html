@@ -92,17 +92,17 @@
       <div><div class="brand" style="margin-bottom:14px;"><span class="mark">P</span> Pact</div><p style="max-width:280px;">The contract platform built for how modern business actually gets agreed to.</p></div>
       <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
       <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
-      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="#">Security</a><a href="#">e-Signature Disclosure</a></div>
+      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="security.html">Security</a><a href="esignature-disclosure.html">e-Signature Disclosure</a></div>
     </div>
-    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
+    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Free &middot; Starter &middot; Everyday &middot; Professional &middot; Enterprise</span></div>
   </div>
 </footer>
 
 <script src="js/app.js"></script>
 <script>
-  const TIER_LABEL = { starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
-  const TIER_ICON = { starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
-  const TIER_ORDER = ["starter", "everyday", "pro", "business"];
+  const TIER_LABEL = { free: "Free", starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+  const TIER_ICON = { free: "icon-silver", starter: "icon-silver", everyday: "icon-emerald", pro: "icon-ruby", business: "icon-gold" };
+  const TIER_ORDER = ["free", "starter", "everyday", "pro", "business"];
   let CURRENT_GENRE = "All";
   let CURRENT_QUERY = "";
   let CURRENT_STATE = "All";
@@ -226,6 +226,7 @@
           ${t.ai_restricted ? '<span class="mini-tag" style="color:var(--ruby-bright);">Informational only</span>' : ""}
         </div>
         <button class="btn btn-ghost-dark btn-sm" data-use="${t.id}">${tierBlocked ? `Requires ${TIER_LABEL[t.min_tier]}` : "Use Template"}</button>
+        ${!locked ? `<a href="/api/templates/${t.id}/preview.pdf" class="btn btn-ghost-dark btn-sm" style="margin-top:8px;display:inline-block;" target="_blank">Preview PDF — Free</a>` : ""}
         ${tierBlocked ? `
         <div class="tag-row" style="margin-top:10px;">
           <button class="btn btn-ghost-dark btn-sm" data-buy="${t.id}" data-buy-type="download">Download blank — $3.99</button>

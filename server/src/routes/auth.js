@@ -1,12 +1,20 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
-const { hashPassword, verifyPassword, signToken, generateTempPassword } = require("../auth-utils");
+const {
+  hashPassword,
+  verifyPassword,
+  signToken,
+  generateTempPassword,
+  signMfaChallengeToken,
+  verifyMfaChallengeToken,
+} = require("../auth-utils");
 const { mailerConfigured, sendMail } = require("../services/mailer");
 const { requireAuth } = require("../middleware/auth");
 const { isValidEinFormat, normalizeEin } = require("../services/organizations");
 const { recordAcceptance, clientIp } = require("../services/terms");
 const { cancelSubscriptionImmediately } = require("../services/billing-provider");
+const { verifyMfaCode } = require("../services/mfa");
 
 router.use(express.json());
 
@@ -33,6 +41,7 @@ function publicUser(row) {
     dateOfBirth: row.date_of_birth,
     created_at: row.created_at,
     passwordIsTemporary: !!row.temp_password_expires_at,
+    mfaEnabled: !!row.mfa_enabled,
   };
 }
 
@@ -90,17 +99,17 @@ router.post("/signup", (req, res) => {
     if (!displayName || !displayName.trim()) return res.status(400).json({ error: "A name to be called (shown to others you do business with) is required." });
   }
 
-  // Every tier costs money — a new profile starts with no active plan
-  // ('none', not a real tier, deliberately outside TIER_ORDER so every
-  // tier-gated feature stays locked) regardless of account type. The tier
-  // only gets applied once POST /api/billing/checkout actually collects
-  // payment (or, in local/pre-Stripe "direct mode", is applied directly the
-  // same way any other tier change already is) — signup itself is free.
+  // Every profile starts on the real $0 Free tier (browse/preview templates,
+  // view and sign whatever's shared with you — no editor, no AI, can't send
+  // a contract yourself). Every tier above Free costs money and only gets
+  // applied once POST /api/billing/checkout actually collects payment (or,
+  // in local/pre-Stripe "direct mode", is applied directly the same way any
+  // other tier change already is) — signup itself is always free.
   const info = db
     .prepare(
       `INSERT INTO users
          (name, email, password_hash, tier, account_type, legal_first_name, legal_last_name, date_of_birth)
-       VALUES (?, ?, ?, 'none', ?, ?, ?, ?)`
+       VALUES (?, ?, ?, 'free', ?, ?, ?, ?)`
     )
     .run(
       displayName.trim(),
@@ -171,7 +180,42 @@ router.post("/login", (req, res) => {
 
   db.prepare("UPDATE users SET failed_login_attempts = 0, locked_at = NULL WHERE id = ?").run(row.id);
   const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
+
+  // Password is correct, but that's only step one for an MFA-enrolled
+  // account — issue a short-lived challenge token instead of the real
+  // session cookie, and make the client complete the code step below
+  // before it gets one.
+  if (refreshed.mfa_enabled) {
+    return res.json({ mfaRequired: true, challengeToken: signMfaChallengeToken(refreshed) });
+  }
+
   const user = publicUser(refreshed);
+  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.json({ user });
+});
+
+// Step two of an MFA login: the challenge token proves the password was
+// already verified moments ago; a matching TOTP (or one-time backup) code
+// proves the second factor. Only then does the real session cookie get
+// issued.
+router.post("/mfa/verify-login", (req, res) => {
+  const { challengeToken, code } = req.body || {};
+  if (!challengeToken || !code) {
+    return res.status(400).json({ error: "A verification code is required." });
+  }
+  const payload = verifyMfaChallengeToken(challengeToken);
+  if (!payload) {
+    return res.status(401).json({ error: "That login attempt expired. Log in again." });
+  }
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  if (!row || row.account_status !== "active" || !row.mfa_enabled) {
+    return res.status(401).json({ error: "That login attempt is no longer valid. Log in again." });
+  }
+  const result = verifyMfaCode(row, code);
+  if (!result.ok) {
+    return res.status(401).json({ error: "Invalid verification code." });
+  }
+  const user = publicUser(row);
   res.cookie("pact_token", signToken(user), COOKIE_OPTS);
   res.json({ user });
 });
@@ -301,6 +345,53 @@ router.post("/close", requireAuth, async (req, res) => {
   db.prepare("UPDATE users SET account_status = 'closed', closed_at = datetime('now'), closed_by = 'user' WHERE id = ?").run(row.id);
   res.clearCookie("pact_token");
   res.json({ ok: true, note: billingNote });
+});
+
+// Self-serve export of "your own data" — the profile fields you entered,
+// your organization if you have one, and every contract where you're
+// either the owner or a named signing party (contract_parties). Deliberately
+// excludes contracts you can merely view/edit via a per-contract share or a
+// Business Directory membership you're not actually a party to — those
+// aren't "your" data, they're someone else's contract you were granted
+// access to, so a personal data export isn't the right channel to bulk-copy
+// them out.
+router.get("/export", requireAuth, (req, res) => {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  const profile = publicUser(row);
+
+  let organization = null;
+  const membership = db.prepare("SELECT organization_id FROM organization_members WHERE user_id = ?").get(row.id);
+  if (membership) {
+    organization = db.prepare("SELECT * FROM organizations WHERE id = ?").get(membership.organization_id);
+  }
+
+  const contracts = db
+    .prepare(
+      `SELECT DISTINCT c.* FROM contracts c
+       LEFT JOIN contract_parties p ON p.contract_id = c.id
+       WHERE c.owner_id = @userId OR p.user_id = @userId OR p.email = @email
+       ORDER BY c.created_at ASC`
+    )
+    .all({ userId: row.id, email: row.email })
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      genre: c.genre,
+      state: c.state,
+      status: c.status,
+      body: c.body,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
+      parties: db.prepare("SELECT name, email, role, signed_at FROM contract_parties WHERE contract_id = ?").all(c.id),
+    }));
+
+  res.setHeader("Content-Disposition", "attachment; filename=pact-data-export.json");
+  res.json({
+    exportedAt: new Date().toISOString(),
+    profile,
+    organization,
+    contracts,
+  });
 });
 
 router.post("/logout", (req, res) => {

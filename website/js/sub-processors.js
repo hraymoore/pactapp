@@ -14,9 +14,9 @@ const PACT_SUB_PROCESSORS = [
       "If you're on a tier with Pact AI and you use it, your prompt (and the contract text you're asking about, if any) is sent to Anthropic's API to generate a response. This only happens when you actively use an AI feature.",
   },
   {
-    name: "Email delivery",
+    name: "SendGrid",
     purpose:
-      "Transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via [SMTP/EMAIL PROVIDER NAME — not yet finalized]. No marketing email is sent.",
+      "Transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via SendGrid's SMTP relay. No marketing email is sent.",
   },
 ];
 

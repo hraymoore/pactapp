@@ -12,6 +12,7 @@ const { isValidStateCode } = require("../us-states");
 const { getMembership } = require("../services/organizations");
 const { snapshotVersion, listVersions, diffAgainstCurrent } = require("../services/versions");
 const { computeHealthScore } = require("../services/contract-health");
+const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const fs = require("fs");
 const path = require("path");
 
@@ -328,6 +329,12 @@ router.post("/:id/send", (req, res) => {
   if (contract.owner_id !== req.user.id) {
     return res.status(403).json({ error: "Only the contract owner can send it for signature." });
   }
+  if (!hasEsignConsent(req.user.id)) {
+    return res.status(403).json({
+      error: "Read and consent to Pact's Electronic Signature Disclosure before sending a contract for signature.",
+      needsEsignConsent: true,
+    });
+  }
 
   const { counterpartyName, counterpartyEmail } = req.body || {};
   let counterparty = db
@@ -366,6 +373,12 @@ router.post("/:id/send", (req, res) => {
 router.post("/:id/sign", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
+  if (!hasEsignConsent(req.user.id)) {
+    return res.status(403).json({
+      error: "Read and consent to Pact's Electronic Signature Disclosure before signing a contract.",
+      needsEsignConsent: true,
+    });
+  }
   const { typedSignature, consent } = req.body || {};
   if (!consent) return res.status(400).json({ error: "You must consent to signing electronically." });
   if (!typedSignature || !typedSignature.trim()) {

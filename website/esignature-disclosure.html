@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Electronic Signature Disclosure &amp; Consent — Pact</title>
+<meta name="description" content="Pact's Electronic Signature Disclosure and Consent, required under the U.S. E-SIGN Act.">
+<link rel="canonical" href="https://www.pactappstore.com/esignature-disclosure.html">
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .legal-wrap { max-width: 760px; margin: 0 auto; }
+  .legal-wrap h2 { font-size: 1.15rem; margin-top: 2.2em; }
+  .legal-wrap h2:first-of-type { margin-top: 0; }
+  .legal-wrap p { line-height: 1.7; }
+  .legal-wrap li { line-height: 1.7; margin-bottom: 0.5em; }
+  .legal-wrap .placeholder { background: rgba(156,31,59,0.12); color: var(--ruby); padding: 0 4px; border-radius: 3px; font-family: var(--font-mono); font-size: 0.92em; }
+  .draft-banner { background: rgba(156,31,59,0.08); border: 1px solid var(--ruby); color: var(--ink); padding: 16px 20px; border-radius: var(--radius-m); font-size: 0.9rem; margin-bottom: 30px; }
+  .draft-banner strong { color: var(--ruby); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Free</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<section class="section section-paper" style="padding-top:60px;">
+  <div class="wrap">
+    <div class="legal-wrap">
+      <div class="eyebrow">Legal</div>
+      <h1 style="margin-bottom:6px;">Pact — Electronic Signature Disclosure &amp; Consent</h1>
+      <p style="color:var(--ink-soft);margin-bottom:0;">Version 1.0 &middot; Last Updated: September 1, 2026</p>
+
+      <div class="draft-banner">
+        Drafted with AI assistance and not reviewed by a licensed attorney. This is not legal advice. This disclosure supplements Pact's <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a> and does not replace them.
+      </div>
+
+      <h2>1. Your Consent to Electronic Records and Signatures</h2>
+      <p>Before you sign or receive a contract electronically through Pact, federal law (the E-SIGN Act) and applicable state law (the Uniform Electronic Transactions Act) require us to tell you the following and get your consent.</p>
+      <p>By checking the box to accept this disclosure, you agree that:</p>
+      <ul>
+        <li>You consent to conduct this transaction, and future transactions with Pact, electronically.</li>
+        <li>Your electronic signature on a contract has the same legal effect as a handwritten signature.</li>
+        <li>You have the hardware and software described in Section 4 below needed to access and retain electronic records.</li>
+      </ul>
+
+      <h2>2. Your Right to Paper Copies</h2>
+      <p>You have the right to receive a paper copy of any contract you sign through Pact. To request one, email <a href="mailto:legal@pactappstore.com">legal@pactappstore.com</a> with the contract name and the parties involved; we will provide a paper copy within a reasonable time. We do not charge a fee for this.</p>
+
+      <h2>3. How to Withdraw Consent</h2>
+      <p>You may withdraw your consent to receive records electronically at any time by emailing <a href="mailto:legal@pactappstore.com">legal@pactappstore.com</a>. If you withdraw consent, this may affect your ability to use e-signature features going forward, and any contracts already signed electronically remain valid and binding — withdrawal is not retroactive.</p>
+
+      <h2>4. Hardware &amp; Software Requirements</h2>
+      <p>To access, view, and retain records through Pact, you need: a device with an up-to-date web browser, an active internet connection, a valid email address, and the ability to save or print a PDF document. If these requirements change in a way that creates a material risk you can no longer access your records, we will notify you and ask for renewed consent.</p>
+
+      <h2>5. Updating Your Contact Information</h2>
+      <p>You must keep your email address on file with Pact current so you can receive notices related to your electronic records. Update it any time from Account Settings.</p>
+
+      <h2>6. Scope</h2>
+      <p>This disclosure applies to every contract you send, sign, view, or receive through the Service. It supplements, and does not replace, Pact's <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+
+      <h2>7. Contact</h2>
+      <p>Questions about this disclosure: <a href="mailto:legal@pactappstore.com">legal@pactappstore.com</a></p>
+
+      <p style="margin-top:3em;font-size:0.78rem;color:var(--ink-soft);">Internal version tag: <code>esign_v1.0_2026-09-01</code> — must stay in sync with <code>CURRENT_ESIGN_CONSENT_VERSION</code> in <code>server/src/services/esign-consent.js</code> any time this page's substantive text changes. Unlike the Terms of Service, this consent is not re-gated on a version change — any prior acceptance satisfies it.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <div class="brand" style="margin-bottom:14px;"><span class="mark">P</span> Pact</div>
+        <p style="max-width:280px;">The contract platform built for how modern business actually gets agreed to.</p>
+      </div>
+      <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
+      <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
+      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="#">Security</a><a href="esignature-disclosure.html">e-Signature Disclosure</a></div>
+    </div>
+    <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
+  </div>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>

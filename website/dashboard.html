@@ -356,6 +356,26 @@
   </div>
 </div>
 
+<!-- E-Signature Disclosure consent gate — shown once, the first time this
+     user attempts to send or sign a contract in-app, per GET
+     /api/esign-consent/status. Has a close button (unlike the mandatory
+     Terms gate) since declining just cancels that one send/sign action
+     rather than blocking the whole app. -->
+<div class="modal-backdrop" id="esignConsentModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeEsignConsent">&times;</button>
+    <div class="eyebrow">Before you sign or send</div>
+    <h3>Electronic Signature Disclosure &amp; Consent</h3>
+    <p style="font-size:0.9rem;">Federal and state law require your consent before you rely on electronic signatures through Pact. This is asked once — you won't see it again after you accept.</p>
+    <div class="field" style="display:flex;gap:10px;align-items:flex-start;">
+      <input id="esignConsentCheckbox" type="checkbox" style="width:auto;margin-top:3px;">
+      <label for="esignConsentCheckbox" style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;font-weight:400;">I have read and consent to Pact's <a href="esignature-disclosure.html" target="_blank" rel="noopener" style="color:var(--gold-bright);">Electronic Signature Disclosure &amp; Consent</a>.</label>
+    </div>
+    <button class="btn btn-gold btn-block" id="esignConsentContinueBtn" disabled>Continue</button>
+    <p id="esignConsentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+  </div>
+</div>
+
 <!-- Terms re-acceptance gate — no close button, mandatory. Shown when
      GET /api/terms/status says the account's latest acceptance doesn't
      match the currently-live Terms version. -->
@@ -545,8 +565,12 @@
     wrap.querySelectorAll("[data-download]").forEach(btn => btn.addEventListener("click", () => {
       window.location.href = `/api/contracts/${btn.dataset.download}/download`;
     }));
-    wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", () => openSendModal(Number(btn.dataset.send), btn.dataset.name)));
-    wrap.querySelectorAll("[data-sign]").forEach(btn => btn.addEventListener("click", () => openSignModal(Number(btn.dataset.sign), btn.dataset.name)));
+    wrap.querySelectorAll("[data-send]").forEach(btn => btn.addEventListener("click", async () => {
+      if (await ensureEsignConsent()) openSendModal(Number(btn.dataset.send), btn.dataset.name);
+    }));
+    wrap.querySelectorAll("[data-sign]").forEach(btn => btn.addEventListener("click", async () => {
+      if (await ensureEsignConsent()) openSignModal(Number(btn.dataset.sign), btn.dataset.name);
+    }));
     wrap.querySelectorAll("[data-share]").forEach(btn => btn.addEventListener("click", () => openShareModal(Number(btn.dataset.share), btn.dataset.name)));
   }
 
@@ -1496,6 +1520,48 @@
           modal.classList.remove("show");
           continueBtn.textContent = "Continue";
           resolve();
+        } catch (err) {
+          errBox.textContent = err.message;
+          errBox.classList.add("show");
+          continueBtn.disabled = false;
+          continueBtn.textContent = "Continue";
+        }
+      };
+    });
+  }
+
+  // ---- e-signature disclosure consent gate ----
+  // Resolves true once the user has consented (already had, or just gave
+  // it) so the caller can proceed to open the send/sign modal; resolves
+  // false if they close the modal without consenting, so that action is
+  // simply not taken (unlike the mandatory Terms gate, declining here just
+  // cancels this one send/sign attempt, not the whole app).
+  function ensureEsignConsent() {
+    return new Promise(async (resolve) => {
+      const { hasConsented } = await apiJson("/api/esign-consent/status");
+      if (hasConsented) { resolve(true); return; }
+      const modal = document.getElementById("esignConsentModal");
+      const checkbox = document.getElementById("esignConsentCheckbox");
+      const continueBtn = document.getElementById("esignConsentContinueBtn");
+      const errBox = document.getElementById("esignConsentError");
+      let settled = false;
+      checkbox.checked = false;
+      continueBtn.disabled = true;
+      errBox.classList.remove("show");
+      modal.classList.add("show");
+      checkbox.onchange = () => { continueBtn.disabled = !checkbox.checked; };
+      document.getElementById("closeEsignConsent").onclick = () => {
+        modal.classList.remove("show");
+        if (!settled) { settled = true; resolve(false); }
+      };
+      continueBtn.onclick = async () => {
+        continueBtn.disabled = true;
+        continueBtn.textContent = "Continuing…";
+        try {
+          await apiJson("/api/esign-consent/accept", { method: "POST" });
+          modal.classList.remove("show");
+          continueBtn.textContent = "Continue";
+          if (!settled) { settled = true; resolve(true); }
         } catch (err) {
           errBox.textContent = err.message;
           errBox.classList.add("show");

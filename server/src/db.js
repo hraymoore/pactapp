@@ -229,6 +229,24 @@ CREATE TABLE IF NOT EXISTS contract_views (
   view_count INTEGER NOT NULL DEFAULT 1,
   UNIQUE (contract_id, viewer_email)
 );
+
+-- Append-only, same evidentiary pattern as terms_acceptances — the E-SIGN
+-- Act disclosure/consent is a one-time gate per registered Pact user (any
+-- row at all satisfies it, not a version match like Terms), required
+-- before they send OR sign a contract in-app for the first time. Scoped to
+-- registered users only: an outside counterparty signing via the public
+-- token link (routes/sign.js) has no user_id and isn't gated here — that
+-- flow already carries its own per-signature "I consent to sign
+-- electronically" checkbox, which is adequate consent for that one
+-- transaction without an ongoing Pact account relationship to attach a
+-- record to.
+CREATE TABLE IF NOT EXISTS esign_consent_acceptances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  consent_version TEXT NOT NULL,
+  accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ip_address TEXT
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

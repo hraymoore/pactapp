@@ -85,12 +85,10 @@
       <h2>3. Cookies</h2>
       <p>Pact sets one cookie: a session token (<code>pact_token</code>) that keeps you logged in. It's marked <code>httpOnly</code> (not readable by page scripts) and, in production, <code>secure</code> (HTTPS-only). We don't use third-party or advertising cookies.</p>
 
-      <h2>4. Who We Share Information With</h2>
-      <p>Pact shares information only with the service providers ("sub-processors") needed to run the features you use, and with the other parties on a contract you send or are added to. We do not sell personal information.</p>
+      <h2 id="s4">4. Who We Share Information With</h2>
+      <p>Pact shares information only with the service providers ("sub-processors") needed to run the features you use, and with the other parties on a contract you send or are added to. We do not sell personal information. The current sub-processor list — kept in sync with the same list published on the <a href="security.html#subprocessors">Security page</a> — is:</p>
+      <ul id="privacySubProcessors"></ul>
       <ul>
-        <li><strong>Stripe</strong> — payment processing, subscription billing, and (if you use it) identity verification. Stripe receives and stores your payment details and, for identity verification, your government-issued identification, photograph, or Social Security Number directly — Pact never receives or stores that data itself, only Stripe's verification result.</li>
-        <li><strong>Anthropic</strong> — if you're on a tier with Pact AI and you use it, your prompt (and the contract text you're asking about, if any) is sent to Anthropic's API to generate a response. This only happens when you actively use an AI feature.</li>
-        <li><strong>Email delivery</strong> — transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via <span class="placeholder">[SMTP/EMAIL PROVIDER NAME — not yet finalized]</span>. No marketing email is sent.</li>
         <li><strong>Other users you designate</strong> — a contract's counterparty, a share recipient, or a fellow member of your Business Directory can see the contract(s) you've given them access to, and your name/email as it appears on that contract.</li>
         <li><strong>Legal requirements</strong> — we may disclose information if required by law, subpoena, or to protect the rights, property, or safety of Pact or others.</li>
       </ul>
@@ -135,12 +133,14 @@
       </div>
       <div><h4>Product</h4><a href="templates.html">Templates</a><a href="pricing.html">Pricing</a><a href="features.html">Security &amp; AI</a><a href="dashboard.html">Dashboard</a></div>
       <div><h4>Company</h4><a href="about.html">About</a><a href="contact.html">Contact</a><a href="signup.html">Create a Profile</a><a href="login.html">Log In</a></div>
-      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="#">Security</a><a href="esignature-disclosure.html">e-Signature Disclosure</a></div>
+      <div><h4>Legal</h4><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a><a href="security.html">Security</a><a href="esignature-disclosure.html">e-Signature Disclosure</a></div>
     </div>
     <div class="footer-bottom"><span>&copy; 2026 Pact. All rights reserved.</span><span>Silver &middot; Gold &middot; Ruby &middot; Emerald</span></div>
   </div>
 </footer>
 
+<script src="js/sub-processors.js"></script>
 <script src="js/app.js"></script>
+<script>renderSubProcessorList(document.getElementById("privacySubProcessors"));</script>
 </body>
 </html>

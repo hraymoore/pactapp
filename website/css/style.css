@@ -272,6 +272,11 @@ p { margin: 0 0 1em; color: var(--silver); }
 .section-paper { background: var(--paper); color: var(--ink); }
 .section-paper h2, .section-paper h1, .section-paper h3 { color: var(--ink); }
 .section-paper p { color: var(--ink-soft); }
+/* .card keeps its own dark background even inside a light .section-paper
+   section, so it needs the light heading color back — otherwise the h3
+   above inherits section-paper's dark --ink and disappears against the
+   card's own dark backdrop. */
+.section-paper .card h3 { color: var(--silver); }
 .section-paper .eyebrow { color: var(--ruby); }
 .section-paper .eyebrow::before { background: var(--ruby); }
 

@@ -35,6 +35,7 @@ function publicUser(row) {
     name: row.name,
     email: row.email,
     tier: row.tier,
+    tierExpiresAt: row.tier_expires_at,
     accountType: row.account_type,
     legalFirstName: row.legal_first_name,
     legalLastName: row.legal_last_name,

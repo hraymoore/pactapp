@@ -82,6 +82,11 @@ seeded (72 templates) automatically on first boot via Node's built-in
   (`scripts/send-expiration-reminders.js`) emails the owner once per expiration date within a
   7-day window and logs it to the audit trail — schedule it externally (Render Cron Job, cron),
   Pact doesn't run its own job scheduler.
+- **Annual passes** — a one-time, non-subscription payment ($199 Professional / $389 Enterprise)
+  that grants that tier's full feature set for 365 days (`POST /api/billing/checkout-annual`,
+  `users.tier_expires_at`). `npm run annual-pass-reminders`
+  (`scripts/send-annual-pass-reminders.js`) emails a renewal reminder 14 days out and downgrades
+  to Free automatically once it lapses — also needs external scheduling (daily).
 - **Attorney review requests** (`routes/attorney-review.js`, `services/attorney-review.js`) — a
   flat $99 paid request to have a human attorney review one contract. This is request + payment
   intake only, not a two-sided marketplace: there's no attorney role, licensing match, or
@@ -166,4 +171,5 @@ server/
                               # billing-provider, identity-provider, mailer, organizations, contract-health, versions
   scripts/
     send-expiration-reminders.js  # run daily via an external scheduler — npm run reminders
+    send-annual-pass-reminders.js # run daily via an external scheduler — npm run annual-pass-reminders
 ```

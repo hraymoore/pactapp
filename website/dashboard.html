@@ -237,6 +237,14 @@
           <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
           <div class="tag-row" id="tierButtons"></div>
           <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
+          <div id="annualPassBox" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-dark);">
+            <p style="font-size:0.85rem;margin-bottom:10px;">Prefer to pay once a year instead of monthly? Annual passes are a one-time payment — no auto-renewal.</p>
+            <p id="annualPassStatus" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-bottom:10px;"></p>
+            <div class="tag-row">
+              <button class="btn btn-ghost-dark btn-sm" id="annualPassProBtn">Professional Annual — $199/yr</button>
+              <button class="btn btn-ghost-dark btn-sm" id="annualPassBusinessBtn">Enterprise Annual — $389/yr</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="card" style="margin-top:24px;">
@@ -1157,6 +1165,36 @@
     });
   }
 
+  function setupAnnualPass() {
+    const statusEl = document.getElementById("annualPassStatus");
+    if (CURRENT_USER.tierExpiresAt) {
+      const date = new Date(CURRENT_USER.tierExpiresAt.replace(" ", "T") + "Z").toLocaleDateString();
+      statusEl.textContent = `Your ${TIER_LABEL[CURRENT_USER.tier]} annual pass is active through ${date} (one-time payment, doesn't auto-renew).`;
+      statusEl.style.display = "";
+    }
+
+    function wireAnnualPassButton(id, tier) {
+      document.getElementById(id).addEventListener("click", async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+          const data = await apiJson("/api/billing/checkout-annual", { method: "POST", body: JSON.stringify({ tier }) });
+          if (data.mode === "stripe") {
+            window.location.href = data.url;
+          } else {
+            alert(data.note);
+            window.location.reload();
+          }
+        } catch (err) {
+          alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    }
+    wireAnnualPassButton("annualPassProBtn", "pro");
+    wireAnnualPassButton("annualPassBusinessBtn", "business");
+  }
+
   async function setupBillingPortal() {
     const btn = document.getElementById("manageBillingBtn");
     try {
@@ -1741,6 +1779,7 @@
     await setupAI();
     await setupBusiness();
     setupTierButtons();
+    setupAnnualPass();
     await setupBillingPortal();
     await setupIdentity();
     setupPasswordChange();

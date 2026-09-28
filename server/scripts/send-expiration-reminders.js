@@ -1,11 +1,10 @@
-// Standalone script — not part of the web server — for a scheduled job
-// (Render Cron Job, a plain crontab, GitHub Actions on a schedule, etc.)
-// to run daily. Finds contracts expiring within 7 days that haven't been
-// reminded about yet, emails the owner, and marks them so it only fires
-// once per expiration date (routes/contracts.js clears the mark if the
-// date changes). Uses the same fail-open mailer as everything else: with
-// no SMTP configured this just logs what it WOULD have sent.
-require("dotenv").config();
+// Not a standalone script when run in production — see the note at the
+// bottom of this file for why. For a scheduled job to run daily. Finds
+// contracts expiring within 7 days that haven't been reminded about yet,
+// emails the owner, and marks them so it only fires once per expiration
+// date (routes/contracts.js clears the mark if the date changes). Uses
+// the same fail-open mailer as everything else: with no SMTP configured
+// this just logs what it WOULD have sent.
 const db = require("../src/db");
 const { sendMail, mailerConfigured } = require("../src/services/mailer");
 const { logAudit } = require("../src/services/signing");
@@ -26,7 +25,7 @@ function run() {
 
   if (rows.length === 0) {
     console.log("[pact] No contracts due for an expiration reminder.");
-    return;
+    return { reminded: 0 };
   }
 
   for (const c of rows) {
@@ -47,6 +46,22 @@ function run() {
     db.prepare("UPDATE contracts SET expiration_reminder_sent_at = datetime('now') WHERE id = ?").run(c.id);
     logAudit(c.id, null, "expiration_reminder_sent", `Reminder sent to ${c.owner_email} — expires ${c.expires_at}.`);
   }
+
+  return { reminded: rows.length };
 }
 
-run();
+module.exports = { run };
+
+// Render Cron Jobs run as their own separate service with no access to
+// the web service's persistent disk (and therefore no access to the real
+// production database) — running this file directly there would silently
+// operate on an empty, throwaway database. In production this is invoked
+// in-process, with real DB access, via POST /api/internal/run-expiration-
+// reminders (routes/internal.js) — see scripts/ping-expiration-reminders.js,
+// which is what's actually scheduled on Render. Running this file directly
+// (`npm run reminders`) still works for local development, where the DB
+// really is on disk right next to it.
+if (require.main === module) {
+  require("dotenv").config();
+  run();
+}

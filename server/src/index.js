@@ -35,6 +35,7 @@ app.use("/api/attorney-review", require("./routes/attorney-review"));
 app.use("/api/terms", require("./routes/terms"));
 app.use("/api/esign-consent", require("./routes/esign-consent"));
 app.use("/api/mfa", require("./routes/mfa"));
+app.use("/api/internal", require("./routes/internal"));
 
 // dotfiles: "allow" — express.static hides dot-directories by default,
 // which would otherwise 404 /.well-known/assetlinks.json (needed to verify
@@ -51,4 +52,5 @@ app.listen(PORT, () => {
   console.log(`[pact] Billing (Stripe):      ${process.env.STRIPE_SECRET_KEY ? "connected" : "not configured"}`);
   console.log(`[pact] Identity verification: ${process.env.STRIPE_SECRET_KEY ? "connected" : "not configured"}`);
   console.log(`[pact] Email (SMTP):          ${process.env.SMTP_HOST ? "connected" : "not configured"}`);
+  console.log(`[pact] Scheduled job trigger: ${process.env.INTERNAL_JOB_SECRET ? "configured" : "not configured — /api/internal/* routes will refuse all requests"}`);
 });

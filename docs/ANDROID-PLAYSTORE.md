@@ -19,19 +19,27 @@ it gets you into the Play Store fastest with what already exists.
 - `website/manifest.json` — the PWA manifest (name, icons, colors, start URL)
 - `website/icons/` — generated app icons at 192/512/512-maskable, matching the site's gold/ruby/emerald mark
 - `website/sw.js` — service worker, makes the PWA installable
-- `android/twa-manifest.json` — the config Bubblewrap needs to build the Android project, pre-filled from `manifest.json`. **You still need to fill in a real signing key and its fingerprint (see step 3).**
+- `android/twa-manifest.json` — the config Bubblewrap needs to build the Android project, pre-filled from `manifest.json` and pointed at the live `www.pactappstore.com` domain. **You still need to fill in a real signing key and its fingerprint (see step 3).**
 - `website/.well-known/assetlinks.json` — placeholder Digital Asset Links file; the app won't run chrome-less until you replace the fingerprint in here with your real one
+- `docs/play-store-assets/` — everything for the Play Console store listing that doesn't require the Android SDK: 4 real phone screenshots (`screenshots/`, 824×1830, captured live from the current site), a 1024×500 feature graphic, the 512×512 app icon, and `STORE-LISTING.md` with ready-to-paste short/full descriptions, category, tags, the Data Safety form answers (written from what `server/src/db.js` and the Privacy Policy actually say Pact collects), and the content-rating guidance.
 
-## Why this isn't fully built for you
+## Why the actual `.aab` still isn't built
 
-Building and signing the actual `.aab` requires things only you can hold:
-a Google Play Developer account, your own Android signing key (if I
-generated and held it, you'd be trusting me with the credential that
-controls your app's identity on the Play Store forever — losing or leaking
-it means you can never update the app again), and the live `www.pactappstore.com`
-domain to point the TWA at. None of that exists yet from where I'm sitting.
+Two separate things, both real, neither worked around from here:
+
+1. **Building it requires the Android SDK**, which Bubblewrap downloads from
+   `dl.google.com` — blocked by this environment's network policy (confirmed:
+   `curl` to it fails with a 403 from the egress gateway, "organization
+   policy"). This has to run somewhere with real internet access to Google's
+   servers: your own machine, or a CI runner without that restriction.
+2. **The signing key is a one-way door.** Whoever holds it controls the
+   app's identity on the Play Store forever — losing or leaking it means
+   you can never publish an update again. If I generated and held it, you'd
+   be trusting me with that credential permanently. Building it yourself
+   (step 3 below) means only you ever hold it.
+
 What's here gets you to a single `bubblewrap build` away from a submittable
-package.
+package, plus the store listing already written.
 
 ## Steps (once www.pactappstore.com is live)
 
@@ -68,13 +76,13 @@ package.
    `https://www.pactappstore.com/.well-known/assetlinks.json` before the app will
    render full-screen instead of showing a browser bar.
 
-5. **Store listing assets you'll need to prepare:**
-   - App icon: already generated, `website/icons/icon-512.png`
-   - At least 2 phone screenshots (take them from the live site in Chrome DevTools' device mode)
-   - A 1024×500 feature graphic
-   - Short description (≤80 chars) and full description
-   - A **real, hosted privacy policy URL** — the current footer links (Terms/Privacy/Security) are placeholders; write and publish real pages before submitting, Play Console requires a working link
-   - Data safety form: disclose what Pact collects (name, email, contract content; if Stripe Identity is enabled, disclose that ID/SSN verification data is collected and processed by Stripe, not stored by Pact — see `docs/PRODUCT-PLAN.md` §2)
+5. **Store listing assets — already prepared in `docs/play-store-assets/`:**
+   - App icon (`icon-512.png`)
+   - 4 real phone screenshots (`screenshots/`) — home, templates, pricing, security pages
+   - A 1024×500 feature graphic (`feature-graphic-1024x500.png`)
+   - Short + full description, category, tags, and Data Safety form answers — all in `STORE-LISTING.md`, ready to paste into Play Console
+   - Privacy policy URL: `https://www.pactappstore.com/privacy.html` (live, no longer a placeholder)
+   - Still worth adding once you have a real (non-empty) demo account: one authenticated dashboard/editor screenshot, taken from an actual phone or Chrome DevTools device mode
    - Content rating questionnaire (Pact will rate as a general business/productivity app)
 
 6. **Upload** the generated `.aab` (in `android/app-release-bundle.aab`

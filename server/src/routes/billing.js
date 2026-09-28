@@ -10,6 +10,8 @@ const {
   syncSubscriptionUpdate,
   downgradeOnCancellation,
   cancelSubscriptionImmediately,
+  createAnnualPassCheckoutSession,
+  applyAnnualPass,
 } = require("../services/billing-provider");
 const { fulfillPurchase } = require("../services/purchases");
 const { markPaid: markAttorneyReviewPaid } = require("../services/attorney-review");
@@ -36,6 +38,8 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
       const session = event.data.object;
       if (session.metadata && session.metadata.type === "attorney_review") {
         markAttorneyReviewPaid(Number(session.metadata.requestId), session.id);
+      } else if (session.metadata && session.metadata.type === "annual_pass") {
+        applyAnnualPass(db, session);
       } else if (session.metadata && session.metadata.purchaseType) {
         const user = db.prepare("SELECT * FROM users WHERE id = ?").get(session.metadata.userId);
         if (user) {
@@ -96,14 +100,14 @@ router.post("/checkout", requireAuth, async (req, res) => {
     } catch (err) {
       billingNote = "Your tier was switched to Free, but canceling your subscription with Stripe failed — contact support to confirm no further charges occur.";
     }
-    db.prepare("UPDATE users SET tier = 'free' WHERE id = ?").run(req.user.id);
+    db.prepare("UPDATE users SET tier = 'free', tier_expires_at = NULL, annual_pass_reminder_sent_at = NULL WHERE id = ?").run(req.user.id);
     return res.json({ mode: "direct", tier: "free", note: billingNote || "You're now on the Free tier." });
   }
 
   if (!TIER_PRICE_CENTS[tier]) return res.status(400).json({ error: "Unknown tier." });
 
   if (!billingConfigured()) {
-    db.prepare("UPDATE users SET tier = ? WHERE id = ?").run(tier, req.user.id);
+    db.prepare("UPDATE users SET tier = ?, tier_expires_at = NULL, annual_pass_reminder_sent_at = NULL WHERE id = ?").run(tier, req.user.id);
     return res.json({
       mode: "direct",
       tier,
@@ -115,10 +119,43 @@ router.post("/checkout", requireAuth, async (req, res) => {
     const fullUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
     const result = await createCheckoutSession({ tier, priceCents: TIER_PRICE_CENTS[tier], user: fullUser, req });
     if (result.mode === "updated") {
-      db.prepare("UPDATE users SET tier = ? WHERE id = ?").run(tier, req.user.id);
+      db.prepare("UPDATE users SET tier = ?, tier_expires_at = NULL, annual_pass_reminder_sent_at = NULL WHERE id = ?").run(tier, req.user.id);
       return res.json({ mode: "updated", tier, note: "Your existing subscription was updated to the new tier — no new charge to check out." });
     }
     res.json({ mode: "stripe", url: result.url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// One-time, non-renewing "annual pass" — Professional or Enterprise
+// feature access for 12 months without an ongoing Stripe subscription.
+// tier_expires_at (set in applyAnnualPass / the direct-mode fallback
+// below) is what scripts/send-annual-pass-reminders.js reads to remind
+// before, and downgrade to Free after, that window closes.
+const ANNUAL_PASS_PRICE_CENTS = { pro: 19900, business: 38900 };
+
+router.post("/checkout-annual", requireAuth, async (req, res) => {
+  const { tier } = req.body || {};
+  if (!ANNUAL_PASS_PRICE_CENTS[tier]) {
+    return res.status(400).json({ error: "Annual passes are only available for the Professional and Enterprise tiers." });
+  }
+
+  if (!billingConfigured()) {
+    db.prepare(
+      "UPDATE users SET tier = ?, tier_expires_at = datetime('now', '+365 days'), annual_pass_reminder_sent_at = NULL WHERE id = ?"
+    ).run(tier, req.user.id);
+    return res.json({
+      mode: "direct",
+      tier,
+      note: "Stripe is not configured yet — your tier was updated directly so you can keep testing. Add STRIPE_SECRET_KEY to server/.env to collect real payment.",
+    });
+  }
+
+  try {
+    const fullUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+    const session = await createAnnualPassCheckoutSession({ tier, priceCents: ANNUAL_PASS_PRICE_CENTS[tier], user: fullUser, req });
+    res.json({ mode: "stripe", url: session.url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

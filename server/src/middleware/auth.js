@@ -8,7 +8,7 @@ function attachUser(req, res, next) {
     if (payload) {
       const user = db
         .prepare(
-          "SELECT id, name, email, tier, account_type, legal_first_name, legal_last_name, date_of_birth, created_at, temp_password_expires_at, account_status, mfa_enabled FROM users WHERE id = ?"
+          "SELECT id, name, email, tier, tier_expires_at, account_type, legal_first_name, legal_last_name, date_of_birth, created_at, temp_password_expires_at, account_status, mfa_enabled FROM users WHERE id = ?"
         )
         .get(payload.sub);
       // A closed account's token can still be cryptographically valid (JWTs
@@ -23,6 +23,7 @@ function attachUser(req, res, next) {
           name: user.name,
           email: user.email,
           tier: user.tier,
+          tierExpiresAt: user.tier_expires_at,
           accountType: user.account_type,
           legalFirstName: user.legal_first_name,
           legalLastName: user.legal_last_name,

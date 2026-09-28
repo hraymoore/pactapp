@@ -131,6 +131,51 @@ async function createAttorneyReviewCheckoutSession({ requestId, contractName, pr
   return session;
 }
 
+// A one-time, non-renewing payment that grants a subscription tier's full
+// feature set for 12 months — an alternative on-ramp to Professional/
+// Enterprise for someone who'd rather pay once than be billed monthly.
+// Unlike createOneTimeCheckoutSession (which fulfills a template purchase),
+// this applies a real tier change on success, tracked via tier_expires_at
+// instead of a Stripe subscription id.
+async function createAnnualPassCheckoutSession({ tier, priceCents, user, req }) {
+  const stripe = getStripe();
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const label = tier.charAt(0).toUpperCase() + tier.slice(1);
+  const customerId = await getOrCreateCustomer(user);
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: customerId,
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: { name: `Pact — ${label} Annual Pass (12 months, one-time payment)` },
+          unit_amount: priceCents,
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${origin}/dashboard.html?upgraded=1`,
+    cancel_url: `${origin}/pricing.html`,
+    metadata: { userId: String(user.id), type: "annual_pass", tier },
+  });
+  return session;
+}
+
+// Stripe webhook handler for a completed annual-pass Checkout session —
+// applies the tier and starts a fresh 365-day clock. A repeat purchase
+// (renewing before or after lapsing) simply resets the expiry rather than
+// stacking time, matching how a subscription renewal just keeps billing
+// rather than accumulating "extra" months.
+function applyAnnualPass(db, session) {
+  const userId = session.metadata && session.metadata.userId;
+  const tier = session.metadata && session.metadata.tier;
+  if (!userId || !tier) return;
+  db.prepare(
+    "UPDATE users SET tier = ?, tier_expires_at = datetime('now', '+365 days'), annual_pass_reminder_sent_at = NULL WHERE id = ?"
+  ).run(tier, userId);
+}
+
 // Stripe's hosted portal for a customer to update their payment method,
 // view invoices, or cancel their own subscription — without emailing us.
 async function createBillingPortalSession({ user, req }) {
@@ -170,7 +215,7 @@ function applyTierFromSession(db, session) {
   const tier = session.metadata && session.metadata.tier;
   if (!userId || !tier) return;
   db.prepare(
-    "UPDATE users SET tier = ?, stripe_subscription_id = ?, stripe_subscription_status = 'active' WHERE id = ?"
+    "UPDATE users SET tier = ?, stripe_subscription_id = ?, stripe_subscription_status = 'active', tier_expires_at = NULL, annual_pass_reminder_sent_at = NULL WHERE id = ?"
   ).run(tier, session.subscription || null, userId);
 }
 
@@ -200,7 +245,7 @@ function downgradeOnCancellation(db, subscription) {
   const userId = subscription.metadata && subscription.metadata.userId;
   if (!userId) return;
   db.prepare(
-    "UPDATE users SET tier = 'starter', stripe_subscription_id = NULL, stripe_subscription_status = 'canceled' WHERE id = ?"
+    "UPDATE users SET tier = 'starter', stripe_subscription_id = NULL, stripe_subscription_status = 'canceled', tier_expires_at = NULL, annual_pass_reminder_sent_at = NULL WHERE id = ?"
   ).run(userId);
 }
 
@@ -209,6 +254,8 @@ module.exports = {
   getOrCreateCustomer,
   createCheckoutSession,
   createOneTimeCheckoutSession,
+  createAnnualPassCheckoutSession,
+  applyAnnualPass,
   createAttorneyReviewCheckoutSession,
   createBillingPortalSession,
   applyTierFromSession,

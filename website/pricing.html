@@ -139,7 +139,7 @@
       </div>
 
     </div>
-    <p class="center" style="margin-top:30px;font-size:0.85rem;">All plans billed monthly, cancel anytime. Annual billing saves ~15% and is available after your profile is created.</p>
+    <p class="center" style="margin-top:30px;font-size:0.85rem;">All plans billed monthly, cancel anytime. Prefer to pay once a year instead? See Annual Passes below.</p>
   </div>
 </section>
 
@@ -159,6 +159,30 @@
           <div class="icon icon-gold">✎</div>
           <h3>$7.99 — Buy &amp; edit</h3>
           <p style="margin:0;">Get one template as a real, editable contract in Pact — fill it in, send it for e-signature, and it gets the same time-stamped audit trail as any subscriber contract.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="wrap">
+    <div class="doc-card" style="max-width:900px;margin:0 auto;">
+      <div class="eyebrow">Prefer to pay once a year?</div>
+      <h2 style="margin-bottom:6px;">Annual passes — one payment, 12 months of access</h2>
+      <p style="margin-bottom:26px;">Not a subscription — no auto-renewal, no recurring charge. Pay once and Professional or Enterprise access stays active for a full year; renew manually from Settings before it lapses, or it simply reverts to Free on the expiration date.</p>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="icon icon-gold">📅</div>
+          <h3>Professional Annual — $199<span style="font-size:0.65em;font-weight:400;">/yr, one-time</span></h3>
+          <p>Everything in the Professional tier — full editor, Pact AI drafting and analysis, unlimited e-signatures — for a full year, paid once.</p>
+          <a href="signup.html" data-choose-annual-tier="pro" class="btn btn-gold btn-block">Get Professional Annual</a>
+        </div>
+        <div class="card">
+          <div class="icon icon-ruby">📅</div>
+          <h3>Enterprise Annual — $389<span style="font-size:0.65em;font-weight:400;">/yr, one-time</span></h3>
+          <p>Everything in the Enterprise tier — unlimited team members, portfolio-wide AI review, API access — for a full year, paid once.</p>
+          <a href="signup.html" data-choose-annual-tier="business" class="btn btn-gold btn-block">Get Enterprise Annual</a>
         </div>
       </div>
     </div>
@@ -204,7 +228,7 @@
       <div class="card"><h3>Can I change tiers later?</h3><p style="margin:0;">Yes — upgrade or downgrade anytime from your profile settings. Changes apply to your next billing cycle.</p></div>
       <div class="card"><h3>What happens to contracts if I downgrade?</h3><p style="margin:0;">All existing signed contracts and their time-stamped history remain fully accessible, even on Starter.</p></div>
       <div class="card"><h3>Is e-signature legally binding?</h3><p style="margin:0;">Pact routes signatures through secure, compliant e-signature infrastructure. See our <a href="features.html" style="color:var(--gold-bright);">Security &amp; AI page</a> for details.</p></div>
-      <div class="card"><h3>Do you offer annual billing?</h3><p style="margin:0;">Yes, once you create a profile you can switch to annual billing for roughly 15% savings on any tier.</p></div>
+      <div class="card"><h3>Do you offer annual billing?</h3><p style="margin:0;">Not as a recurring annual subscription — instead, Professional and Enterprise both offer a one-time Annual Pass ($199 and $389) that unlocks 12 months of full access with a single payment and no auto-renewal. See Annual Passes above.</p></div>
       <div class="card"><h3>What's your refund policy?</h3><p style="margin:0;">Subscriptions are billed in advance and are non-refundable for partial months or years — canceling stops future billing, but you keep full access through the end of the period you already paid for. One-time template purchases ($3.99/$7.99) are final once the file is delivered.</p></div>
     </div>
   </div>
@@ -236,6 +260,26 @@
         link.textContent = "Updating…";
         try {
           const data = await apiJson("/api/billing/checkout", { method: "POST", body: JSON.stringify({ tier }) });
+          if (data.mode === "stripe") {
+            window.location.href = data.url;
+          } else {
+            alert(data.note);
+            window.location.href = "dashboard.html";
+          }
+        } catch (err) {
+          alert(err.message);
+          link.textContent = original;
+        }
+      });
+    });
+    document.querySelectorAll("[data-choose-annual-tier]").forEach(link => {
+      link.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const tier = link.dataset.chooseAnnualTier;
+        const original = link.textContent;
+        link.textContent = "Updating…";
+        try {
+          const data = await apiJson("/api/billing/checkout-annual", { method: "POST", body: JSON.stringify({ tier }) });
           if (data.mode === "stripe") {
             window.location.href = data.url;
           } else {

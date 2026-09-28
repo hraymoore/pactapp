@@ -7,10 +7,10 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "reminders": "node scripts/send-expiration-reminders.js",
-    "annual-pass-reminders": "node scripts/send-annual-pass-reminders.js",
-    "ping-reminders": "node scripts/ping-expiration-reminders.js",
-    "ping-annual-pass-reminders": "node scripts/ping-annual-pass-reminders.js"
+    "reminders": "node scripts/ping-expiration-reminders.js",
+    "annual-pass-reminders": "node scripts/ping-annual-pass-reminders.js",
+    "reminders-local": "node scripts/send-expiration-reminders.js",
+    "annual-pass-reminders-local": "node scripts/send-annual-pass-reminders.js"
   },
   "engines": {
     "node": ">=22.5.0"

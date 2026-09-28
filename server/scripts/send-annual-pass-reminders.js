@@ -1,11 +1,10 @@
-// Standalone script — not part of the web server — for a scheduled job
-// (Render Cron Job, a plain crontab, etc.) to run daily. An annual pass
-// (routes/billing.js POST /checkout-annual) is a one-time payment, not a
-// Stripe subscription, so nothing renews it automatically: this script is
-// what reminds someone before it lapses and downgrades the account to
-// Free once it does. Uses the same fail-open mailer as everything else —
-// with no SMTP configured this just logs what it WOULD have sent.
-require("dotenv").config();
+// Not a standalone script when run in production — see the note at the
+// bottom of this file for why. An annual pass (routes/billing.js POST
+// /checkout-annual) is a one-time payment, not a Stripe subscription, so
+// nothing renews it automatically: run() is what reminds someone before
+// it lapses and downgrades the account to Free once it does. Uses the
+// same fail-open mailer as everything else — with no SMTP configured
+// this just logs what it WOULD have sent.
 const db = require("../src/db");
 const { sendMail, mailerConfigured } = require("../src/services/mailer");
 
@@ -42,6 +41,7 @@ function sendReminders() {
   }
 
   if (rows.length === 0) console.log("[pact] No annual passes due for a renewal reminder.");
+  return rows.length;
 }
 
 function downgradeExpired() {
@@ -72,7 +72,27 @@ function downgradeExpired() {
   }
 
   if (rows.length === 0) console.log("[pact] No expired annual passes to downgrade.");
+  return rows.length;
 }
 
-sendReminders();
-downgradeExpired();
+function run() {
+  const reminded = sendReminders();
+  const downgraded = downgradeExpired();
+  return { reminded, downgraded };
+}
+
+module.exports = { run };
+
+// Render Cron Jobs run as their own separate service with no access to
+// the web service's persistent disk (and therefore no access to the real
+// production database) — running this file directly there would silently
+// operate on an empty, throwaway database. In production this is invoked
+// in-process, with real DB access, via POST /api/internal/run-annual-pass-
+// reminders (routes/internal.js) — see scripts/ping-annual-pass-reminders.js,
+// which is what's actually scheduled on Render. Running this file directly
+// (`npm run annual-pass-reminders`) still works for local development,
+// where the DB really is on disk right next to it.
+if (require.main === module) {
+  require("dotenv").config();
+  run();
+}

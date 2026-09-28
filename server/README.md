@@ -78,15 +78,22 @@ seeded (72 templates) automatically on first boot via Node's built-in
   (`services/versions.js`, `contract_versions` table); `GET /api/contracts/:id/versions`
   and `GET /api/contracts/:id/versions/:versionId/diff` (line-level added/removed diff via the
   `diff` package) power the editor's Version History panel.
-- **Renewal/expiration reminders** — `contracts.expires_at`/`auto_renews`; `npm run reminders`
-  (`scripts/send-expiration-reminders.js`) emails the owner once per expiration date within a
-  7-day window and logs it to the audit trail — schedule it externally (Render Cron Job, cron),
-  Pact doesn't run its own job scheduler.
+- **Renewal/expiration reminders** — `contracts.expires_at`/`auto_renews`; the real logic lives in
+  `scripts/send-expiration-reminders.js` (`run()`, exported) and emails the owner once per
+  expiration date within a 7-day window, logging it to the audit trail. `npm run reminders` runs
+  it directly for local development — in production it has to run in-process inside the web
+  service instead (a separate scheduled process has no access to this service's database), so
+  it's invoked via `POST /api/internal/run-expiration-reminders` (`routes/internal.js`, guarded by
+  `INTERNAL_JOB_SECRET`). The Render Cron Job that's actually scheduled just pings that endpoint:
+  `npm run ping-reminders` (`scripts/ping-expiration-reminders.js`).
 - **Annual passes** — a one-time, non-subscription payment ($199 Professional / $389 Enterprise)
   that grants that tier's full feature set for 365 days (`POST /api/billing/checkout-annual`,
-  `users.tier_expires_at`). `npm run annual-pass-reminders`
-  (`scripts/send-annual-pass-reminders.js`) emails a renewal reminder 14 days out and downgrades
-  to Free automatically once it lapses — also needs external scheduling (daily).
+  `users.tier_expires_at`). Same shape as the reminders above: the real logic is
+  `scripts/send-annual-pass-reminders.js` (`run()`), reachable locally via
+  `npm run annual-pass-reminders`, and in production via
+  `POST /api/internal/run-annual-pass-reminders`, pinged by the scheduled
+  `npm run ping-annual-pass-reminders` (`scripts/ping-annual-pass-reminders.js`). It emails a
+  renewal reminder 14 days out and downgrades to Free automatically once it lapses.
 - **Attorney review requests** (`routes/attorney-review.js`, `services/attorney-review.js`) — a
   flat $99 paid request to have a human attorney review one contract. This is request + payment
   intake only, not a two-sided marketplace: there's no attorney role, licensing match, or
@@ -166,10 +173,12 @@ server/
     us-states.js             # canonical state list for the state engine
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
-    routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases, organizations
+    routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases, organizations, internal
     services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails,
                               # billing-provider, identity-provider, mailer, organizations, contract-health, versions
   scripts/
-    send-expiration-reminders.js  # run daily via an external scheduler — npm run reminders
-    send-annual-pass-reminders.js # run daily via an external scheduler — npm run annual-pass-reminders
+    send-expiration-reminders.js  # the real logic — npm run reminders (local dev) or POST /api/internal/run-expiration-reminders (prod)
+    send-annual-pass-reminders.js # the real logic — npm run annual-pass-reminders (local dev) or POST /api/internal/run-annual-pass-reminders (prod)
+    ping-expiration-reminders.js  # what Render Cron actually runs daily — npm run ping-reminders
+    ping-annual-pass-reminders.js # what Render Cron actually runs daily — npm run ping-annual-pass-reminders
 ```

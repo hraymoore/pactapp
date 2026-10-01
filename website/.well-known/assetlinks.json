@@ -5,7 +5,7 @@
       "namespace": "android_app",
       "package_name": "com.pactappstore.twa",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_YOUR_SIGNING_KEY_SHA256_FINGERPRINT"
+        "1D:56:E5:D9:60:8F:77:46:15:9A:1D:4D:A7:51:5A:E2:83:49:58:B3:4F:44:93:44:90:64:3C:A9:6A:57:6E:FB"
       ]
     }
   }

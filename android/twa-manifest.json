@@ -9,6 +9,7 @@
   "navigationColor": "#0B0C0F",
   "navigationColorDark": "#0B0C0F",
   "navigationDividerColor": "#0B0C0F",
+  "navigationDividerColorDark": "#000000",
   "backgroundColor": "#0B0C0F",
   "enableNotifications": false,
   "startUrl": "/index.html",
@@ -19,22 +20,32 @@
     "path": "./android.keystore",
     "alias": "android"
   },
-  "appVersionName": "1.0.0",
-  "appVersionCode": 1,
+  "appVersionName": "2",
+  "appVersionCode": 2,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://www.pactappstore.com/manifest.json",
   "fallbackType": "customtabs",
   "features": {
-    "locationDelegation": { "enabled": false },
-    "playBilling": { "enabled": false }
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
   },
-  "alphaDependencies": { "enabled": false },
+  "alphaDependencies": {
+    "enabled": false
+  },
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "fullScopeUrl": "https://www.pactappstore.com/",
   "minSdkVersion": 21,
   "orientation": "default",
-  "fingerprints": []
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "2"
 }

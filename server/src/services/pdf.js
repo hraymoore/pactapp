@@ -129,4 +129,48 @@ async function renderBlankTemplatePdf(template) {
   return doc.save();
 }
 
-module.exports = { renderContractPdf, renderBlankTemplatePdf };
+// The payment "stamp" — a standalone, tamper-evident record of one
+// successful payment (full or partial), independent of the main contract
+// PDF. certData.dataHash is a SHA-256 of the same fields rendered below
+// (computed by the caller — see services/payment-certificates.js — and
+// printed here so a later side-by-side comparison can catch an altered
+// copy of this PDF).
+async function renderPaymentCertificatePdf(certData) {
+  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+
+  writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
+  writeLine("Payment Certificate", { size: 16, f: bold, gap: 22 });
+  writeLine(`Contract: ${certData.contractName}  (Pact ID #${certData.contractId})`, { size: 10.5, gap: 16 });
+
+  spacer();
+  writeLine(`Payer: ${certData.payerName}`, { size: 10.5, gap: 15 });
+  writeLine(`Payee: ${certData.payeeName}`, { size: 10.5, gap: 15 });
+
+  spacer();
+  writeLine(
+    `Amount paid: ${(certData.amountCents / 100).toFixed(2)} ${certData.currency.toUpperCase()}`,
+    { size: 11, f: bold, gap: 16 }
+  );
+  writeLine(
+    `Remaining balance: ${(certData.remainingCents / 100).toFixed(2)} ${certData.currency.toUpperCase()}`,
+    { size: 10, gap: 15 }
+  );
+  writeLine(`Payment status at time of issue: ${certData.statusLabel}`, { size: 10, gap: 15 });
+
+  spacer();
+  writeLine(`Date/time (UTC): ${certData.occurredAtUtc}`, { size: 10, gap: 15 });
+  writeLine(`Stripe payment reference: ${certData.stripePaymentIntentId || "N/A"}`, { size: 9.5, color: MUTED, gap: 15 });
+
+  spacer();
+  writeLine(`Certificate data hash (SHA-256): ${certData.dataHash}`, { size: 8.5, color: MUTED, gap: 13 });
+
+  spacer(16);
+  writeLine(
+    "This certificate records a payment processed through Stripe. It is not legal or tax advice.",
+    { size: 9, f: bold, color: MUTED, gap: 13 }
+  );
+
+  return doc.save();
+}
+
+module.exports = { renderContractPdf, renderBlankTemplatePdf, renderPaymentCertificatePdf };

@@ -91,6 +91,9 @@
       <div class="filter-row" id="stateFilterRow" style="margin-bottom:8px;">
         <button class="chip active" data-state="All">All States</button>
       </div>
+      <div class="filter-row" id="paymentFilterRow" style="margin-bottom:8px;">
+        <button class="chip active" data-payment="All">All Payment Status</button>
+      </div>
       <div class="filter-row" style="margin-bottom:16px;">
         <button class="chip" id="expiringToggleChip">⏰ Expiring within 30 days</button>
       </div>
@@ -248,6 +251,13 @@
         </div>
       </div>
       <div class="card" style="margin-top:24px;">
+        <h3>Get Paid Through Pact</h3>
+        <p id="payoutsStatusText" style="font-size:0.85rem;">Checking status…</p>
+        <button class="btn btn-ghost-dark btn-sm" id="payoutsSetupBtn" style="display:none;">Finish Payout Setup</button>
+        <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">To request payment on a contract, Stripe needs your bank details and identity — handled entirely on Stripe's own hosted page, never by Pact. Requires the Starter tier or above.</p>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
         <h3>Identity Verification</h3>
         <p id="identityStatusText">Checking status…</p>
         <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
@@ -369,6 +379,82 @@
       <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">VIEWED BY</label>
       <div id="viewList" style="font-size:0.85rem;"></div>
     </div>
+
+    <div id="paymentPanel" style="display:none;margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">PAYMENT</label>
+
+      <div id="paymentNoTermsBox" style="display:none;">
+        <button class="btn btn-ghost-dark btn-sm" id="paymentTermsToggleBtn">Add Payment Terms</button>
+        <div id="paymentTermsForm" style="display:none;margin-top:12px;">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <div class="field" style="max-width:160px;"><label>Total amount (USD)</label><input id="ptAmount" type="number" min="0.01" step="0.01" placeholder="500.00"></div>
+            <div class="field" style="max-width:220px;"><label>Who gets paid?</label>
+              <select id="ptPayee"></select>
+            </div>
+          </div>
+          <div class="field"><label>Structure</label>
+            <select id="ptStructure">
+              <option value="single">Single payment</option>
+              <option value="deposit_plus_balance">Deposit + balance</option>
+            </select>
+          </div>
+          <div class="field" id="ptDepositField" style="display:none;max-width:160px;"><label>Deposit amount (USD)</label><input id="ptDeposit" type="number" min="0.01" step="0.01" placeholder="200.00"></div>
+          <div class="field" style="max-width:220px;"><label>Due date (optional)</label><input id="ptDueDate" type="date"></div>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <input id="ptCloseOnFull" type="checkbox" style="width:auto;">
+            <label for="ptCloseOnFull" style="margin:0;display:inline;">Automatically close this contract when paid in full</label>
+          </div>
+          <button class="btn btn-gold btn-sm" id="confirmPaymentTermsBtn">Save Payment Terms</button>
+          <p style="margin-top:8px;font-size:0.78rem;color:var(--silver);">These terms become part of the signed contract text and are locked once both parties sign.</p>
+        </div>
+      </div>
+
+      <div id="paymentSummaryBox" style="display:none;">
+        <div class="card" style="padding:14px 16px;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">Total <strong id="paySumTotal" style="color:var(--ink);">—</strong> &middot; Paid <strong id="paySumPaid" style="color:var(--ink);">—</strong> &middot; Remaining <strong id="paySumRemaining" style="color:var(--ink);">—</strong></div>
+            </div>
+            <span id="paySumStatusPill" class="status-pill"></span>
+          </div>
+        </div>
+        <p id="paymentDisputeBanner" class="alert alert-ruby">A later event (refund/dispute) affects this payment — see payment history below.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="btn btn-gold btn-sm" id="requestPaymentBtn" style="display:none;">Request Payment</button>
+          <button class="btn btn-gold btn-sm" id="payNowBtn" style="display:none;">Pay Now</button>
+          <button class="btn btn-ghost-dark btn-sm" id="proposeOffPlatformToggleBtn" style="display:none;">Mark as Paid Outside Pact</button>
+        </div>
+        <p id="paymentActionNote" style="font-size:0.82rem;"></p>
+
+        <div id="offPlatformForm" style="display:none;margin-bottom:14px;">
+          <div class="field" style="max-width:160px;"><label>Amount paid (USD)</label><input id="opAmount" type="number" min="0.01" step="0.01"></div>
+          <div class="field"><label>Note (optional)</label><input id="opNote" type="text" placeholder="Paid by check on delivery"></div>
+          <button class="btn btn-ghost-dark btn-sm" id="confirmProposeOffPlatformBtn">Propose</button>
+        </div>
+        <div id="offPlatformPendingBox" style="display:none;margin-bottom:14px;font-size:0.85rem;color:var(--gold-bright);"></div>
+
+        <div id="paymentCertificatesBox" style="margin-bottom:14px;"></div>
+        <div id="paymentHistoryBox" style="font-size:0.82rem;"></div>
+      </div>
+
+      <p id="paymentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Pay Now modal — mounts Stripe's Payment Element for the contract's
+     open PaymentIntent. Card and ACH both work through this one element;
+     Stripe.js is loaded from js.stripe.com directly (required for PCI
+     compliance — it can't be self-hosted). -->
+<div class="modal-backdrop" id="payNowModal">
+  <div class="modal" style="max-width:460px;">
+    <button class="modal-close" id="closePayNowModal">&times;</button>
+    <div class="eyebrow">Pay contract</div>
+    <h3 id="payNowTitle">Amount due</h3>
+    <div id="paymentElementContainer" style="margin:16px 0;"></div>
+    <button class="btn btn-gold btn-block" id="confirmPayNowBtn">Pay</button>
+    <p id="payNowError" class="alert alert-ruby" style="margin-top:12px;"></p>
+    <p id="payNowSuccess" class="alert alert-emerald" style="margin-top:12px;">Payment submitted — this contract will update once it's confirmed.</p>
   </div>
 </div>
 
@@ -483,6 +569,7 @@
   </div>
 </div>
 
+<script src="https://js.stripe.com/v3/"></script>
 <script src="js/app.js"></script>
 <script>
   const TIER_ORDER = ["free", "starter", "everyday", "pro", "business"];
@@ -506,6 +593,7 @@
   let CONTRACT_STATUS_FILTER = "All";
   let CONTRACT_GENRE_FILTER = "All";
   let CONTRACT_STATE_FILTER = "All";
+  let CONTRACT_PAYMENT_FILTER = "All";
 
   async function renderContracts() {
     const { contracts } = await apiJson("/api/contracts");
@@ -532,6 +620,7 @@
     buildRow("statusFilterRow", "status", CONTRACT_STATUS_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.status))].sort());
     buildRow("genreFilterRow", "genre", CONTRACT_GENRE_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.genre).filter(Boolean))].sort());
     buildRow("stateFilterRow", "state", CONTRACT_STATE_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.state).filter(Boolean))].sort());
+    buildRow("paymentFilterRow", "payment", CONTRACT_PAYMENT_FILTER, [...new Set(ALL_CONTRACTS.map(c => c.payment_status).filter(Boolean))].sort());
   }
 
   function wireFilterRow(rowId, dataKey, setter) {
@@ -546,6 +635,7 @@
   wireFilterRow("statusFilterRow", "status", (v) => CONTRACT_STATUS_FILTER = v);
   wireFilterRow("genreFilterRow", "genre", (v) => CONTRACT_GENRE_FILTER = v);
   wireFilterRow("stateFilterRow", "state", (v) => CONTRACT_STATE_FILTER = v);
+  wireFilterRow("paymentFilterRow", "payment", (v) => CONTRACT_PAYMENT_FILTER = v);
   document.getElementById("expiringToggleChip").addEventListener("click", (e) => {
     CONTRACT_EXPIRING_ONLY = !CONTRACT_EXPIRING_ONLY;
     e.target.classList.toggle("active", CONTRACT_EXPIRING_ONLY);
@@ -565,6 +655,13 @@
     return `<span class="mini-tag" style="margin-left:8px;">Expires ${c.expires_at}</span>`;
   }
 
+  const PAYMENT_BADGE_COLOR = { partially_paid: "var(--gold-bright)", paid_in_full: "var(--emerald-bright)", refunded: "var(--ruby-bright)", disputed: "var(--ruby-bright)" };
+  function paymentBadge(c) {
+    if (!c.payment_status || c.payment_status === "unpaid") return "";
+    const label = { partially_paid: "Partially paid", paid_in_full: "Paid in full", refunded: "Refunded", disputed: "Disputed" }[c.payment_status];
+    return `<span class="mini-tag" style="margin-left:8px;color:${PAYMENT_BADGE_COLOR[c.payment_status]};">${label}</span>`;
+  }
+
   function drawContractRows(contracts) {
     const wrap = document.getElementById("contractList");
     wrap.innerHTML = "";
@@ -578,7 +675,7 @@
       const row = document.createElement("div");
       row.className = "contract-row";
       row.innerHTML = `
-        <div class="name">${c.name}${badge}${expiryBadge(c)}<small>${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
+        <div class="name">${c.name}${badge}${expiryBadge(c)}${paymentBadge(c)}<small>${c.genre || "General"}${c.state ? " &middot; " + c.state : ""} &middot; updated ${fmt(c.updated_at)}</small></div>
         <div>${statusPill(c.status)}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.locked_at ? "Locked " + fmt(c.locked_at) : "Editable"}</div>
         <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${c.parties.length} ${c.parties.length === 1 ? "party" : "parties"}</div>
@@ -614,6 +711,7 @@
       (CONTRACT_STATUS_FILTER === "All" || c.status === CONTRACT_STATUS_FILTER) &&
       (CONTRACT_GENRE_FILTER === "All" || c.genre === CONTRACT_GENRE_FILTER) &&
       (CONTRACT_STATE_FILTER === "All" || c.state === CONTRACT_STATE_FILTER) &&
+      (CONTRACT_PAYMENT_FILTER === "All" || c.payment_status === CONTRACT_PAYMENT_FILTER) &&
       (!CONTRACT_EXPIRING_ONLY || (daysUntil(c.expires_at) !== null && daysUntil(c.expires_at) <= 30))
     );
     drawContractRows(filtered);
@@ -652,6 +750,7 @@
     await renderVersionList();
     await renderReviewStatus();
     await renderViewList();
+    await renderPaymentPanel();
   }
 
   async function renderReviewStatus() {
@@ -755,6 +854,295 @@
       row.innerHTML = `<strong style="color:var(--silver);">${escapeHtml(v.viewer_name || v.viewer_email)}</strong> &middot; last viewed ${fmt(v.last_viewed_at)}${v.view_count > 1 ? ` &middot; ${v.view_count} views` : ""}`;
       wrap.appendChild(row);
     });
+  }
+
+  // ---- Payment panel (inside the contract editor) ----
+  const PAYMENT_PILL_CLASS = { unpaid: "status-draft", partially_paid: "status-pending", paid_in_full: "status-signed", refunded: "status-ruby", disputed: "status-ruby" };
+  const PAYMENT_EVENT_LABEL = {
+    payment_requested: "Payment requested", payment_succeeded: "Payment received", payment_failed: "Payment failed",
+    refunded: "Refund issued", dispute_created: "Dispute opened", dispute_won: "Dispute resolved (won by payee)",
+    dispute_lost: "Dispute resolved (lost by payee)", off_platform_confirmed: "Paid, confirmed by both parties (off-platform)",
+  };
+
+  async function renderPaymentPanel() {
+    const panel = document.getElementById("paymentPanel");
+    const errBox = document.getElementById("paymentError");
+    errBox.classList.remove("show");
+    try {
+      const { contract, parties } = await apiJson(`/api/contracts/${editingId}`);
+      const isOwner = contract.owner_id === CURRENT_USER.id;
+      const hasCounterparty = parties.some(p => p.role === "counterparty");
+      panel.style.display = "";
+
+      const data = await apiJson(`/api/contracts/${editingId}/payment`);
+      const noTermsBox = document.getElementById("paymentNoTermsBox");
+      const summaryBox = document.getElementById("paymentSummaryBox");
+
+      if (!data.terms) {
+        summaryBox.style.display = "none";
+        const canAddTerms = isOwner && hasCounterparty && (contract.status === "draft" || contract.status === "pending");
+        noTermsBox.style.display = canAddTerms ? "" : "none";
+        if (!canAddTerms) panel.style.display = isOwner ? "" : "none";
+        return;
+      }
+
+      noTermsBox.style.display = "none";
+      summaryBox.style.display = "";
+
+      const currency = data.terms.currency.toUpperCase();
+      const money = (cents) => `${(cents / 100).toFixed(2)} ${currency}`;
+      document.getElementById("paySumTotal").textContent = money(data.terms.total_amount_cents);
+      document.getElementById("paySumPaid").textContent = money(data.amountPaidCents);
+      document.getElementById("paySumRemaining").textContent = money(Math.max(data.terms.total_amount_cents - data.amountPaidCents, 0));
+
+      const pill = document.getElementById("paySumStatusPill");
+      pill.className = "status-pill " + (PAYMENT_PILL_CLASS[data.paymentStatus] || "status-draft");
+      pill.textContent = data.statusLabel;
+
+      const hasReversal = data.events.some(e => ["refunded", "dispute_created", "dispute_lost"].includes(e.event_type));
+      document.getElementById("paymentDisputeBanner").classList.toggle("show", hasReversal);
+
+      document.getElementById("requestPaymentBtn").style.display = data.canRequestPayment ? "" : "none";
+      document.getElementById("payNowBtn").style.display = data.canPay ? "" : "none";
+      const canProposeOffPlatform = (data.myRole === "payee" || data.myRole === "payer") && !data.offPlatformProposal && ["unpaid", "partially_paid"].includes(data.paymentStatus);
+      document.getElementById("proposeOffPlatformToggleBtn").style.display = canProposeOffPlatform ? "" : "none";
+      document.getElementById("offPlatformForm").style.display = "none";
+      document.getElementById("paymentActionNote").textContent = "";
+
+      const pendingBox = document.getElementById("offPlatformPendingBox");
+      pendingBox.innerHTML = "";
+      if (data.offPlatformProposal) {
+        const p = data.offPlatformProposal;
+        const isProposer = p.proposed_by_user_id === CURRENT_USER.id;
+        pendingBox.style.display = "";
+        pendingBox.append(
+          isProposer
+            ? `You proposed marking ${money(p.amount_cents)} as paid outside Pact — waiting for the other party to confirm.`
+            : `The other party proposed marking ${money(p.amount_cents)} as paid outside Pact.${p.note ? " Note: " + p.note : ""} `
+        );
+        if (!isProposer) {
+          const confirmBtn = document.createElement("button");
+          confirmBtn.className = "btn btn-gold btn-sm";
+          confirmBtn.style.marginLeft = "10px";
+          confirmBtn.textContent = "Confirm";
+          confirmBtn.addEventListener("click", async () => {
+            try {
+              await apiJson(`/api/contracts/${editingId}/payment-off-platform/confirm`, { method: "POST", body: JSON.stringify({}) });
+              await renderPaymentPanel();
+              await renderContracts();
+            } catch (err) {
+              errBox.textContent = err.message;
+              errBox.classList.add("show");
+            }
+          });
+          pendingBox.appendChild(confirmBtn);
+        }
+      } else {
+        pendingBox.style.display = "none";
+      }
+
+      const certBox = document.getElementById("paymentCertificatesBox");
+      certBox.innerHTML = "";
+      if (data.certificates.length) {
+        const label = document.createElement("label");
+        label.style.cssText = "display:block;font-size:0.78rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:8px;";
+        label.textContent = "CERTIFICATES";
+        certBox.appendChild(label);
+        data.certificates.forEach(c => {
+          const a = document.createElement("a");
+          a.href = `/api/contracts/${editingId}/payment-certificates/${c.id}/download`;
+          a.className = "btn btn-ghost-dark btn-sm";
+          a.style.cssText = "margin-right:8px;margin-bottom:8px;display:inline-block;";
+          a.textContent = `Certificate — ${fmt(c.issued_at)}`;
+          certBox.appendChild(a);
+        });
+      }
+
+      const histBox = document.getElementById("paymentHistoryBox");
+      histBox.innerHTML = "";
+      if (data.events.length) {
+        const label = document.createElement("label");
+        label.style.cssText = "display:block;font-size:0.78rem;color:var(--silver);font-family:var(--font-mono);margin:10px 0 8px;";
+        label.textContent = "HISTORY";
+        histBox.appendChild(label);
+        data.events.forEach(e => {
+          const row = document.createElement("div");
+          row.style.cssText = "padding:4px 0;color:var(--silver);";
+          row.textContent = `${fmt(e.occurred_at)} — ${PAYMENT_EVENT_LABEL[e.event_type] || e.event_type}${e.amount_cents ? ` (${money(e.amount_cents)})` : ""}`;
+          histBox.appendChild(row);
+        });
+      }
+    } catch (err) {
+      panel.style.display = "none";
+    }
+  }
+
+  document.getElementById("paymentTermsToggleBtn").addEventListener("click", async () => {
+    document.getElementById("paymentTermsForm").style.display = "";
+    const { parties } = await apiJson(`/api/contracts/${editingId}`);
+    const sel = document.getElementById("ptPayee");
+    sel.innerHTML = "";
+    parties.filter(p => p.role === "owner" || p.role === "counterparty").forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.email;
+      opt.textContent = `${p.name} (${p.role === "owner" ? "owner" : "counterparty"})`;
+      sel.appendChild(opt);
+    });
+  });
+
+  document.getElementById("ptStructure").addEventListener("change", (e) => {
+    document.getElementById("ptDepositField").style.display = e.target.value === "deposit_plus_balance" ? "" : "none";
+  });
+
+  document.getElementById("confirmPaymentTermsBtn").addEventListener("click", async () => {
+    const errBox = document.getElementById("paymentError");
+    errBox.classList.remove("show");
+    try {
+      const structure = document.getElementById("ptStructure").value;
+      const payload = {
+        totalAmountCents: Math.round(parseFloat(document.getElementById("ptAmount").value) * 100),
+        currency: "usd",
+        structure,
+        dueDate: document.getElementById("ptDueDate").value || null,
+        closeOnFullPayment: document.getElementById("ptCloseOnFull").checked,
+        payeeEmail: document.getElementById("ptPayee").value,
+      };
+      if (structure === "deposit_plus_balance") {
+        payload.depositAmountCents = Math.round(parseFloat(document.getElementById("ptDeposit").value) * 100);
+      }
+      await apiJson(`/api/contracts/${editingId}/payment-terms`, { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("paymentTermsForm").style.display = "none";
+      // The terms were just injected into contracts.body server-side — refresh
+      // the editor textarea too, or an unrelated "Save Changes" click right
+      // after this would overwrite them with the stale pre-terms body.
+      const { contract: refreshed } = await apiJson(`/api/contracts/${editingId}`);
+      document.getElementById("editorBody").value = refreshed.body;
+      await renderPaymentPanel();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
+  document.getElementById("requestPaymentBtn").addEventListener("click", async () => {
+    const errBox = document.getElementById("paymentError");
+    errBox.classList.remove("show");
+    const btn = document.getElementById("requestPaymentBtn");
+    btn.disabled = true;
+    try {
+      const data = await apiJson(`/api/contracts/${editingId}/payment-request`, { method: "POST", body: JSON.stringify({}) });
+      document.getElementById("paymentActionNote").textContent = `Payment requested: ${(data.amountCents / 100).toFixed(2)} ${data.currency.toUpperCase()}. The payer will now see a Pay Now button.`;
+    } catch (err) {
+      errBox.textContent = err.payload && err.payload.needsPayoutSetup ? err.message + " Go to Settings to finish payout setup." : err.message;
+      errBox.classList.add("show");
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById("proposeOffPlatformToggleBtn").addEventListener("click", () => {
+    document.getElementById("offPlatformForm").style.display = "";
+  });
+
+  document.getElementById("confirmProposeOffPlatformBtn").addEventListener("click", async () => {
+    const errBox = document.getElementById("paymentError");
+    errBox.classList.remove("show");
+    try {
+      const amountCents = Math.round(parseFloat(document.getElementById("opAmount").value) * 100);
+      const note = document.getElementById("opNote").value.trim();
+      await apiJson(`/api/contracts/${editingId}/payment-off-platform/propose`, { method: "POST", body: JSON.stringify({ amountCents, note }) });
+      document.getElementById("offPlatformForm").style.display = "none";
+      await renderPaymentPanel();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
+  // Pay Now — Stripe's Payment Element, loaded from js.stripe.com (see the
+  // <script> tag near the top of this file; Stripe Elements can't be
+  // self-hosted for PCI-compliance reasons).
+  let STRIPE_INSTANCE = null;
+  let STRIPE_ELEMENTS = null;
+  async function getStripeInstance() {
+    if (STRIPE_INSTANCE) return STRIPE_INSTANCE;
+    const { publishableKey } = await apiJson("/api/payments/config");
+    if (!publishableKey) throw new Error("Payments aren't configured on this server yet.");
+    STRIPE_INSTANCE = Stripe(publishableKey);
+    return STRIPE_INSTANCE;
+  }
+
+  const payNowModal = document.getElementById("payNowModal");
+  document.getElementById("payNowBtn").addEventListener("click", async () => {
+    try {
+      const { clientSecret, amountCents, currency } = await apiJson(`/api/contracts/${editingId}/payment-intent`);
+      document.getElementById("payNowTitle").textContent = `Pay ${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+      document.getElementById("payNowError").classList.remove("show");
+      document.getElementById("payNowSuccess").classList.remove("show");
+      const stripe = await getStripeInstance();
+      STRIPE_ELEMENTS = stripe.elements({ clientSecret });
+      document.getElementById("paymentElementContainer").innerHTML = "";
+      STRIPE_ELEMENTS.create("payment").mount("#paymentElementContainer");
+      payNowModal.classList.add("show");
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  document.getElementById("closePayNowModal").addEventListener("click", () => payNowModal.classList.remove("show"));
+
+  document.getElementById("confirmPayNowBtn").addEventListener("click", async () => {
+    const errBox = document.getElementById("payNowError");
+    errBox.classList.remove("show");
+    const btn = document.getElementById("confirmPayNowBtn");
+    btn.disabled = true;
+    try {
+      const stripe = await getStripeInstance();
+      const { error } = await stripe.confirmPayment({ elements: STRIPE_ELEMENTS, redirect: "if_required" });
+      if (error) {
+        errBox.textContent = error.message;
+        errBox.classList.add("show");
+      } else {
+        document.getElementById("payNowSuccess").classList.add("show");
+        setTimeout(async () => {
+          payNowModal.classList.remove("show");
+          await renderPaymentPanel();
+          await renderContracts();
+        }, 1500);
+      }
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+    btn.disabled = false;
+  });
+
+  async function setupPayouts() {
+    const statusText = document.getElementById("payoutsStatusText");
+    const setupBtn = document.getElementById("payoutsSetupBtn");
+    try {
+      const status = await apiJson("/api/payments/connect/status");
+      if (!status.configured) {
+        statusText.textContent = "Payments aren't connected yet on this server.";
+        return;
+      }
+      if (status.chargesEnabled) {
+        statusText.innerHTML = `<span style="color:var(--emerald-bright);">Set up</span> — you can request payment on contracts. Payouts ${status.payoutsEnabled ? "enabled" : "pending Stripe verification"}.`;
+        return;
+      }
+      statusText.textContent = status.connected ? "Payout setup is incomplete — finish it on Stripe's hosted page." : "You haven't set up payouts yet.";
+      setupBtn.style.display = "";
+      setupBtn.addEventListener("click", async () => {
+        setupBtn.disabled = true;
+        try {
+          const { url } = await apiJson("/api/payments/connect/onboarding-link", { method: "POST", body: JSON.stringify({}) });
+          window.location.href = url;
+        } catch (err) {
+          alert(err.message);
+          setupBtn.disabled = false;
+        }
+      });
+    } catch (err) {
+      statusText.textContent = "Could not check payout status.";
+    }
   }
 
   async function renderAttachments() {
@@ -1782,6 +2170,7 @@
     setupAnnualPass();
     await setupBillingPortal();
     await setupIdentity();
+    await setupPayouts();
     setupPasswordChange();
     await setupMfa();
     setupCloseAccount();

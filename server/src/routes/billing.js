@@ -12,9 +12,17 @@ const {
   cancelSubscriptionImmediately,
   createAnnualPassCheckoutSession,
   applyAnnualPass,
+  syncConnectedAccountStatus,
 } = require("../services/billing-provider");
 const { fulfillPurchase } = require("../services/purchases");
 const { markPaid: markAttorneyReviewPaid } = require("../services/attorney-review");
+const {
+  handlePaymentIntentSucceeded,
+  handlePaymentIntentFailed,
+  handleChargeRefunded,
+  handleDisputeCreated,
+  handleDisputeClosed,
+} = require("../services/payments");
 
 // Free is a real tier ($0), not "no plan" — it never goes through Stripe at
 // all, paid or not, so it's validated separately from TIER_PRICE_CENTS
@@ -25,7 +33,7 @@ const TIER_PRICE_CENTS = { starter: 799, everyday: 1199, pro: 2099, business: 89
 // Stripe requires the raw body for signature verification, so this route is
 // registered with express.raw() ahead of the global express.json() parser
 // in index.js and must not use requireAuth (Stripe calls it directly).
-router.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+router.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     return res.status(501).json({ error: "STRIPE_WEBHOOK_SECRET is not configured." });
   }
@@ -33,6 +41,27 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
     const Stripe = require("stripe");
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const event = stripe.webhooks.constructEvent(req.body, req.headers["stripe-signature"], process.env.STRIPE_WEBHOOK_SECRET);
+
+    // Contract-payment events carry their own idempotency guard (payment_
+    // events.stripe_event_id is UNIQUE) independent of the ones above, so a
+    // retried delivery here is a harmless no-op rather than a double-record.
+    try {
+      if (event.type === "payment_intent.succeeded") {
+        await handlePaymentIntentSucceeded(event.data.object, event.id);
+      } else if (event.type === "payment_intent.payment_failed") {
+        handlePaymentIntentFailed(event.data.object, event.id);
+      } else if (event.type === "charge.refunded") {
+        handleChargeRefunded(event.data.object, event.id);
+      } else if (event.type === "charge.dispute.created") {
+        handleDisputeCreated(event.data.object, event.id);
+      } else if (event.type === "charge.dispute.closed") {
+        handleDisputeClosed(event.data.object, event.id);
+      } else if (event.type === "account.updated") {
+        syncConnectedAccountStatus(db, event.data.object);
+      }
+    } catch (paymentErr) {
+      if (!/UNIQUE constraint failed/i.test(paymentErr.message)) throw paymentErr;
+    }
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;

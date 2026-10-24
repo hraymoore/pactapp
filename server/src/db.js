@@ -247,6 +247,88 @@ CREATE TABLE IF NOT EXISTS esign_consent_acceptances (
   accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
   ip_address TEXT
 );
+
+-- Payment terms agreed by both parties as part of a contract's signed
+-- text (see services/payments.js renderPaymentTermsBlock, which writes
+-- these into contracts.body so they're part of what gets signed). One row
+-- per contract — milestone structures (multiple scheduled payments) are
+-- Phase 2 and would need a child table, not a change to this one.
+-- payee/payer are resolved to a contract_parties row, not directly to a
+-- users row: a counterparty's contract_parties entry has no user_id (see
+-- contracts.js resolveAccess, which matches by email instead) until they
+-- actually have a Pact account, so the real user is looked up by email at
+-- the moment it's needed (requesting or paying), never cached here.
+CREATE TABLE IF NOT EXISTS contract_payment_terms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL UNIQUE REFERENCES contracts(id) ON DELETE CASCADE,
+  total_amount_cents INTEGER NOT NULL CHECK (total_amount_cents > 0),
+  currency TEXT NOT NULL DEFAULT 'usd',
+  structure TEXT NOT NULL DEFAULT 'single' CHECK (structure IN ('single', 'deposit_plus_balance')),
+  deposit_amount_cents INTEGER,
+  due_date TEXT,
+  close_on_full_payment INTEGER NOT NULL DEFAULT 0,
+  payee_party_id INTEGER NOT NULL REFERENCES contract_parties(id),
+  payer_party_id INTEGER NOT NULL REFERENCES contract_parties(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Append-only payment ledger — never UPDATE or DELETE a row here (no code
+-- path does). A reversal (refund, lost dispute) is a new row, not an edit
+-- to the original 'payment_succeeded' row, so the full history stays
+-- visible. stripe_event_id is UNIQUE so a retried webhook delivery can't
+-- double-record the same event (see routes/billing.js's webhook handler,
+-- which treats a UNIQUE-constraint error here as an already-processed
+-- no-op). source distinguishes a Stripe-verified event from the mutual
+-- "paid outside Pact" confirmation flow, which never touches Stripe at all.
+CREATE TABLE IF NOT EXISTS payment_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  stripe_event_id TEXT UNIQUE,
+  stripe_payment_intent_id TEXT,
+  amount_cents INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'usd',
+  payer_user_id INTEGER REFERENCES users(id),
+  payee_user_id INTEGER REFERENCES users(id),
+  occurred_at TEXT NOT NULL DEFAULT (datetime('now')),
+  raw_status TEXT,
+  source TEXT NOT NULL DEFAULT 'stripe' CHECK (source IN ('stripe', 'off_platform_confirmed')),
+  created_by_user_id INTEGER REFERENCES users(id),
+  created_by_ip TEXT
+);
+
+-- One PDF per successful payment (full or partial) — never deleted or
+-- regenerated even if a later refund/dispute affects that same payment;
+-- the contract view shows a banner pointing at payment history instead of
+-- touching the original certificate. data_hash is a SHA-256 of the
+-- certificate's data fields (not the PDF bytes) so a later alteration of
+-- those fields can be detected independent of the file itself.
+CREATE TABLE IF NOT EXISTS payment_certificates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  payment_event_id INTEGER NOT NULL REFERENCES payment_events(id) ON DELETE CASCADE,
+  pdf_file_ref TEXT NOT NULL,
+  data_hash TEXT NOT NULL,
+  issued_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- "Paid outside Pact" (cash/check/other) — a proposal only takes effect
+-- once the OTHER party confirms, so one party alone can never mark a
+-- contract paid. One open proposal per contract at a time; confirming it
+-- writes a payment_events row (source = 'off_platform_confirmed') and
+-- clears this row's relevance (left in place as a historical record
+-- rather than deleted).
+CREATE TABLE IF NOT EXISTS off_platform_payment_confirmations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  proposed_by_user_id INTEGER NOT NULL REFERENCES users(id),
+  proposed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  amount_cents INTEGER NOT NULL,
+  note TEXT,
+  confirmed_by_user_id INTEGER REFERENCES users(id),
+  confirmed_at TEXT
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -310,6 +392,29 @@ for (const stmt of [
   // account to Free once it does.
   "ALTER TABLE users ADD COLUMN tier_expires_at TEXT",
   "ALTER TABLE users ADD COLUMN annual_pass_reminder_sent_at TEXT",
+  // Stripe Connect Express account for a user who wants to RECEIVE a
+  // payment through Pact (see services/payments.js). charges_enabled
+  // gates "Request Payment"; payouts_enabled just reflects whether Stripe
+  // can actually pay them out yet — both are synced from the
+  // account.updated webhook, not trusted from the client.
+  "ALTER TABLE users ADD COLUMN stripe_connected_account_id TEXT",
+  "ALTER TABLE users ADD COLUMN stripe_charges_enabled INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0",
+  // Derived from payment_events by services/payments.js's
+  // recomputeContractPaymentStatus — never written directly by a route.
+  // 'closed'/'reopened_reason' reuse contracts.status itself (see below)
+  // rather than adding a parallel "active" status that would conflict
+  // with the existing draft/pending/signed lifecycle.
+  "ALTER TABLE contracts ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','partially_paid','paid_in_full','refunded','disputed'))",
+  "ALTER TABLE contracts ADD COLUMN amount_paid_cents INTEGER NOT NULL DEFAULT 0",
+  // Set when close_on_full_payment auto-closes a fully-executed contract
+  // (status moves 'signed' -> 'closed'); cleared-by-overwrite if it's
+  // later reopened and closed again for a different reason. reopened_
+  // reason records why a closed contract's status moved back to 'signed'
+  // (currently only ever 'payment_disputed') — both are plain history
+  // fields, nothing reads them to drive logic.
+  "ALTER TABLE contracts ADD COLUMN closed_reason TEXT",
+  "ALTER TABLE contracts ADD COLUMN reopened_reason TEXT",
 ]) {
   try {
     db.exec(stmt);

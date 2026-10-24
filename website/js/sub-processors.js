@@ -6,7 +6,7 @@ const PACT_SUB_PROCESSORS = [
   {
     name: "Stripe",
     purpose:
-      "Payment processing, subscription billing, and (if you use it) identity verification. Stripe receives and stores your payment details and, for identity verification, your government-issued identification, photograph, or Social Security Number directly — Pact never receives or stores that data itself, only Stripe's verification result.",
+      "Payment processing, subscription billing, contract payments (via Stripe Connect), and (if you use it) identity verification. Stripe receives and stores your payment details, bank account details, and, for identity verification, your government-issued identification, photograph, or Social Security Number directly — Pact never receives or stores that data itself, only Stripe's verification result and payment object identifiers. For a contract payment, Stripe routes funds directly from payer to payee; Pact never holds or has custody of the money.",
   },
   {
     name: "Anthropic",

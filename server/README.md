@@ -111,6 +111,7 @@ canned response) until its key is set in `.env`:
 | Billing (Stripe Checkout) | `STRIPE_SECRET_KEY` | Tier is applied directly, no payment collected |
 | Identity verification | `STRIPE_SECRET_KEY` (+ `STRIPE_IDENTITY_ENABLED`) | `501` — "Identity verification is not connected yet" |
 | Email (signing invitations) | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | Signing link is returned in the API response to share manually |
+| Contract payments (Stripe Connect) | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | `501` — "Billing is not connected yet" on every payment route |
 
 **Identity verification is deliberately routed through Stripe Identity
 rather than built in-house.** Pact never collects or stores a government ID
@@ -145,21 +146,74 @@ same "create a session, redirect, receive a webhook" shape.
   webhook handler treats a duplicate `checkout.session.completed` delivery (Stripe does
   retry) as an already-fulfilled no-op rather than erroring.
 
+## Contract payments (Stripe Connect)
+
+A contract can carry a payment obligation (`contract_payment_terms`), settled
+either through Stripe or by mutual off-platform confirmation. The design,
+end to end:
+
+- **Pact never touches money.** A payee onboards a Stripe Connect **Express**
+  account (`services/billing-provider.js` `getOrCreateConnectedAccount` /
+  `createConnectOnboardingLink` — Stripe's own hosted flow collects identity
+  and bank details, Pact stores only the account id). Requesting payment
+  creates a **destination charge** PaymentIntent
+  (`createPaymentRequestIntent`) with `transfer_data.destination` pointing at
+  that account, so Stripe routes funds payer → Stripe → payee directly. The
+  only money Pact ever sees is `application_fee_amount`, driven by
+  `PLATFORM_FEE_PERCENT` (`0` by default).
+- **Every state change comes from a verified webhook**, never the client —
+  see the `payment_intent.succeeded/payment_failed`, `charge.refunded`,
+  `charge.dispute.created/closed`, and `account.updated` branches added to
+  `routes/billing.js`'s existing `POST /api/billing/webhook`. Each handler
+  lives in `services/payments.js`, which is also where
+  `contracts.payment_status`/`amount_paid_cents` are recomputed from the
+  append-only `payment_events` ledger (never written directly).
+- **Idempotency** is the same pattern as the Checkout webhook above:
+  `payment_events.stripe_event_id` is `UNIQUE`, and a retried delivery hits
+  that constraint and is treated as an already-processed no-op.
+- **Auto-close/reopen**: `close_on_full_payment` closes a fully-executed
+  contract (`status` `signed` → `closed`, `closed_reason = 'paid_in_full'`)
+  the moment the ledger says `paid_in_full`; a `charge.dispute.created` on
+  that same contract reopens it (`reopened_reason = 'payment_disputed'`).
+- **"Paid outside Pact"** (`off_platform_payment_confirmations`) never
+  touches Stripe — one party proposes, the *other* party confirms, and only
+  then does it land in the `payment_events` ledger (`source =
+  'off_platform_confirmed'`), labeled distinctly from a Stripe-verified
+  payment everywhere it's shown.
+- **Payment Certificates** (`payment_certificates`, PDFs under
+  `server/data/payment-certificates/`, never committed) are generated on
+  every successful Stripe payment via `services/pdf.js`'s
+  `renderPaymentCertificatePdf` — each one's data fields are SHA-256-hashed
+  (`data_hash`) so a later alteration of the PDF can be detected
+  independently of the file itself. A refund or lost dispute is a new ledger
+  row, never an edit to the original certificate.
+- **Rate limiting**: `services/payments.js`'s `checkPaymentRequestRateLimit`
+  is an in-memory per-user counter (same single-instance assumption as
+  `users.failed_login_attempts`), capped at 20 payment-request creations per
+  hour.
+
+**This has not been reviewed by a licensed attorney.** Before enabling live
+(non-test) Stripe keys for contract payments, confirm with counsel that this
+Connect structure avoids money-transmitter licensing exposure for Pact in
+every state where users will actually transact — see Terms of Service
+Section 10a.
+
 ## Stripe webhooks locally
 
 `STRIPE_SECRET_KEY` alone is enough to test Checkout and Identity in
 "direct/polling" mode. For real-time webhook-driven updates (subscription
-changes, verification results) instead of the client-side polling fallback,
-run the Stripe CLI against your local server:
+changes, verification results, contract payments) instead of the
+client-side polling fallback, run the Stripe CLI against your local server:
 
 ```
 stripe listen --forward-to localhost:4000/api/billing/webhook \
-  --events checkout.session.completed,customer.subscription.updated,customer.subscription.deleted
+  --events checkout.session.completed,customer.subscription.updated,customer.subscription.deleted,\
+payment_intent.succeeded,payment_intent.payment_failed,charge.refunded,charge.dispute.created,charge.dispute.closed,account.updated
 stripe listen --forward-to localhost:4000/api/identity/webhook
 ```
 
 and put the CLI's printed signing secret in `STRIPE_WEBHOOK_SECRET`. In production, add the
-same three event types (plus whatever Identity needs) to the webhook endpoint you configure
+same event types (plus whatever Identity needs) to the webhook endpoint you configure
 in the Stripe Dashboard at https://dashboard.stripe.com/webhooks.
 
 ## Project layout
@@ -173,9 +227,9 @@ server/
     us-states.js             # canonical state list for the state engine
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
-    routes/                  # auth, templates, contracts, sign, ai, billing, identity, purchases, organizations, internal
+    routes/                  # auth, templates, contracts, sign, ai, billing, payments, identity, purchases, organizations, internal
     services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails,
-                              # billing-provider, identity-provider, mailer, organizations, contract-health, versions
+                              # billing-provider, payments, identity-provider, mailer, organizations, contract-health, versions
   scripts/
     send-expiration-reminders.js  # the real logic — npm run reminders-local (local dev) or POST /api/internal/run-expiration-reminders (prod)
     send-annual-pass-reminders.js # the real logic — npm run annual-pass-reminders-local (local dev) or POST /api/internal/run-annual-pass-reminders (prod)

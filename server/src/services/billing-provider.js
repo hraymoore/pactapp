@@ -162,6 +162,28 @@ async function createAnnualPassCheckoutSession({ tier, priceCents, user, req }) 
   return session;
 }
 
+// A contract payment, unlike every other charge in this file, is never a
+// Checkout Session — the spec calls for Stripe's embedded Payment Element
+// so card AND ACH both work inline on the contract page, which needs a
+// PaymentIntent the client confirms directly. This is a "destination
+// charge": created on the PLATFORM's own Stripe account (no Stripe-Account
+// header, no OAuth per request) with transfer_data.destination pointing
+// at the payee's connected account, so Stripe moves the money straight
+// from payer -> Stripe -> payee's account. Pact's own balance never holds
+// or pools any of it — the only money Pact ever sees is application_fee_
+// amount, and only if PLATFORM_FEE_PERCENT is non-zero.
+async function createPaymentRequestIntent({ amountCents, currency, payeeAccountId, applicationFeeCents, metadata }) {
+  const stripe = getStripe();
+  return stripe.paymentIntents.create({
+    amount: amountCents,
+    currency,
+    automatic_payment_methods: { enabled: true },
+    transfer_data: { destination: payeeAccountId },
+    application_fee_amount: applicationFeeCents > 0 ? applicationFeeCents : undefined,
+    metadata,
+  });
+}
+
 // Stripe webhook handler for a completed annual-pass Checkout session —
 // applies the tier and starts a fresh 365-day clock. A repeat purchase
 // (renewing before or after lapsing) simply resets the expiry rather than
@@ -249,6 +271,65 @@ function downgradeOnCancellation(db, subscription) {
   ).run(userId);
 }
 
+// Creates the Stripe Connect Express account a user needs before they can
+// RECEIVE a contract payment through Pact (see services/payments.js).
+// Express, not Standard/Custom, because Stripe hosts the entire identity/
+// bank-details flow itself — Pact never collects or stores that
+// information. Idempotent: returns the existing account id if one was
+// already created for this user.
+async function getOrCreateConnectedAccount(user) {
+  if (user.stripe_connected_account_id) return user.stripe_connected_account_id;
+  const stripe = getStripe();
+  const account = await stripe.accounts.create({
+    type: "express",
+    email: user.email,
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+    business_type: "individual",
+    metadata: { userId: String(user.id) },
+  });
+  db.prepare("UPDATE users SET stripe_connected_account_id = ? WHERE id = ?").run(account.id, user.id);
+  return account.id;
+}
+
+// Stripe-hosted onboarding (identity, bank account) for a Connect Express
+// account. refresh_url is used if the link itself expires mid-flow;
+// return_url is where Stripe sends them back when they finish or exit —
+// either way we re-check the account's real status rather than trusting
+// the redirect alone (see routes/payments.js's GET /connect/status).
+async function createConnectOnboardingLink({ user, req }) {
+  const stripe = getStripe();
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const accountId = await getOrCreateConnectedAccount(user);
+  const link = await stripe.accountLinks.create({
+    account: accountId,
+    refresh_url: `${origin}/dashboard.html?section=settings&connectRefresh=1`,
+    return_url: `${origin}/dashboard.html?section=settings&connectReturn=1`,
+    type: "account_onboarding",
+  });
+  return link.url;
+}
+
+// Pulls the connected account's current charges_enabled/payouts_enabled
+// straight from Stripe and syncs it locally — called right after the user
+// returns from onboarding (the account.updated webhook will eventually
+// say the same thing, but polling once on return avoids a window where
+// the UI still shows "not set up" immediately after they finish).
+async function refreshConnectedAccountStatus(user) {
+  if (!user.stripe_connected_account_id) return { chargesEnabled: false, payoutsEnabled: false };
+  const stripe = getStripe();
+  const account = await stripe.accounts.retrieve(user.stripe_connected_account_id);
+  syncConnectedAccountStatus(db, account);
+  return { chargesEnabled: !!account.charges_enabled, payoutsEnabled: !!account.payouts_enabled };
+}
+
+// account.updated webhook — the only place charges_enabled/payouts_enabled
+// are actually trusted from; never set from a client request.
+function syncConnectedAccountStatus(db, account) {
+  db.prepare(
+    "UPDATE users SET stripe_charges_enabled = ?, stripe_payouts_enabled = ? WHERE stripe_connected_account_id = ?"
+  ).run(account.charges_enabled ? 1 : 0, account.payouts_enabled ? 1 : 0, account.id);
+}
+
 module.exports = {
   billingConfigured,
   getOrCreateCustomer,
@@ -262,4 +343,10 @@ module.exports = {
   syncSubscriptionUpdate,
   downgradeOnCancellation,
   cancelSubscriptionImmediately,
+  getOrCreateConnectedAccount,
+  createConnectOnboardingLink,
+  refreshConnectedAccountStatus,
+  syncConnectedAccountStatus,
+  createPaymentRequestIntent,
+  getStripe,
 };

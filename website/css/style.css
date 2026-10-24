@@ -357,6 +357,7 @@ p { margin: 0 0 1em; color: var(--silver); }
 .status-signed { background: rgba(15,107,76,0.16); color: var(--emerald-bright); border: 1px solid var(--emerald); }
 .status-pending { background: rgba(205,163,73,0.14); color: var(--gold-bright); border: 1px solid var(--gold); }
 .status-draft { background: rgba(233,234,238,0.08); color: var(--silver); border: 1px solid var(--border-dark); }
+.status-ruby { background: rgba(156,31,59,0.16); color: var(--ruby-bright); border: 1px solid var(--ruby); }
 .row-actions { display: flex; gap: 8px; }
 .icon-btn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-dark); background: transparent; color: var(--silver); display: flex; align-items: center; justify-content: center; }
 .icon-btn:hover { border-color: var(--gold); color: var(--gold-bright); }

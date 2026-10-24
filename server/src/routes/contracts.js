@@ -13,6 +13,8 @@ const { getMembership } = require("../services/organizations");
 const { snapshotVersion, listVersions, diffAgainstCurrent } = require("../services/versions");
 const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
+const payments = require("../services/payments");
+const { billingConfigured, createPaymentRequestIntent, getStripe } = require("../services/billing-provider");
 const fs = require("fs");
 const path = require("path");
 
@@ -472,6 +474,217 @@ router.get("/:id/attachments/:attachmentId/download", (req, res) => {
   const filePath = path.join(UPLOAD_DIR, attachment.storage_path);
   res.download(filePath, attachment.original_filename, (err) => {
     if (err && !res.headersSent) res.status(404).json({ error: "File no longer available." });
+  });
+});
+
+// ---- Payments ----
+// "Starter and above can request payment" (Free can still pay — it's
+// never gated on the payer's side, only on who can ask to be paid).
+function requirePaidTierForPayee(req, res) {
+  if (TIER_ORDER.indexOf(req.user.tier) < TIER_ORDER.indexOf("starter")) {
+    res.status(403).json({ error: "You need an active paid plan to request a payment. Upgrade from Free to continue — see Pricing." });
+    return false;
+  }
+  return true;
+}
+
+router.post("/:id/payment-terms", (req, res) => {
+  const contract = loadAuthorizedContract(req, res, { requireEdit: true });
+  if (!contract) return;
+  if (contract.owner_id !== req.user.id) {
+    return res.status(403).json({ error: "Only the contract owner can set payment terms." });
+  }
+  try {
+    const terms = payments.setPaymentTerms(contract, req.body || {}, req.user);
+    res.status(201).json({ terms });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.get("/:id/payment", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const terms = payments.getPaymentTerms(contract.id);
+  const events = db.prepare("SELECT * FROM payment_events WHERE contract_id = ? ORDER BY occurred_at ASC, id ASC").all(contract.id);
+  const certificates = db.prepare("SELECT * FROM payment_certificates WHERE contract_id = ? ORDER BY issued_at ASC").all(contract.id);
+  const offPlatformProposal = db
+    .prepare("SELECT * FROM off_platform_payment_confirmations WHERE contract_id = ? AND confirmed_at IS NULL")
+    .get(contract.id);
+
+  let myRole = null;
+  if (terms) {
+    const { owner, counterparty } = payments.getContractParties(contract.id);
+    const payeeParty = terms.payee_party_id === owner.id ? owner : counterparty;
+    const payerParty = payeeParty === owner ? counterparty : owner;
+    if (payeeParty.email === req.user.email) myRole = "payee";
+    else if (payerParty.email === req.user.email) myRole = "payer";
+  }
+
+  res.json({
+    terms,
+    paymentStatus: contract.payment_status,
+    amountPaidCents: contract.amount_paid_cents,
+    nextAmountDueCents: terms ? payments.nextAmountDueCents(terms, contract.amount_paid_cents) : null,
+    statusLabel: payments.STATUS_LABEL[contract.payment_status],
+    events,
+    certificates,
+    offPlatformProposal,
+    myRole,
+    canRequestPayment:
+      !!terms && myRole === "payee" && contract.status === "signed" && ["unpaid", "partially_paid"].includes(contract.payment_status),
+    canPay:
+      !!terms && myRole === "payer" && contract.status === "signed" && ["unpaid", "partially_paid"].includes(contract.payment_status),
+  });
+});
+
+router.post("/:id/payment-request", async (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  if (contract.status !== "signed") {
+    return res.status(409).json({ error: "This contract must be fully executed before requesting payment." });
+  }
+  const terms = payments.getPaymentTerms(contract.id);
+  if (!terms) return res.status(400).json({ error: "This contract has no payment terms." });
+  if (contract.payment_status === "paid_in_full") {
+    return res.status(409).json({ error: "This contract is already paid in full." });
+  }
+
+  const { owner, counterparty } = payments.getContractParties(contract.id);
+  const payeeParty = terms.payee_party_id === owner.id ? owner : counterparty;
+  const payerParty = payeeParty === owner ? counterparty : owner;
+  if (payeeParty.email !== req.user.email) {
+    return res.status(403).json({ error: "Only this contract's payee can request payment." });
+  }
+  if (!requirePaidTierForPayee(req, res)) return;
+
+  const payeeUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (!payeeUser.stripe_connected_account_id || !payeeUser.stripe_charges_enabled) {
+    return res.status(409).json({
+      error: "Finish setting up payouts before requesting payment.",
+      needsPayoutSetup: true,
+    });
+  }
+  const payerUser = payments.findPartyUser(payerParty);
+  if (!payerUser) {
+    return res.status(409).json({ error: `${payerParty.name} needs a Pact account before they can be asked to pay.` });
+  }
+  if (!billingConfigured()) {
+    return res.status(501).json({ error: "Billing is not connected yet." });
+  }
+
+  try {
+    payments.checkPaymentRequestRateLimit(req.user.id);
+  } catch (err) {
+    return res.status(err.status || 429).json({ error: err.message });
+  }
+
+  const amountCents = payments.nextAmountDueCents(terms, contract.amount_paid_cents);
+  const applicationFeeCents = payments.computeApplicationFeeCents(amountCents);
+
+  try {
+    const intent = await createPaymentRequestIntent({
+      amountCents,
+      currency: terms.currency,
+      payeeAccountId: payeeUser.stripe_connected_account_id,
+      applicationFeeCents,
+      metadata: {
+        contractId: String(contract.id),
+        payerUserId: String(payerUser.id),
+        payeeUserId: String(payeeUser.id),
+      },
+    });
+    payments.recordPaymentEvent({
+      contractId: contract.id,
+      eventType: "payment_requested",
+      stripePaymentIntentId: intent.id,
+      amountCents,
+      currency: terms.currency,
+      payerUserId: payerUser.id,
+      payeeUserId: payeeUser.id,
+      rawStatus: intent.status,
+      createdByUserId: req.user.id,
+      createdByIp: req.socket.remoteAddress || null,
+    });
+    logAudit(contract.id, req.user, "payment_requested", `${req.user.name} requested payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()}.`);
+    sendMail({
+      to: payerUser.email,
+      subject: `Payment requested: ${contract.name}`,
+      text: `${req.user.name} requested a payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()} on "${contract.name}". Open the contract on Pact to pay.`,
+    });
+    res.status(201).json({ clientSecret: intent.client_secret, paymentIntentId: intent.id, amountCents, currency: terms.currency, applicationFeeCents });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// The payer's view of the currently open PaymentIntent, if one exists —
+// re-fetched live from Stripe (not from our own cached status) so an
+// expired/canceled intent is caught before the client tries to confirm it.
+router.get("/:id/payment-intent", async (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const terms = payments.getPaymentTerms(contract.id);
+  if (!terms) return res.status(404).json({ error: "This contract has no payment terms." });
+  const { owner, counterparty } = payments.getContractParties(contract.id);
+  const payeeParty = terms.payee_party_id === owner.id ? owner : counterparty;
+  const payerParty = payeeParty === owner ? counterparty : owner;
+  if (payerParty.email !== req.user.email) {
+    return res.status(403).json({ error: "Only this contract's payer can view the open payment." });
+  }
+  if (!billingConfigured()) return res.status(501).json({ error: "Billing is not connected yet." });
+
+  const lastRequest = db
+    .prepare(
+      "SELECT * FROM payment_events WHERE contract_id = ? AND event_type = 'payment_requested' ORDER BY id DESC LIMIT 1"
+    )
+    .get(contract.id);
+  if (!lastRequest) return res.status(404).json({ error: "No payment has been requested yet." });
+
+  try {
+    const stripe = getStripe();
+    const intent = await stripe.paymentIntents.retrieve(lastRequest.stripe_payment_intent_id);
+    if (!["requires_payment_method", "requires_confirmation", "requires_action"].includes(intent.status)) {
+      return res.status(409).json({ error: "This payment request is no longer open — ask the payee to request payment again.", status: intent.status });
+    }
+    res.json({ clientSecret: intent.client_secret, amountCents: intent.amount, currency: intent.currency });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/payment-off-platform/propose", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const terms = payments.getPaymentTerms(contract.id);
+  if (!terms) return res.status(400).json({ error: "This contract has no payment terms." });
+  try {
+    payments.proposeOffPlatformPayment(contract, req.user, req.body || {});
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/payment-off-platform/confirm", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  try {
+    payments.confirmOffPlatformPayment(contract, req.user);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.get("/:id/payment-certificates/:certId/download", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const cert = db.prepare("SELECT * FROM payment_certificates WHERE id = ? AND contract_id = ?").get(req.params.certId, contract.id);
+  if (!cert) return res.status(404).json({ error: "Certificate not found." });
+  const filePath = path.join(payments.CERT_DIR, cert.pdf_file_ref);
+  res.download(filePath, `payment-certificate-${contract.id}-${cert.id}.pdf`, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: "Certificate file no longer available." });
   });
 });
 

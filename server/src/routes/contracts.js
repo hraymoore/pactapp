@@ -14,6 +14,7 @@ const { snapshotVersion, listVersions, diffAgainstCurrent } = require("../servic
 const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const payments = require("../services/payments");
+const { clearRemindersForSubject } = require("../services/renewals");
 const { billingConfigured, createPaymentRequestIntent, getStripe } = require("../services/billing-provider");
 const fs = require("fs");
 const path = require("path");
@@ -280,6 +281,7 @@ router.put("/:id", (req, res) => {
        expires_at = ?, auto_renews = ?, expiration_reminder_sent_at = ?
      WHERE id = ?`
   ).run(body, name || null, contentHash(body), nextExpiresAt, nextAutoRenews, nextReminderSentAt, contract.id);
+  if (nextExpiresAt !== contract.expires_at) clearRemindersForSubject("contract", contract.id);
 
   if (wasLocked) {
     logAudit(contract.id, req.user, "amended", `Post-signature amendment made by ${req.user.name}.`);

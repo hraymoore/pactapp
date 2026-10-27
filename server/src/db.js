@@ -418,6 +418,28 @@ CREATE TABLE IF NOT EXISTS archive_shares (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (archive_item_id, shared_with_user_id)
 );
+
+-- Idempotency ledger for renewal/expiration reminders, shared by native
+-- contracts and archive items (subject_type distinguishes them — there's
+-- no FK here on purpose, since it points at one of two different tables).
+-- Superseded contracts.expiration_reminder_sent_at / archive_items.
+-- expiration_reminder_sent_at (single-timestamp columns from before
+-- multiple configurable intervals existed): those columns are left in
+-- place but unused by reminder logic going forward, to avoid a disruptive
+-- migration for a column that's otherwise harmless to leave alone. One
+-- row per (subject, interval) that's actually been sent — see
+-- services/renewals.js for why this makes "90/60/30/7 days before"
+-- naturally fire once each as the countdown crosses each threshold,
+-- and why clearing a subject's rows here (on a date change) lets the
+-- same thresholds fire again against the new date.
+CREATE TABLE IF NOT EXISTS renewal_reminders_sent (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  subject_type TEXT NOT NULL CHECK (subject_type IN ('contract', 'archive_item')),
+  subject_id INTEGER NOT NULL,
+  interval_days INTEGER NOT NULL,
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (subject_type, subject_id, interval_days)
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

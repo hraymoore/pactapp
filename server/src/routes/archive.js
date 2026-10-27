@@ -9,6 +9,7 @@ const { requireAuth } = require("../middleware/auth");
 const { signArchiveDownloadToken, verifyArchiveDownloadToken } = require("../auth-utils");
 const { extractArchiveMetadataWithAI, aiConfigured } = require("../services/ai-provider");
 const archive = require("../services/archive");
+const { clearRemindersForSubject } = require("../services/renewals");
 
 const TMP_DIR = process.env.PACT_ARCHIVE_TMP_DIR || path.join(__dirname, "..", "..", "data", "archive-tmp");
 fs.mkdirSync(TMP_DIR, { recursive: true });
@@ -139,6 +140,7 @@ router.put("/:id", (req, res) => {
   const ip = (forwardedFor ? forwardedFor.split(",")[0].trim() : null) || req.socket.remoteAddress || "unknown";
   try {
     const updated = archive.updateArchiveMetadata(item, req.user, req.body || {}, ip);
+    if (updated.expiration_date !== item.expiration_date) clearRemindersForSubject("archive_item", item.id);
     res.json({ item: updated });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });

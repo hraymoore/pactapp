@@ -454,6 +454,34 @@
       </div>
     </div>
 
+    <div id="amendmentsPanel" style="display:none;margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">AMENDMENTS &amp; ADDENDA</label>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--silver);">A formal, signed change to this executed contract. It only takes effect once every party has signed it, and keeps its own audit trail and certificate.</p>
+
+      <button class="btn btn-ghost-dark btn-sm" id="amendmentProposeToggleBtn">Propose Amendment or Addendum</button>
+      <div id="amendmentProposeForm" style="display:none;margin-top:12px;">
+        <div class="field" style="max-width:220px;"><label>Type</label>
+          <select id="amendProposeType">
+            <option value="amendment">Amendment (changes existing terms)</option>
+            <option value="addendum">Addendum (adds new terms)</option>
+          </select>
+        </div>
+        <div class="field"><label>Title</label><input id="amendProposeTitle" type="text" placeholder="e.g. Extend delivery deadline"></div>
+        <div class="field"><label>Plain-language summary of what's changing</label><textarea id="amendProposeSummary" rows="2"></textarea></div>
+        <div class="field"><label>Full proposed contract text (replaces the current text once fully signed)</label><textarea id="amendProposeBody" rows="8" style="font-family:var(--font-mono);font-size:0.85rem;"></textarea></div>
+        <button class="btn btn-gold btn-sm" id="confirmProposeAmendmentBtn">Send for Signature</button>
+        <p style="margin-top:8px;font-size:0.78rem;color:var(--silver);">Every other party will be notified and asked to sign. This is not legal advice.</p>
+      </div>
+      <p id="amendmentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+
+      <div id="amendmentList" style="margin-top:14px;"></div>
+      <div id="amendmentDiffBox" style="display:none;margin-top:14px;">
+        <div class="eyebrow" style="margin-bottom:4px;">Proposed change (current vs. proposed)</div>
+        <pre id="amendmentDiffContent" style="white-space:pre-wrap;font-family:var(--font-mono);font-size:0.8rem;line-height:1.6;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:14px;max-height:360px;overflow:auto;margin:0;"></pre>
+        <button class="btn btn-ghost-dark btn-sm" id="closeAmendmentDiffBtn" style="margin-top:10px;">Close</button>
+      </div>
+    </div>
+
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
       <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">VIEWED BY</label>
       <div id="viewList" style="font-size:0.85rem;"></div>
@@ -927,6 +955,7 @@
     await renderReviewStatus();
     await renderViewList();
     await renderPaymentPanel();
+    await renderAmendmentsPanel();
   }
 
   async function renderReviewStatus() {
@@ -1080,6 +1109,181 @@
   document.getElementById("closeVersionDiffBtn").addEventListener("click", () => {
     document.getElementById("versionDiffBox").style.display = "none";
   });
+
+  document.getElementById("amendmentProposeToggleBtn").addEventListener("click", () => {
+    const form = document.getElementById("amendmentProposeForm");
+    form.style.display = form.style.display === "none" ? "" : "none";
+  });
+
+  document.getElementById("confirmProposeAmendmentBtn").addEventListener("click", async () => {
+    const errBox = document.getElementById("amendmentError");
+    errBox.classList.remove("show");
+    try {
+      await apiJson(`/api/contracts/${editingId}/amendments`, {
+        method: "POST",
+        body: JSON.stringify({
+          amendmentType: document.getElementById("amendProposeType").value,
+          title: document.getElementById("amendProposeTitle").value.trim(),
+          summary: document.getElementById("amendProposeSummary").value.trim(),
+          proposedBody: document.getElementById("amendProposeBody").value,
+        }),
+      });
+      document.getElementById("amendmentProposeForm").style.display = "none";
+      document.getElementById("amendProposeTitle").value = "";
+      document.getElementById("amendProposeSummary").value = "";
+      document.getElementById("amendProposeBody").value = "";
+      await renderAmendmentsPanel();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.classList.add("show");
+    }
+  });
+
+  document.getElementById("closeAmendmentDiffBtn").addEventListener("click", () => {
+    document.getElementById("amendmentDiffBox").style.display = "none";
+  });
+
+  // Amendments only apply to a fully executed contract — same gate the
+  // backend enforces in services/amendments.js's proposeAmendment.
+  async function renderAmendmentsPanel() {
+    const panel = document.getElementById("amendmentsPanel");
+    const { contract } = await apiJson(`/api/contracts/${editingId}`);
+    if (contract.status !== "signed") {
+      panel.style.display = "none";
+      return;
+    }
+    panel.style.display = "";
+
+    const { amendments } = await apiJson(`/api/contracts/${editingId}/amendments`);
+    const hasPending = amendments.some(a => a.status === "pending");
+    const canPropose = contract.myAccess === "owner" || contract.myAccess === "edit";
+    document.getElementById("amendmentProposeToggleBtn").style.display = canPropose && !hasPending ? "" : "none";
+    if (hasPending) document.getElementById("amendmentProposeForm").style.display = "none";
+    document.getElementById("amendmentDiffBox").style.display = "none";
+
+    const STATUS_LABEL = { pending: "Awaiting signatures", signed: "Executed", rejected: "Rejected", withdrawn: "Withdrawn" };
+    const STATUS_COLOR = { pending: "var(--gold-bright)", signed: "var(--emerald-bright)", rejected: "var(--ruby-bright)", withdrawn: "var(--silver)" };
+
+    const wrap = document.getElementById("amendmentList");
+    wrap.innerHTML = "";
+    if (amendments.length === 0) {
+      wrap.innerHTML = "<p style='margin:0;font-size:0.85rem;'>No amendments or addenda yet.</p>";
+      return;
+    }
+
+    amendments.forEach(a => {
+      const card = document.createElement("div");
+      card.style.cssText = "border:1px solid var(--border-dark);border-radius:8px;padding:12px;margin-bottom:10px;";
+      const mySig = a.signatures.find(s => s.party_email === CURRENT_USER.email);
+      const mySigned = mySig && mySig.signed_at;
+      const myRejected = mySig && mySig.rejected_at;
+      const isProposer = a.proposed_by_user_id === CURRENT_USER.id;
+
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;">
+          <strong style="font-size:0.9rem;">${a.amendment_type === "addendum" ? "Addendum" : "Amendment"}: ${a.title}</strong>
+          <span style="font-family:var(--font-mono);font-size:0.75rem;color:${STATUS_COLOR[a.status]};">${STATUS_LABEL[a.status]}</span>
+        </div>
+        <p style="margin:6px 0;font-size:0.85rem;color:var(--silver);">${a.summary}</p>
+        <div data-sig-list style="font-size:0.78rem;color:var(--silver);margin-bottom:8px;"></div>
+      `;
+      const sigList = card.querySelector("[data-sig-list]");
+      a.signatures.forEach(s => {
+        const line = document.createElement("div");
+        line.textContent = s.signed_at
+          ? `${s.party_name} signed on ${fmt(s.signed_at)}`
+          : s.rejected_at
+            ? `${s.party_name} rejected${s.rejection_reason ? ": " + s.rejection_reason : ""}`
+            : `${s.party_name} — awaiting signature`;
+        sigList.appendChild(line);
+      });
+
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;";
+
+      const viewBtn = document.createElement("button");
+      viewBtn.className = "btn btn-ghost-dark btn-sm";
+      viewBtn.textContent = "View proposed changes";
+      viewBtn.addEventListener("click", async () => {
+        const { diff } = await apiJson(`/api/contracts/${editingId}/amendments/${a.id}`);
+        const esc = (s) => s.replace(/</g, "&lt;");
+        document.getElementById("amendmentDiffContent").innerHTML = diff.map(p =>
+          p.added ? `<span style="background:rgba(15,107,76,0.25);color:var(--emerald-bright);">${esc(p.value)}</span>`
+          : p.removed ? `<span style="background:rgba(156,31,59,0.25);color:var(--ruby-bright);text-decoration:line-through;">${esc(p.value)}</span>`
+          : `<span>${esc(p.value)}</span>`
+        ).join("");
+        document.getElementById("amendmentDiffBox").style.display = "";
+        document.getElementById("amendmentDiffBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      actions.appendChild(viewBtn);
+
+      if (a.status === "pending" && mySig && !mySigned && !myRejected) {
+        const signBtn = document.createElement("button");
+        signBtn.className = "btn btn-gold btn-sm";
+        signBtn.textContent = "Sign";
+        signBtn.addEventListener("click", async () => {
+          const typedSignature = prompt("Type your full legal name to sign this " + a.amendment_type + ":");
+          if (!typedSignature || !typedSignature.trim()) return;
+          try {
+            await apiJson(`/api/contracts/${editingId}/amendments/${a.id}/sign`, {
+              method: "POST",
+              body: JSON.stringify({ typedSignature, consent: true }),
+            });
+            await renderAmendmentsPanel();
+            await renderContracts();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        actions.appendChild(signBtn);
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.className = "btn btn-ghost-dark btn-sm";
+        rejectBtn.textContent = "Reject";
+        rejectBtn.addEventListener("click", async () => {
+          const reason = prompt("Optional reason for rejecting (shown to the other parties):") || "";
+          try {
+            await apiJson(`/api/contracts/${editingId}/amendments/${a.id}/reject`, {
+              method: "POST",
+              body: JSON.stringify({ reason }),
+            });
+            await renderAmendmentsPanel();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        actions.appendChild(rejectBtn);
+      }
+
+      if (a.status === "pending" && isProposer) {
+        const withdrawBtn = document.createElement("button");
+        withdrawBtn.className = "btn btn-ghost-dark btn-sm";
+        withdrawBtn.textContent = "Withdraw";
+        withdrawBtn.addEventListener("click", async () => {
+          if (!confirm("Withdraw this proposed " + a.amendment_type + "?")) return;
+          try {
+            await apiJson(`/api/contracts/${editingId}/amendments/${a.id}/withdraw`, { method: "POST", body: JSON.stringify({}) });
+            await renderAmendmentsPanel();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        actions.appendChild(withdrawBtn);
+      }
+
+      if (a.status === "signed" && a.certificate) {
+        const certLink = document.createElement("a");
+        certLink.className = "btn btn-ghost-dark btn-sm";
+        certLink.textContent = "Download Certificate";
+        certLink.href = `/api/contracts/${editingId}/amendments/${a.id}/certificate`;
+        certLink.target = "_blank";
+        actions.appendChild(certLink);
+      }
+
+      card.appendChild(actions);
+      wrap.appendChild(card);
+    });
+  }
 
   async function renderViewList() {
     const { views } = await apiJson(`/api/contracts/${editingId}/views`);

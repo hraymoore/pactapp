@@ -173,4 +173,40 @@ async function renderPaymentCertificatePdf(certData) {
   return doc.save();
 }
 
-module.exports = { renderContractPdf, renderBlankTemplatePdf, renderPaymentCertificatePdf };
+// The formal record of a fully-executed amendment or addendum —
+// certData.dataHash is computed by the caller (services/amendments.js)
+// over the same fields printed below, so a later alteration of this PDF
+// can be detected independent of re-reading it.
+async function renderAmendmentCertificatePdf(certData) {
+  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+
+  writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
+  writeLine(certData.amendmentType === "addendum" ? "Addendum Certificate" : "Amendment Certificate", { size: 16, f: bold, gap: 22 });
+  writeLine(`Contract: ${certData.contractName}  (Pact ID #${certData.contractId})`, { size: 10.5, gap: 16 });
+  writeLine(`${certData.title}`, { size: 12, f: bold, gap: 18 });
+
+  spacer();
+  writeLine("SUMMARY OF CHANGES", { size: 10, f: bold, color: GOLD, gap: 16 });
+  certData.summary.split("\n").forEach((line) => writeLine(line || " ", { size: 10, gap: 14 }));
+
+  spacer();
+  writeLine("SIGNATURES", { size: 10, f: bold, color: GOLD, gap: 16 });
+  certData.signatures.forEach((s) => {
+    writeLine(`${s.name} <${s.email}>  —  ${s.role}`, { size: 10, f: bold, gap: 14 });
+    writeLine(`Signed electronically as "${s.signatureName}" on ${s.signedAt} UTC from IP ${s.signatureIp}`, { size: 9.5, color: MUTED, gap: 18 });
+  });
+
+  spacer();
+  writeLine(`Executed: ${certData.executedAtUtc} UTC`, { size: 9.5, color: MUTED, gap: 14 });
+  writeLine(`Certificate data hash (SHA-256): ${certData.dataHash}`, { size: 8.5, color: MUTED, gap: 13 });
+
+  spacer(16);
+  writeLine(
+    "This certificate records a change signed by every party to the contract above. It is not legal advice.",
+    { size: 9, f: bold, color: MUTED, gap: 13 }
+  );
+
+  return doc.save();
+}
+
+module.exports = { renderContractPdf, renderBlankTemplatePdf, renderPaymentCertificatePdf, renderAmendmentCertificatePdf };

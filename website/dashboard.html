@@ -436,10 +436,20 @@
 
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
       <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">VERSION HISTORY</label>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--silver);">Select any two to compare — including "Current" alongside any earlier one.</p>
       <div id="versionList" style="margin-bottom:12px;"></div>
-      <div id="versionDiffBox" style="display:none;">
-        <div class="eyebrow" style="margin-bottom:8px;">Redline vs. current text</div>
-        <pre id="versionDiffContent" style="white-space:pre-wrap;font-family:var(--font-mono);font-size:0.82rem;line-height:1.6;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:14px;max-height:300px;overflow:auto;margin:0;"></pre>
+      <button class="btn btn-gold btn-sm" id="compareVersionsBtn" disabled>Compare Selected</button>
+      <div id="versionDiffBox" style="display:none;margin-top:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div class="eyebrow" style="margin-bottom:4px;" id="versionDiffFromLabel"></div>
+            <pre id="versionDiffFromContent" style="white-space:pre-wrap;font-family:var(--font-mono);font-size:0.8rem;line-height:1.6;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:14px;max-height:360px;overflow:auto;margin:0;"></pre>
+          </div>
+          <div>
+            <div class="eyebrow" style="margin-bottom:4px;" id="versionDiffToLabel"></div>
+            <pre id="versionDiffToContent" style="white-space:pre-wrap;font-family:var(--font-mono);font-size:0.8rem;line-height:1.6;background:var(--obsidian);border:1px solid var(--border-dark);border-radius:8px;padding:14px;max-height:360px;overflow:auto;margin:0;"></pre>
+          </div>
+        </div>
         <button class="btn btn-ghost-dark btn-sm" id="closeVersionDiffBtn" style="margin-top:10px;">Close redline</button>
       </div>
     </div>
@@ -979,33 +989,94 @@
     }
   }
 
+  // Every selectable point in the contract's history, newest first:
+  // "Current" (the live body, no fixed saved_by since contracts.body
+  // itself carries no last-editor column) plus every saved snapshot.
+  // Index order here is what lets the Compare button figure out which
+  // side is "older" (from) vs "newer" (to) regardless of click order.
+  let VERSION_ROWS = [];
+  let VERSION_SELECTION = []; // up to 2 keys, oldest-selected evicted first
+
   async function renderVersionList() {
     const { versions } = await apiJson(`/api/contracts/${editingId}/versions`);
+    VERSION_ROWS = [{ key: "current", label: "Current", savedByName: null, at: null }, ...versions.map(v => ({
+      key: String(v.id), label: "Earlier version", savedByName: v.saved_by_name, at: v.created_at,
+    }))];
+    VERSION_SELECTION = [];
+    document.getElementById("versionDiffBox").style.display = "none";
+    document.getElementById("compareVersionsBtn").disabled = true;
+
     const wrap = document.getElementById("versionList");
-    wrap.innerHTML = versions.length ? "" : "<p style='margin:0;font-size:0.85rem;'>No earlier versions yet — the first edit will create one.</p>";
-    versions.forEach(v => {
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:0.85rem;";
+    wrap.innerHTML = "";
+    if (versions.length === 0) {
+      wrap.innerHTML = "<p style='margin:0;font-size:0.85rem;'>No earlier versions yet — the first edit will create one.</p>";
+      return;
+    }
+    VERSION_ROWS.forEach(v => {
+      const row = document.createElement("label");
+      row.style.cssText = "display:flex;align-items:center;gap:10px;padding:6px 0;font-size:0.85rem;cursor:pointer;";
       row.innerHTML = `
-        <span>${fmt(v.created_at)} <span style="color:var(--silver);">&middot; ${v.saved_by_name || "unknown"}</span></span>
-        <button class="btn btn-ghost-dark btn-sm" data-view-diff="${v.id}">View redline</button>`;
+        <input type="checkbox" data-version-key="${v.key}" style="width:auto;">
+        <span>${v.key === "current" ? "<strong>Current</strong>" : fmt(v.at)} <span style="color:var(--silver);">&middot; ${v.savedByName || (v.key === "current" ? "live draft" : "unknown")}</span></span>`;
       wrap.appendChild(row);
     });
-    wrap.querySelectorAll("[data-view-diff]").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const { diff } = await apiJson(`/api/contracts/${editingId}/versions/${btn.dataset.viewDiff}/diff`);
-        const content = document.getElementById("versionDiffContent");
-        content.innerHTML = diff.map(part => {
-          const text = part.value.replace(/</g, "&lt;");
-          if (part.added) return `<span style="background:rgba(15,107,76,0.25);color:var(--emerald-bright);">${text}</span>`;
-          if (part.removed) return `<span style="background:rgba(156,31,59,0.25);color:var(--ruby-bright);text-decoration:line-through;">${text}</span>`;
-          return `<span>${text}</span>`;
-        }).join("");
-        document.getElementById("versionDiffBox").style.display = "";
-        document.getElementById("versionDiffBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    wrap.querySelectorAll("[data-version-key]").forEach(cb => {
+      cb.addEventListener("change", () => {
+        const key = cb.dataset.versionKey;
+        if (cb.checked) {
+          VERSION_SELECTION.push(key);
+          if (VERSION_SELECTION.length > 2) {
+            const evicted = VERSION_SELECTION.shift();
+            wrap.querySelector(`[data-version-key="${evicted}"]`).checked = false;
+          }
+        } else {
+          VERSION_SELECTION = VERSION_SELECTION.filter(k => k !== key);
+        }
+        document.getElementById("compareVersionsBtn").disabled = VERSION_SELECTION.length !== 2;
       });
     });
   }
+
+  document.getElementById("compareVersionsBtn").addEventListener("click", async () => {
+    // Render left-to-right as old-to-new regardless of which the user
+    // happened to check first — VERSION_ROWS is newest-first, so the
+    // later index is the older side.
+    const [keyA, keyB] = VERSION_SELECTION;
+    const indexA = VERSION_ROWS.findIndex(v => v.key === keyA);
+    const indexB = VERSION_ROWS.findIndex(v => v.key === keyB);
+    const fromKey = indexA > indexB ? keyA : keyB;
+    const toKey = indexA > indexB ? keyB : keyA;
+    const fromRow = VERSION_ROWS.find(v => v.key === fromKey);
+    const toRow = VERSION_ROWS.find(v => v.key === toKey);
+
+    const { diff } = await apiJson(`/api/contracts/${editingId}/versions/compare?from=${fromKey}&to=${toKey}`);
+
+    const labelFor = (row) => row.key === "current" ? "Current (live draft)" : `${fmt(row.at)} &middot; ${row.savedByName || "unknown"}`;
+    document.getElementById("versionDiffFromLabel").innerHTML = labelFor(fromRow);
+    document.getElementById("versionDiffToLabel").innerHTML = labelFor(toRow);
+
+    // Side-by-side: unchanged text appears in both panes; a removed part
+    // shows (struck through) only on the left, an added part only on the
+    // right — so each pane reads as "what that side's text actually was,"
+    // not an interleaved unified diff.
+    const esc = (s) => s.replace(/</g, "&lt;");
+    const fromHtml = diff.filter(p => !p.added).map(p =>
+      p.removed
+        ? `<span style="background:rgba(156,31,59,0.25);color:var(--ruby-bright);text-decoration:line-through;">${esc(p.value)}</span>`
+        : `<span>${esc(p.value)}</span>`
+    ).join("");
+    const toHtml = diff.filter(p => !p.removed).map(p =>
+      p.added
+        ? `<span style="background:rgba(15,107,76,0.25);color:var(--emerald-bright);">${esc(p.value)}</span>`
+        : `<span>${esc(p.value)}</span>`
+    ).join("");
+    document.getElementById("versionDiffFromContent").innerHTML = fromHtml;
+    document.getElementById("versionDiffToContent").innerHTML = toHtml;
+
+    document.getElementById("versionDiffBox").style.display = "";
+    document.getElementById("versionDiffBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+
   document.getElementById("closeVersionDiffBtn").addEventListener("click", () => {
     document.getElementById("versionDiffBox").style.display = "none";
   });

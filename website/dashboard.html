@@ -57,6 +57,7 @@
     </div>
     <div class="dash-nav">
       <a href="#" class="active" data-section="contracts">📄 Contracts</a>
+      <a href="#" data-section="renewals">🔔 Renewals<span id="renewalsNavBadge" class="mini-tag" style="display:none;margin-left:6px;background:var(--ruby);color:#fff;">0</span></a>
       <a href="#" data-section="archive">📁 Archive</a>
       <a href="#" data-section="business">🏢 Business</a>
       <a href="#" data-section="purchases">🛒 Purchases</a>
@@ -111,6 +112,22 @@
            as the spec calls for. -->
       <div id="archiveInContractsList"></div>
       <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
+    </section>
+
+    <section id="sec-renewals" style="display:none;">
+      <div class="dash-head">
+        <div>
+          <h2 style="margin-bottom:4px;">Renewals</h2>
+          <p style="margin:0;">Every key date across your contracts and archived uploads, in one place — including ones you're done with but haven't looked at in a while.</p>
+        </div>
+      </div>
+      <div class="filter-row" style="margin-bottom:16px;">
+        <button class="chip active" data-renewals-horizon="30">Next 30 days</button>
+        <button class="chip" data-renewals-horizon="90">Next 90 days</button>
+        <button class="chip" data-renewals-horizon="all">Everything</button>
+      </div>
+      <div id="renewalsList"></div>
+      <p id="renewalsEmptyState" style="display:none;">Nothing due — you're all caught up.</p>
     </section>
 
     <section id="sec-archive" style="display:none;">
@@ -1521,7 +1538,7 @@
       e.preventDefault();
       document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
       a.classList.add("active");
-      ["contracts", "archive", "business", "purchases", "ai", "audit", "settings"].forEach(id => {
+      ["contracts", "renewals", "archive", "business", "purchases", "ai", "audit", "settings"].forEach(id => {
         document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
       });
     });
@@ -2315,6 +2332,8 @@
 
     await renderContracts();
     await setupArchive();
+    await setupRenewals();
+    await refreshRenewalsBadge();
     await renderPurchases();
     await renderAudit();
     await setupAI();
@@ -2756,6 +2775,93 @@
       box.appendChild(row);
     });
     document.getElementById("archiveTrashModal").classList.add("show");
+  }
+
+  // ===================== Renewals =====================
+  let RENEWALS_HORIZON = "30";
+
+  function renewalsGroupLabel(daysUntil) {
+    if (daysUntil < 0) return "Overdue";
+    if (daysUntil <= 7) return "This week";
+    if (daysUntil <= 30) return "This month";
+    if (daysUntil <= 60) return "Next 60 days";
+    return "Next 90 days";
+  }
+
+  function buildRenewalRow(i) {
+    const row = document.createElement("div");
+    row.className = "contract-row";
+    row.style.cursor = "pointer";
+    const sourceTag = i.subject_type === "archive_item"
+      ? '<span class="mini-tag" style="margin-left:8px;">Archived</span>'
+      : '<span class="mini-tag" style="margin-left:8px;">Pact</span>';
+    const urgent = i.daysUntil <= 30;
+    const renewTag = i.auto_renews
+      ? `<span class="mini-tag" style="margin-left:8px;color:var(--gold-bright);">Auto-renews — confirm this is still wanted</span>`
+      : (urgent ? `<span class="mini-tag" style="margin-left:8px;color:var(--ruby-bright);">Will lapse unless renewed</span>` : "");
+    const dayLabel = i.daysUntil < 0 ? `${Math.abs(i.daysUntil)}d overdue` : i.daysUntil === 0 ? "Today" : `in ${i.daysUntil}d`;
+    const dayColor = i.daysUntil < 0 ? "var(--ruby-bright)" : i.daysUntil <= 7 ? "var(--gold-bright)" : "var(--silver)";
+    row.innerHTML = `
+      <div class="name">${escapeHtml(i.name)}${sourceTag}${renewTag}<small>${i.state ? i.state + " &middot; " : ""}${i.expires_at}</small></div>
+      <div style="font-family:var(--font-mono);font-size:0.85rem;color:${dayColor};">${dayLabel}</div>
+      <div></div><div></div>`;
+    row.addEventListener("click", () => {
+      if (i.subject_type === "archive_item") openArchiveDetail(i.id);
+      else openEditor(i.id);
+    });
+    return row;
+  }
+
+  async function renderRenewalsList() {
+    const { items } = await apiJson("/api/renewals");
+    const filtered = items.filter(i => RENEWALS_HORIZON === "all" || i.daysUntil <= Number(RENEWALS_HORIZON));
+    const wrap = document.getElementById("renewalsList");
+    wrap.innerHTML = "";
+    document.getElementById("renewalsEmptyState").style.display = filtered.length ? "none" : "";
+
+    let lastGroup = null;
+    filtered.forEach(i => {
+      const group = renewalsGroupLabel(i.daysUntil);
+      if (group !== lastGroup) {
+        const header = document.createElement("div");
+        header.style.cssText = "margin:18px 0 8px;font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--silver);";
+        header.textContent = group;
+        wrap.appendChild(header);
+        lastGroup = group;
+      }
+      wrap.appendChild(buildRenewalRow(i));
+    });
+
+    return items;
+  }
+
+  async function setupRenewals() {
+    await renderRenewalsList();
+    document.querySelectorAll('[data-renewals-horizon]').forEach(chip => {
+      chip.addEventListener("click", (e) => {
+        document.querySelectorAll('[data-renewals-horizon]').forEach(c => c.classList.remove("active"));
+        e.target.classList.add("active");
+        RENEWALS_HORIZON = e.target.dataset.renewalsHorizon;
+        renderRenewalsList();
+      });
+    });
+  }
+
+  // In-app alert: a small red count on the nav link itself, refreshed on
+  // every page load regardless of which section is open — the whole
+  // point of an in-app alert is that you see it without having to go
+  // looking for it.
+  async function refreshRenewalsBadge() {
+    try {
+      const { items } = await apiJson("/api/renewals");
+      const dueCount = items.filter(i => i.daysUntil <= 30).length;
+      const badge = document.getElementById("renewalsNavBadge");
+      badge.textContent = dueCount;
+      badge.style.display = dueCount > 0 ? "" : "none";
+    } catch (err) {
+      // A failed badge refresh shouldn't be visible to the user — it just
+      // stays hidden until the next successful check.
+    }
   }
 </script>
 </body>

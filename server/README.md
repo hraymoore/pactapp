@@ -244,6 +244,40 @@ isn't" framing. Worth knowing:
   session — belt-and-suspenders for "authenticated, short-lived signed
   URLs."
 
+## Renewal reminders
+
+One `services/renewals.js` covers both native contracts and archive
+items — "the same reminder system" rather than two parallel ones. Worth
+knowing:
+
+- **Four fixed thresholds** (`REMINDER_INTERVALS_DAYS = [90, 60, 30, 7]`),
+  not one fixed window — each is tracked independently per subject in
+  `renewal_reminders_sent` (`UNIQUE(subject_type, subject_id,
+  interval_days)`), so a date gets up to four separate emails over its
+  lead-up, each exactly once.
+- **Only ever one email per sweep per subject**, even the first time a
+  job sees a date that's already inside multiple thresholds at once
+  (e.g. a contract created with a 55-day-out expiration is already
+  within both the 90- and 60-day windows) — `runReminderSweep` sends the
+  smallest (most urgent) applicable threshold and marks every applicable
+  one as consumed, rather than firing the least-urgent one now and the
+  next one redundantly on the very next run.
+- **No lower bound on how overdue something can be** — an item that's
+  long overdue and never got a reminder (the job was down, or it only
+  just got an expiration date added) still gets exactly one catch-up
+  reminder, not a daily nag forever after.
+- **Changing a date clears its thresholds** (`clearRemindersForSubject`,
+  called from `routes/contracts.js` `PUT /:id` and `routes/archive.js`
+  `PUT /:id` whenever `expires_at`/`expiration_date` actually changes) —
+  the old thresholds applied to the old date, not the new one.
+- **`GET /api/renewals`** is the in-app "calendar of every key date" —
+  every contract/archive item the caller can see that has a date at all,
+  sorted by urgency, with no server-side horizon filtering (the
+  dashboard's 30/90/all chips filter client-side over the same payload).
+  The nav badge count on the Renewals tab (`refreshRenewalsBadge` in
+  `dashboard.html`) is this same endpoint, just counting `daysUntil <=
+  30` — there's no separate notification/inbox system.
+
 ## Stripe webhooks locally
 
 `STRIPE_SECRET_KEY` alone is enough to test Checkout and Identity in
@@ -273,13 +307,13 @@ server/
     us-states.js             # canonical state list for the state engine
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
-    routes/                  # auth, templates, contracts, sign, ai, billing, payments, archive, identity, purchases, organizations, internal
+    routes/                  # auth, templates, contracts, sign, ai, billing, payments, archive, renewals, identity, purchases, organizations, internal
     services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails,
                               # billing-provider, payments, archive, archive-encryption, malware-scan-provider,
-                              # document-text-extractor, file-sniff, identity-provider, mailer, organizations,
-                              # contract-health, versions
+                              # document-text-extractor, file-sniff, renewals, identity-provider, mailer,
+                              # organizations, contract-health, versions
   scripts/
-    send-expiration-reminders.js  # the real logic — npm run reminders-local (local dev) or POST /api/internal/run-expiration-reminders (prod); also covers archive-item renewal reminders
+    send-expiration-reminders.js  # thin wrapper around services/renewals.js's runReminderSweep — npm run reminders-local (local dev) or POST /api/internal/run-expiration-reminders (prod)
     send-annual-pass-reminders.js # the real logic — npm run annual-pass-reminders-local (local dev) or POST /api/internal/run-annual-pass-reminders (prod)
     send-archive-purge.js         # the real logic — npm run archive-purge-local (local dev) or POST /api/internal/run-archive-purge (prod)
     ping-expiration-reminders.js  # what Render Cron actually runs daily — npm run reminders

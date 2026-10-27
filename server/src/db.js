@@ -329,6 +329,95 @@ CREATE TABLE IF NOT EXISTS off_platform_payment_confirmations (
   confirmed_by_user_id INTEGER REFERENCES users(id),
   confirmed_at TEXT
 );
+
+-- An uploaded copy of a contract signed before Pact or outside it
+-- entirely — deliberately NOT a row in contracts: it has no parties,
+-- signatures, audit-trail-of-execution, or Pact certificate, and must
+-- never be presented as if it did (see services/archive.js's persistent
+-- "Uploaded Archive Copy" badge, enforced everywhere an archive item is
+-- rendered). storage_path points into server/data/archive/, named by a
+-- random id; the file on disk is AES-256-GCM ciphertext (encryption_iv/
+-- encryption_auth_tag below are what decrypts it) — this is genuinely new
+-- relative to contract_attachments, which stores files unencrypted on
+-- disk today; it does not retrofit encryption onto that existing feature.
+-- sha256_hash is computed over the ORIGINAL plaintext bytes at upload
+-- time and never recomputed — it proves the file hasn't changed since
+-- upload, not that the underlying contract is genuine or enforceable.
+CREATE TABLE IF NOT EXISTS archive_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_user_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  category TEXT,
+  governing_state TEXT,
+  counterparty_names TEXT,
+  effective_date TEXT,
+  expiration_date TEXT,
+  auto_renews INTEGER NOT NULL DEFAULT 0,
+  total_value_cents INTEGER,
+  tags TEXT,
+  notes TEXT,
+  ai_suggested_fields TEXT,
+  original_filename TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  storage_path TEXT NOT NULL,
+  encryption_iv TEXT NOT NULL,
+  encryption_auth_tag TEXT NOT NULL,
+  sha256_hash TEXT NOT NULL,
+  uploaded_at TEXT NOT NULL,
+  extracted_text TEXT,
+  extraction_note TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'quarantined')),
+  expiration_reminder_sent_at TEXT,
+  deleted_at TEXT,
+  purged_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Full-text search over archive metadata + OCR'd/extracted document text.
+-- Kept in sync by application code (services/archive.js), not SQL
+-- triggers, matching how the rest of this schema favors plain, traceable
+-- statements over implicit database logic. archive_item_id is UNINDEXED
+-- (just a lookup key, never matched against).
+CREATE VIRTUAL TABLE IF NOT EXISTS archive_fts USING fts5(
+  archive_item_id UNINDEXED,
+  title, category, governing_state, counterparty_names, tags, notes, extracted_text
+);
+
+-- Same evidentiary purpose as audit_log, but scoped to archive_item_id
+-- instead of contract_id, and explicitly carrying user_id + ip_address —
+-- the spec for archive uploads calls for logging "user ID, timestamp, and
+-- IP" on every action, stricter than audit_log's name/email-only shape.
+CREATE TABLE IF NOT EXISTS archive_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  archive_item_id INTEGER NOT NULL REFERENCES archive_items(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  actor_name TEXT,
+  actor_email TEXT,
+  ip_address TEXT,
+  action TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 'teammate' shares can be view/edit/admin (matching the Business
+-- Directory's organization_members role vocabulary conceptually, but
+-- scoped per-item rather than per-organization); 'counterparty' shares
+-- are forced to 'view' server-side regardless of what's requested (see
+-- services/archive.js shareArchiveItem) — a counterparty gets read-only
+-- access to a copy of their own contract, never edit rights over someone
+-- else's archive.
+CREATE TABLE IF NOT EXISTS archive_shares (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  archive_item_id INTEGER NOT NULL REFERENCES archive_items(id) ON DELETE CASCADE,
+  shared_by_user_id INTEGER NOT NULL REFERENCES users(id),
+  shared_with_user_id INTEGER NOT NULL REFERENCES users(id),
+  permission TEXT NOT NULL CHECK (permission IN ('view', 'edit', 'admin')),
+  share_type TEXT NOT NULL DEFAULT 'teammate' CHECK (share_type IN ('teammate', 'counterparty')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (archive_item_id, shared_with_user_id)
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

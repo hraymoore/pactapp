@@ -31,4 +31,9 @@ router.post("/run-annual-pass-reminders", requireInternalSecret, (req, res) => {
   res.json({ ok: true, ...run() });
 });
 
+router.post("/run-archive-purge", requireInternalSecret, (req, res) => {
+  const { run } = require("../../scripts/send-archive-purge");
+  res.json({ ok: true, ...run() });
+});
+
 module.exports = router;

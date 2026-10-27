@@ -95,4 +95,42 @@ async function chatWithAI(messages, contractContext) {
   return msg.content.map((block) => block.text || "").join("\n");
 }
 
-module.exports = { aiConfigured, draftWithAI, analyzeWithAI, chatWithAI };
+// "Auto-fill details with Pact AI" for an archive upload (routes/
+// archive.js) — proposes values only; the caller never saves these
+// without the user explicitly reviewing and confirming each field (see
+// archive_items.ai_suggested_fields, which records exactly that).
+async function extractArchiveMetadataWithAI(documentText) {
+  if (!aiConfigured()) throw notConfiguredError();
+  const client = getClient();
+  const truncated = documentText.slice(0, 15000);
+  const msg = await client.messages.create({
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+    max_tokens: 800,
+    messages: [
+      {
+        role: "user",
+        content:
+          "You are Pact AI, helping a user catalog an uploaded contract document into an archive. " +
+          "Read the document text below and propose values for these fields. Respond with ONLY a JSON " +
+          "object, no commentary, no markdown code fence, matching exactly this shape (use null for any " +
+          "field you can't confidently determine):\n\n" +
+          '{"title": string|null, "category": string|null, "governingState": string|null (two-letter US ' +
+          'state code if named in the document), "counterpartyNames": string[] (every named party other ' +
+          'than the uploader, best guess), "effectiveDate": string|null ("YYYY-MM-DD"), "expirationDate": ' +
+          'string|null ("YYYY-MM-DD"), "autoRenews": boolean|null, "totalValueCents": number|null (total ' +
+          'dollar value mentioned, converted to cents), "tags": string[] (2-5 short topical tags)}\n\n' +
+          `Document text:\n${truncated}`,
+      },
+    ],
+  });
+  const raw = msg.content.map((block) => block.text || "").join("\n");
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("Pact AI did not return a usable suggestion for this document.");
+  try {
+    return JSON.parse(match[0]);
+  } catch (err) {
+    throw new Error("Pact AI's suggestion could not be parsed.");
+  }
+}
+
+module.exports = { aiConfigured, draftWithAI, analyzeWithAI, chatWithAI, extractArchiveMetadataWithAI };

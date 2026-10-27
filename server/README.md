@@ -112,6 +112,7 @@ canned response) until its key is set in `.env`:
 | Identity verification | `STRIPE_SECRET_KEY` (+ `STRIPE_IDENTITY_ENABLED`) | `501` — "Identity verification is not connected yet" |
 | Email (signing invitations) | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | Signing link is returned in the API response to share manually |
 | Contract payments (Stripe Connect) | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | `501` — "Billing is not connected yet" on every payment route |
+| Archive uploads | `MALWARE_SCAN_API_KEY`, `ARCHIVE_ENCRYPTION_KEY` | `501` on every upload — files are refused, not stored unscanned/unencrypted |
 
 **Identity verification is deliberately routed through Stripe Identity
 rather than built in-house.** Pact never collects or stores a government ID
@@ -198,6 +199,51 @@ Connect structure avoids money-transmitter licensing exposure for Pact in
 every state where users will actually transact — see Terms of Service
 Section 10a.
 
+## Archive uploads
+
+A copy of a contract signed before Pact, or outside it entirely — never a
+row in `contracts`, and never shown with any of the verification marks a
+natively-executed contract gets. See `server/src/db.js`'s `archive_items`
+comment and Terms of Service Section 8a for the full "what this is and
+isn't" framing. Worth knowing:
+
+- **Content-sniffed, not extension-trusted** (`services/file-sniff.js`):
+  the five allow-listed formats (PDF, DOCX, PNG, JPEG, TIFF) are detected
+  by magic bytes, so renaming a disallowed file doesn't get it past the
+  upload route.
+- **Malware-scanned and encrypted, both required, both fail closed**: see
+  the table above. Nothing is ever stored unscanned or unencrypted — there
+  is no "best-effort" mode for either, unlike most other integrations in
+  this codebase.
+- **Full-text search** (`archive_fts`, SQLite FTS5) indexes metadata plus
+  whatever text could be extracted from the file —
+  `services/document-text-extractor.js` runs Tesseract OCR on images,
+  reads a PDF's own embedded text layer (via `pdf-parse`), or extracts a
+  DOCX's text (via `mammoth`). **Scanned/image-only PDFs have no OCR
+  fallback yet** — that needs a PDF rasterizer, which isn't implemented;
+  the item still saves and is searchable by its metadata, with an
+  `extraction_note` saying why no text came out of the file itself.
+- **"Auto-fill with Pact AI"** (Pro/Enterprise only, `POST /api/archive/
+  :id/ai-suggest`) proposes field values from that extracted text —
+  `services/ai-provider.js`'s `extractArchiveMetadataWithAI` — and never
+  saves them; the client only writes a suggested value to the real field
+  (`PUT /api/archive/:id`) once the user clicks "Accept" on it.
+- **Soft delete, 30-day trash, then a real purge** — a second scheduled
+  job, `scripts/send-archive-purge.js` / `ping-archive-purge.js`, same
+  internal-route indirection as the reminder jobs below. **This needs its
+  own new Render Cron Job** (`npm run archive-purge`, e.g. daily) — it
+  wasn't piggybacked onto the existing reminders cron job, because it's a
+  different kind of job (retention purge, not "check dates and email
+  someone"). Renewal/expiration reminders for archive items, by contrast,
+  *were* folded into the existing `send-expiration-reminders.js` job — no
+  second cron job needed for those.
+- **Short-lived signed download URLs**: `GET /api/archive/:id/download-
+  token` issues a 5-minute, purpose-tagged JWT (`auth-utils.js`'s
+  `signArchiveDownloadToken`, same pattern as the MFA challenge token) that
+  `GET /api/archive/:id/file?token=...` checks on top of the normal
+  session — belt-and-suspenders for "authenticated, short-lived signed
+  URLs."
+
 ## Stripe webhooks locally
 
 `STRIPE_SECRET_KEY` alone is enough to test Checkout and Identity in
@@ -227,12 +273,16 @@ server/
     us-states.js             # canonical state list for the state engine
     auth-utils.js           # bcrypt + JWT helpers
     middleware/auth.js       # attachUser / requireAuth / requireTier
-    routes/                  # auth, templates, contracts, sign, ai, billing, payments, identity, purchases, organizations, internal
+    routes/                  # auth, templates, contracts, sign, ai, billing, payments, archive, identity, purchases, organizations, internal
     services/                # pdf, signing, contract-factory, uploads, purchases, ai-provider, ai-guardrails,
-                              # billing-provider, payments, identity-provider, mailer, organizations, contract-health, versions
+                              # billing-provider, payments, archive, archive-encryption, malware-scan-provider,
+                              # document-text-extractor, file-sniff, identity-provider, mailer, organizations,
+                              # contract-health, versions
   scripts/
-    send-expiration-reminders.js  # the real logic — npm run reminders-local (local dev) or POST /api/internal/run-expiration-reminders (prod)
+    send-expiration-reminders.js  # the real logic — npm run reminders-local (local dev) or POST /api/internal/run-expiration-reminders (prod); also covers archive-item renewal reminders
     send-annual-pass-reminders.js # the real logic — npm run annual-pass-reminders-local (local dev) or POST /api/internal/run-annual-pass-reminders (prod)
+    send-archive-purge.js         # the real logic — npm run archive-purge-local (local dev) or POST /api/internal/run-archive-purge (prod)
     ping-expiration-reminders.js  # what Render Cron actually runs daily — npm run reminders
     ping-annual-pass-reminders.js # what Render Cron actually runs daily — npm run annual-pass-reminders
+    ping-archive-purge.js         # what Render Cron actually runs daily — npm run archive-purge (needs its own new Cron Job — see "Archive uploads" above)
 ```

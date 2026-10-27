@@ -18,6 +18,11 @@ const PACT_SUB_PROCESSORS = [
     purpose:
       "Transactional email only (password resets, signing-link notifications, attorney-review confirmations), sent via SendGrid's SMTP relay. No marketing email is sent.",
   },
+  {
+    name: "Cloudmersive",
+    purpose:
+      "Malware scanning for every file uploaded to the Archive feature, before it's stored. Cloudmersive receives the file's bytes to scan them; Pact does not store a document in the Archive at all if this scan can't be completed or finds a threat.",
+  },
 ];
 
 function renderSubProcessorList(el) {

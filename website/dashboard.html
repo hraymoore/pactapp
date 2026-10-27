@@ -57,6 +57,7 @@
     </div>
     <div class="dash-nav">
       <a href="#" class="active" data-section="contracts">📄 Contracts</a>
+      <a href="#" data-section="archive">📁 Archive</a>
       <a href="#" data-section="business">🏢 Business</a>
       <a href="#" data-section="purchases">🛒 Purchases</a>
       <a href="#" data-section="ai">✨ Pact AI</a>
@@ -94,11 +95,62 @@
       <div class="filter-row" id="paymentFilterRow" style="margin-bottom:8px;">
         <button class="chip active" data-payment="All">All Payment Status</button>
       </div>
+      <div class="filter-row" id="sourceFilterRow" style="margin-bottom:16px;">
+        <button class="chip active" data-source="All">All Sources</button>
+        <button class="chip" data-source="Pact">Pact-native</button>
+        <button class="chip" data-source="Archived">Archived uploads</button>
+      </div>
       <div class="filter-row" style="margin-bottom:16px;">
         <button class="chip" id="expiringToggleChip">⏰ Expiring within 30 days</button>
       </div>
       <div id="contractList"></div>
+      <!-- Archive items matching the search box above, rendered as a
+           visually distinct block rather than perfectly interleaved by
+           date with native contracts — a deliberate v1 simplification,
+           not an oversight; both still show up in "My Contracts" search
+           as the spec calls for. -->
+      <div id="archiveInContractsList"></div>
       <p id="emptyState" style="display:none;">No contracts yet. <a href="templates.html" style="color:var(--gold-bright);">Start from a template</a>.</p>
+    </section>
+
+    <section id="sec-archive" style="display:none;">
+      <div class="dash-head">
+        <div>
+          <h2 style="margin-bottom:4px;">Archive</h2>
+          <p style="margin:0;">Upload and store contracts signed before Pact, or outside it entirely, in one searchable place.</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-gold" id="openArchiveUploadBtn">⬆ Upload to Archive</button>
+          <button class="btn btn-ghost-dark" id="openArchiveTrashBtn">🗑 Trash</button>
+        </div>
+      </div>
+      <div class="alert alert-ruby show" style="margin-bottom:20px;">
+        <strong>Uploaded Archive Copy — not executed through Pact.</strong> Pact has not verified signatures, parties, or authenticity of anything uploaded here.
+      </div>
+      <div class="card" style="margin-bottom:20px;padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <strong style="font-family:var(--font-mono);font-size:0.78rem;letter-spacing:0.06em;text-transform:uppercase;">Storage used</strong>
+          <span id="archiveUsageText" style="font-family:var(--font-mono);font-size:0.85rem;">—</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.06);border-radius:6px;height:8px;overflow:hidden;">
+          <div id="archiveUsageBar" style="background:var(--gold-bright);height:100%;width:0%;"></div>
+        </div>
+        <p id="archiveUsageUpgradeNote" style="display:none;margin:10px 0 0;font-size:0.82rem;color:var(--gold-bright);">You're at your tier's archive limit — <a href="pricing.html" style="color:var(--gold-bright);">upgrade</a> or delete older items to add more.</p>
+      </div>
+      <div class="field" style="max-width:360px;">
+        <input id="archiveSearch" type="text" placeholder="Search archived documents (titles, tags, extracted text)…">
+      </div>
+      <div class="filter-row" id="archiveCategoryFilterRow" style="margin-bottom:8px;">
+        <button class="chip active" data-archive-category="All">All Categories</button>
+      </div>
+      <div class="filter-row" id="archiveStateFilterRow" style="margin-bottom:8px;">
+        <button class="chip active" data-archive-state="All">All States</button>
+      </div>
+      <div class="filter-row" style="margin-bottom:16px;">
+        <button class="chip" id="archiveExpiringToggleChip">⏰ Expiring within 30 days</button>
+      </div>
+      <div id="archiveList"></div>
+      <p id="archiveEmptyState" style="display:none;">No archived documents yet.</p>
     </section>
 
     <section id="sec-business" style="display:none;">
@@ -569,6 +621,99 @@
   </div>
 </div>
 
+<!-- Archive upload modal — bulk, up to 20 files. Shared metadata applies
+     to every file in the batch; each item is editable individually
+     afterward (see the detail modal below). -->
+<div class="modal-backdrop" id="archiveUploadModal">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" id="closeArchiveUploadModal">&times;</button>
+    <div class="eyebrow">Archive upload</div>
+    <h3>Upload old or outside contracts</h3>
+    <p style="font-size:0.85rem;">PDF, DOCX, PNG, JPG, or TIFF — up to 25MB each, 20 files per batch. These were NOT created or signed through Pact, so they carry no Pact verification.</p>
+    <div class="field"><label>Files</label><input id="archiveUploadFiles" type="file" multiple accept=".pdf,.docx,.png,.jpg,.jpeg,.tiff"></div>
+    <p style="font-size:0.78rem;color:var(--silver);margin:-8px 0 14px;">The fields below apply to every file in this batch — rename and refine each one individually after upload.</p>
+    <div class="field"><label>Category (optional)</label><input id="archiveUploadCategory" type="text" placeholder="e.g. Real Estate"></div>
+    <div class="field"><label>Governing state (optional)</label><select id="archiveUploadState"><option value="">Not specified</option></select></div>
+    <div class="field"><label>Tags (comma-separated, optional)</label><input id="archiveUploadTags" type="text" placeholder="e.g. lease, vendor"></div>
+    <button class="btn btn-gold btn-block" id="confirmArchiveUploadBtn">Upload</button>
+    <div id="archiveUploadResults" style="margin-top:14px;font-size:0.85rem;"></div>
+    <p id="archiveUploadError" class="alert alert-ruby" style="margin-top:14px;"></p>
+  </div>
+</div>
+
+<!-- Archive item detail/edit modal -->
+<div class="modal-backdrop" id="archiveDetailModal">
+  <div class="modal" style="max-width:560px;">
+    <button class="modal-close" id="closeArchiveDetailModal">&times;</button>
+    <div class="eyebrow">Archive item</div>
+    <h3 id="archiveDetailTitle">Document</h3>
+    <div class="alert alert-ruby show" style="margin-bottom:16px;font-size:0.8rem;">
+      <strong>Uploaded Archive Copy — not executed through Pact.</strong> Pact has not verified signatures, parties, or authenticity.
+    </div>
+    <p id="archiveExtractionNote" style="display:none;font-size:0.8rem;color:var(--gold-bright);margin-top:-8px;margin-bottom:14px;"></p>
+
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      <button class="btn btn-ghost-dark btn-sm" id="archiveDownloadBtn">⬇ Download Original</button>
+      <button class="btn btn-ghost-dark btn-sm" id="archiveAiSuggestBtn">✨ Auto-fill with Pact AI</button>
+      <button class="btn btn-ghost-dark btn-sm" id="archiveShareToggleBtn">👤 Share</button>
+      <button class="btn btn-ghost-dark btn-sm" id="archiveDeleteBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">🗑 Delete</button>
+    </div>
+    <p id="archiveAiError" class="alert alert-ruby"></p>
+    <div id="archiveAiSuggestionBox" style="display:none;margin-bottom:16px;padding:14px;background:rgba(205,163,73,0.08);border:1px solid var(--gold);border-radius:8px;">
+      <p style="margin:0 0 10px;font-size:0.82rem;color:var(--gold-bright);">Pact AI suggested the values below from the document's extracted text. Review each one — nothing is saved until you click Save Changes.</p>
+      <div id="archiveAiSuggestionFields" style="font-size:0.85rem;"></div>
+    </div>
+
+    <div class="field"><label>Title</label><input id="archiveTitle" type="text"></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div class="field" style="max-width:220px;"><label>Category</label><input id="archiveCategory" type="text"></div>
+      <div class="field" style="max-width:160px;"><label>Governing state</label><select id="archiveGoverningState"><option value="">Not specified</option></select></div>
+    </div>
+    <div class="field"><label>Counterparty name(s), comma-separated</label><input id="archiveCounterparties" type="text"></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div class="field" style="max-width:200px;"><label>Effective date</label><input id="archiveEffectiveDate" type="date"></div>
+      <div class="field" style="max-width:200px;"><label>Expiration / renewal date</label><input id="archiveExpirationDate" type="date"></div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;padding-top:22px;">
+        <input id="archiveAutoRenews" type="checkbox" style="width:auto;">
+        <label for="archiveAutoRenews" style="margin:0;display:inline;">Auto-renews</label>
+      </div>
+    </div>
+    <div class="field" style="max-width:200px;"><label>Total value (USD, optional)</label><input id="archiveTotalValue" type="number" min="0" step="0.01"></div>
+    <div class="field"><label>Tags, comma-separated</label><input id="archiveTags" type="text"></div>
+    <div class="field"><label>Notes</label><textarea id="archiveNotes" rows="3"></textarea></div>
+    <button class="btn btn-gold" id="saveArchiveDetailBtn">Save Changes</button>
+    <p id="archiveDetailError" class="alert alert-ruby" style="margin-top:14px;"></p>
+
+    <div id="archiveShareBox" style="display:none;margin-top:20px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">SHARE</label>
+      <div id="archiveShareList" style="margin-bottom:12px;font-size:0.85rem;"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input id="archiveShareEmail" type="email" placeholder="colleague@example.com" style="flex:1;min-width:180px;">
+        <select id="archiveSharePermission"><option value="view">View</option><option value="edit">Edit</option><option value="admin">Admin</option></select>
+        <select id="archiveShareType"><option value="teammate">Teammate</option><option value="counterparty">Counterparty (view-only)</option></select>
+        <button class="btn btn-ghost-dark btn-sm" id="confirmArchiveShareBtn">Share</button>
+      </div>
+      <p id="archiveShareError" class="alert alert-ruby" style="margin-top:10px;"></p>
+    </div>
+
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">ACTIVITY LOG</label>
+      <div id="archiveAuditList" style="font-size:0.82rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Archive trash modal -->
+<div class="modal-backdrop" id="archiveTrashModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeArchiveTrashModal">&times;</button>
+    <div class="eyebrow">Archive</div>
+    <h3>Trash</h3>
+    <p style="font-size:0.85rem;">Deleted items are kept for 30 days before being permanently purged.</p>
+    <div id="archiveTrashList"></div>
+  </div>
+</div>
+
 <script src="https://js.stripe.com/v3/"></script>
 <script src="js/app.js"></script>
 <script>
@@ -705,6 +850,10 @@
   let CONTRACT_EXPIRING_ONLY = false;
 
   function filterContracts() {
+    if (typeof CONTRACT_SOURCE_FILTER !== "undefined" && CONTRACT_SOURCE_FILTER === "Archived") {
+      drawContractRows([]);
+      return;
+    }
     const q = document.getElementById("contractSearch").value.trim().toLowerCase();
     const filtered = ALL_CONTRACTS.filter(c =>
       (!q || c.name.toLowerCase().includes(q) || (c.genre || "").toLowerCase().includes(q)) &&
@@ -1372,7 +1521,7 @@
       e.preventDefault();
       document.querySelectorAll(".dash-nav a[data-section]").forEach(x => x.classList.remove("active"));
       a.classList.add("active");
-      ["contracts", "business", "purchases", "ai", "audit", "settings"].forEach(id => {
+      ["contracts", "archive", "business", "purchases", "ai", "audit", "settings"].forEach(id => {
         document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
       });
     });
@@ -2150,18 +2299,22 @@
     });
 
     document.getElementById("contractSearch").addEventListener("input", filterContracts);
+    document.getElementById("contractSearch").addEventListener("input", debounce(() => renderArchiveInContractsList(), 300));
 
     apiJson("/api/templates/states").then(({ states }) => {
-      const sel = document.getElementById("uploadState");
-      states.forEach(s => {
-        const opt = document.createElement("option");
-        opt.value = s.code;
-        opt.textContent = s.name;
-        sel.appendChild(opt);
+      ["uploadState", "archiveUploadState", "archiveGoverningState"].forEach(id => {
+        const sel = document.getElementById(id);
+        states.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.code;
+          opt.textContent = s.name;
+          sel.appendChild(opt);
+        });
       });
     });
 
     await renderContracts();
+    await setupArchive();
     await renderPurchases();
     await renderAudit();
     await setupAI();
@@ -2181,6 +2334,429 @@
       history.replaceState(null, "", window.location.pathname);
     }
   })();
+
+  // ===================== Archive =====================
+  let ALL_ARCHIVE_ITEMS = [];
+  let ARCHIVE_CATEGORY_FILTER = "All";
+  let ARCHIVE_STATE_FILTER = "All";
+  let ARCHIVE_EXPIRING_ONLY = false;
+  let CONTRACT_SOURCE_FILTER = "All";
+  let editingArchiveId = null;
+  let archiveAiSuggestion = null;
+
+  function archiveBadge() {
+    return '<span class="mini-tag" style="margin-left:8px;color:var(--ruby-bright);" title="Not executed through Pact — Pact has not verified signatures, parties, or authenticity.">Uploaded Archive Copy</span>';
+  }
+
+  async function setupArchive() {
+    await renderArchiveUsage();
+    await renderArchiveList();
+
+    document.getElementById("archiveSearch").addEventListener("input", debounce(renderArchiveList, 300));
+    document.getElementById("archiveExpiringToggleChip").addEventListener("click", (e) => {
+      ARCHIVE_EXPIRING_ONLY = !ARCHIVE_EXPIRING_ONLY;
+      e.target.classList.toggle("active", ARCHIVE_EXPIRING_ONLY);
+      renderArchiveList();
+    });
+
+    document.getElementById("openArchiveUploadBtn").addEventListener("click", () => {
+      document.getElementById("archiveUploadResults").innerHTML = "";
+      document.getElementById("archiveUploadError").classList.remove("show");
+      document.getElementById("archiveUploadModal").classList.add("show");
+    });
+    document.getElementById("closeArchiveUploadModal").addEventListener("click", () => document.getElementById("archiveUploadModal").classList.remove("show"));
+
+    document.getElementById("confirmArchiveUploadBtn").addEventListener("click", async () => {
+      const errBox = document.getElementById("archiveUploadError");
+      errBox.classList.remove("show");
+      const filesInput = document.getElementById("archiveUploadFiles");
+      if (!filesInput.files.length) {
+        errBox.textContent = "Choose at least one file.";
+        errBox.classList.add("show");
+        return;
+      }
+      const formData = new FormData();
+      for (const f of filesInput.files) formData.append("files", f);
+      const tags = document.getElementById("archiveUploadTags").value.split(",").map(s => s.trim()).filter(Boolean);
+      formData.append("metadata", JSON.stringify({
+        category: document.getElementById("archiveUploadCategory").value.trim() || null,
+        governingState: document.getElementById("archiveUploadState").value || null,
+        tags,
+      }));
+      const btn = document.getElementById("confirmArchiveUploadBtn");
+      btn.disabled = true;
+      try {
+        const r = await fetch("/api/archive/upload", { method: "POST", credentials: "include", body: formData });
+        const data = await r.json();
+        if (!r.ok && !data.results) throw new Error(data.error || "Upload failed.");
+        const resultsBox = document.getElementById("archiveUploadResults");
+        resultsBox.innerHTML = (data.results || []).map(res =>
+          res.ok
+            ? `<div style="color:var(--emerald-bright);">✔ ${res.filename} — uploaded</div>`
+            : `<div style="color:var(--ruby-bright);">✘ ${res.filename} — ${res.error}</div>`
+        ).join("");
+        filesInput.value = "";
+        await renderArchiveUsage();
+        await renderArchiveList();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById("openArchiveTrashBtn").addEventListener("click", openArchiveTrash);
+    document.getElementById("closeArchiveTrashModal").addEventListener("click", () => document.getElementById("archiveTrashModal").classList.remove("show"));
+
+    document.getElementById("sourceFilterRow").addEventListener("click", (e) => {
+      if (!e.target.classList.contains("chip")) return;
+      document.getElementById("sourceFilterRow").querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      e.target.classList.add("active");
+      CONTRACT_SOURCE_FILTER = e.target.dataset.source;
+      filterContracts();
+      renderArchiveInContractsList();
+    });
+
+    wireArchiveDetailModal();
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  async function renderArchiveUsage() {
+    const { count, limit } = await apiJson("/api/archive/usage");
+    const text = document.getElementById("archiveUsageText");
+    const bar = document.getElementById("archiveUsageBar");
+    const upgradeNote = document.getElementById("archiveUsageUpgradeNote");
+    if (limit === null) {
+      text.textContent = `${count} files (unlimited, fair-use)`;
+      bar.style.width = "4%";
+      upgradeNote.style.display = "none";
+    } else {
+      text.textContent = `${count} / ${limit} files`;
+      bar.style.width = `${limit === 0 ? 100 : Math.min(100, (count / limit) * 100)}%`;
+      upgradeNote.style.display = count >= limit ? "" : "none";
+    }
+  }
+
+  function buildArchiveFilterRow(rowId, dataKey, current, values) {
+    const row = document.getElementById(rowId);
+    const allLabel = row.querySelector(`[data-${dataKey}="All"]`);
+    row.innerHTML = "";
+    row.appendChild(allLabel);
+    values.forEach(v => {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (v === current ? " active" : "");
+      chip.dataset[dataKey.replace("archive-", "")] = v;
+      chip.textContent = v;
+      row.appendChild(chip);
+    });
+    allLabel.classList.toggle("active", current === "All");
+  }
+
+  async function renderArchiveList() {
+    const params = new URLSearchParams();
+    const q = document.getElementById("archiveSearch").value.trim();
+    if (q) params.set("query", q);
+    if (ARCHIVE_CATEGORY_FILTER !== "All") params.set("category", ARCHIVE_CATEGORY_FILTER);
+    if (ARCHIVE_STATE_FILTER !== "All") params.set("state", ARCHIVE_STATE_FILTER);
+    if (ARCHIVE_EXPIRING_ONLY) params.set("expiringSoon", "true");
+
+    const { items } = await apiJson(`/api/archive?${params.toString()}`);
+    ALL_ARCHIVE_ITEMS = items;
+
+    buildArchiveFilterRow("archiveCategoryFilterRow", "archive-category", ARCHIVE_CATEGORY_FILTER, [...new Set(items.map(i => i.category).filter(Boolean))].sort());
+    buildArchiveFilterRow("archiveStateFilterRow", "archive-state", ARCHIVE_STATE_FILTER, [...new Set(items.map(i => i.governing_state).filter(Boolean))].sort());
+    document.getElementById("archiveCategoryFilterRow").querySelectorAll("[data-archive-category]").forEach(chip => chip.addEventListener("click", (e) => {
+      ARCHIVE_CATEGORY_FILTER = e.target.dataset.archiveCategory;
+      renderArchiveList();
+    }));
+    document.getElementById("archiveStateFilterRow").querySelectorAll("[data-archive-state]").forEach(chip => chip.addEventListener("click", (e) => {
+      ARCHIVE_STATE_FILTER = e.target.dataset.archiveState;
+      renderArchiveList();
+    }));
+
+    const wrap = document.getElementById("archiveList");
+    wrap.innerHTML = "";
+    document.getElementById("archiveEmptyState").style.display = items.length ? "none" : "";
+    items.forEach(i => wrap.appendChild(buildArchiveRow(i)));
+
+    await renderArchiveInContractsList();
+  }
+
+  function buildArchiveRow(i) {
+    const row = document.createElement("div");
+    row.className = "contract-row";
+    row.innerHTML = `
+      <div class="name">${escapeHtml(i.title)}${archiveBadge()}<small>${i.category || "Uncategorized"}${i.governing_state ? " &middot; " + i.governing_state : ""} &middot; updated ${fmt(i.updated_at)}</small></div>
+      <div><span class="status-pill status-draft">Archived</span></div>
+      <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${i.original_filename}</div>
+      <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--silver);">${(i.size_bytes / 1024).toFixed(0)} KB</div>
+      <div class="row-actions">
+        <button class="icon-btn" title="View / Edit" data-archive-open="${i.id}">✎</button>
+      </div>`;
+    row.querySelector("[data-archive-open]").addEventListener("click", () => openArchiveDetail(i.id));
+    return row;
+  }
+
+  // Simplified rows for matching archive items inside the "My Contracts"
+  // search/filter view — same badge, fewer actions (no sign/send; this
+  // was never executed through Pact).
+  async function renderArchiveInContractsList() {
+    const wrap = document.getElementById("archiveInContractsList");
+    if (CONTRACT_SOURCE_FILTER === "Pact") { wrap.innerHTML = ""; return; }
+    const q = document.getElementById("contractSearch").value.trim();
+    const params = new URLSearchParams();
+    if (q) params.set("query", q);
+    const { items } = await apiJson(`/api/archive?${params.toString()}`);
+    wrap.innerHTML = "";
+    if (CONTRACT_SOURCE_FILTER === "Archived" && items.length === 0) return;
+    items.forEach(i => wrap.appendChild(buildArchiveRow(i)));
+  }
+
+  async function openArchiveDetail(id) {
+    const { item } = await apiJson(`/api/archive/${id}`);
+    editingArchiveId = id;
+    archiveAiSuggestion = null;
+    document.getElementById("archiveDetailTitle").textContent = item.title;
+    document.getElementById("archiveExtractionNote").style.display = item.extraction_note ? "" : "none";
+    document.getElementById("archiveExtractionNote").textContent = item.extraction_note || "";
+    document.getElementById("archiveTitle").value = item.title;
+    document.getElementById("archiveCategory").value = item.category || "";
+    document.getElementById("archiveGoverningState").value = item.governing_state || "";
+    document.getElementById("archiveCounterparties").value = (item.counterparty_names || []).join(", ");
+    document.getElementById("archiveEffectiveDate").value = item.effective_date || "";
+    document.getElementById("archiveExpirationDate").value = item.expiration_date || "";
+    document.getElementById("archiveAutoRenews").checked = !!item.auto_renews;
+    document.getElementById("archiveTotalValue").value = item.total_value_cents != null ? (item.total_value_cents / 100).toFixed(2) : "";
+    document.getElementById("archiveTags").value = (item.tags || []).join(", ");
+    document.getElementById("archiveNotes").value = item.notes || "";
+    document.getElementById("archiveAiSuggestionBox").style.display = "none";
+    document.getElementById("archiveAiError").classList.remove("show");
+    document.getElementById("archiveDetailError").classList.remove("show");
+    document.getElementById("archiveShareBox").style.display = "none";
+    document.getElementById("archiveAiSuggestBtn").style.display = TIER_ORDER.indexOf(CURRENT_USER.tier) >= TIER_ORDER.indexOf("pro") ? "" : "none";
+    document.getElementById("archiveDeleteBtn").style.display = item.myAccess === "owner" ? "" : "none";
+    document.getElementById("archiveShareToggleBtn").style.display = item.myAccess === "owner" ? "" : "none";
+    const readOnly = item.myAccess === "view";
+    document.getElementById("saveArchiveDetailBtn").style.display = readOnly ? "none" : "";
+
+    await renderArchiveAudit(id);
+    document.getElementById("archiveDetailModal").classList.add("show");
+  }
+
+  async function renderArchiveAudit(id) {
+    const box = document.getElementById("archiveAuditList");
+    try {
+      const { audit } = await apiJson(`/api/archive/${id}/audit`);
+      box.innerHTML = audit.length ? "" : "<p style='margin:0;'>No activity recorded.</p>";
+      audit.forEach(a => {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:4px 0;color:var(--silver);";
+        row.textContent = `${fmt(a.created_at)} — ${a.actor_name || "System"}: ${a.action}${a.detail ? " — " + a.detail : ""}`;
+        box.appendChild(row);
+      });
+    } catch (err) {
+      box.innerHTML = "";
+    }
+  }
+
+  function wireArchiveDetailModal() {
+    document.getElementById("closeArchiveDetailModal").addEventListener("click", () => document.getElementById("archiveDetailModal").classList.remove("show"));
+
+    document.getElementById("archiveDownloadBtn").addEventListener("click", async () => {
+      try {
+        const { token } = await apiJson(`/api/archive/${editingArchiveId}/download-token`);
+        window.location.href = `/api/archive/${editingArchiveId}/file?token=${encodeURIComponent(token)}`;
+        const downloadedId = editingArchiveId;
+        setTimeout(() => {
+          // Only refresh if the user is still looking at this same item —
+          // they may have deleted it or moved on by the time this fires,
+          // and that item's audit log is correctly inaccessible once
+          // soft-deleted (a 404 here would just be noise, not an error).
+          if (editingArchiveId === downloadedId && document.getElementById("archiveDetailModal").classList.contains("show")) {
+            renderArchiveAudit(downloadedId);
+          }
+        }, 1000);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById("archiveAiSuggestBtn").addEventListener("click", async () => {
+      const errBox = document.getElementById("archiveAiError");
+      errBox.classList.remove("show");
+      const btn = document.getElementById("archiveAiSuggestBtn");
+      btn.disabled = true;
+      try {
+        const { suggestion } = await apiJson(`/api/archive/${editingArchiveId}/ai-suggest`, { method: "POST", body: JSON.stringify({}) });
+        archiveAiSuggestion = suggestion;
+        renderArchiveAiSuggestion(suggestion);
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById("archiveShareToggleBtn").addEventListener("click", async () => {
+      const box = document.getElementById("archiveShareBox");
+      box.style.display = box.style.display === "none" ? "" : "none";
+      if (box.style.display !== "none") await renderArchiveShareList();
+    });
+
+    document.getElementById("confirmArchiveShareBtn").addEventListener("click", async () => {
+      const errBox = document.getElementById("archiveShareError");
+      errBox.classList.remove("show");
+      try {
+        await apiJson(`/api/archive/${editingArchiveId}/share`, {
+          method: "POST",
+          body: JSON.stringify({
+            email: document.getElementById("archiveShareEmail").value.trim(),
+            permission: document.getElementById("archiveSharePermission").value,
+            shareType: document.getElementById("archiveShareType").value,
+          }),
+        });
+        document.getElementById("archiveShareEmail").value = "";
+        await renderArchiveShareList();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      }
+    });
+
+    document.getElementById("archiveDeleteBtn").addEventListener("click", async () => {
+      if (!confirm("Move this archived document to Trash? It will be permanently purged after 30 days unless restored.")) return;
+      try {
+        await apiJson(`/api/archive/${editingArchiveId}/delete`, { method: "POST", body: JSON.stringify({}) });
+        document.getElementById("archiveDetailModal").classList.remove("show");
+        await renderArchiveUsage();
+        await renderArchiveList();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById("saveArchiveDetailBtn").addEventListener("click", async () => {
+      const errBox = document.getElementById("archiveDetailError");
+      errBox.classList.remove("show");
+      try {
+        const payload = {
+          title: document.getElementById("archiveTitle").value.trim(),
+          category: document.getElementById("archiveCategory").value.trim() || null,
+          governingState: document.getElementById("archiveGoverningState").value || null,
+          counterpartyNames: document.getElementById("archiveCounterparties").value.split(",").map(s => s.trim()).filter(Boolean),
+          effectiveDate: document.getElementById("archiveEffectiveDate").value || null,
+          expirationDate: document.getElementById("archiveExpirationDate").value || null,
+          autoRenews: document.getElementById("archiveAutoRenews").checked,
+          totalValueCents: document.getElementById("archiveTotalValue").value ? Math.round(parseFloat(document.getElementById("archiveTotalValue").value) * 100) : null,
+          tags: document.getElementById("archiveTags").value.split(",").map(s => s.trim()).filter(Boolean),
+          notes: document.getElementById("archiveNotes").value.trim() || null,
+        };
+        await apiJson(`/api/archive/${editingArchiveId}`, { method: "PUT", body: JSON.stringify(payload) });
+        document.getElementById("archiveDetailModal").classList.remove("show");
+        await renderArchiveList();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      }
+    });
+  }
+
+  function renderArchiveAiSuggestion(suggestion) {
+    const box = document.getElementById("archiveAiSuggestionBox");
+    const fieldsBox = document.getElementById("archiveAiSuggestionFields");
+    box.style.display = "";
+    const rows = [
+      ["title", "Title", suggestion.title],
+      ["category", "Category", suggestion.category],
+      ["governingState", "Governing state", suggestion.governingState],
+      ["counterpartyNames", "Counterparties", (suggestion.counterpartyNames || []).join(", ")],
+      ["effectiveDate", "Effective date", suggestion.effectiveDate],
+      ["expirationDate", "Expiration date", suggestion.expirationDate],
+      ["autoRenews", "Auto-renews", suggestion.autoRenews === null ? null : (suggestion.autoRenews ? "Yes" : "No")],
+      ["totalValueCents", "Total value", suggestion.totalValueCents != null ? `$${(suggestion.totalValueCents / 100).toFixed(2)}` : null],
+      ["tags", "Tags", (suggestion.tags || []).join(", ")],
+    ].filter(([, , value]) => value !== null && value !== "");
+
+    fieldsBox.innerHTML = "";
+    rows.forEach(([key, label, value]) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:4px 0;gap:10px;";
+      row.innerHTML = `<span>${label}: <strong>${escapeHtml(String(value))}</strong></span>`;
+      const btn = document.createElement("button");
+      btn.className = "btn btn-ghost-dark btn-sm";
+      btn.textContent = "Accept";
+      btn.addEventListener("click", () => {
+        applyArchiveAiField(key, suggestion[key]);
+        btn.textContent = "Applied — confirmed by you";
+        btn.disabled = true;
+      });
+      row.appendChild(btn);
+      fieldsBox.appendChild(row);
+    });
+  }
+
+  function applyArchiveAiField(key, value) {
+    const map = {
+      title: () => document.getElementById("archiveTitle").value = value || "",
+      category: () => document.getElementById("archiveCategory").value = value || "",
+      governingState: () => document.getElementById("archiveGoverningState").value = value || "",
+      counterpartyNames: () => document.getElementById("archiveCounterparties").value = (value || []).join(", "),
+      effectiveDate: () => document.getElementById("archiveEffectiveDate").value = value || "",
+      expirationDate: () => document.getElementById("archiveExpirationDate").value = value || "",
+      autoRenews: () => document.getElementById("archiveAutoRenews").checked = !!value,
+      totalValueCents: () => document.getElementById("archiveTotalValue").value = value != null ? (value / 100).toFixed(2) : "",
+      tags: () => document.getElementById("archiveTags").value = (value || []).join(", "),
+    };
+    if (map[key]) map[key]();
+  }
+
+  async function renderArchiveShareList() {
+    const { shares } = await apiJson(`/api/archive/${editingArchiveId}/shares`);
+    const box = document.getElementById("archiveShareList");
+    box.innerHTML = shares.length ? "" : "<p style='margin:0;'>Not shared with anyone yet.</p>";
+    shares.forEach(s => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:4px 0;";
+      row.innerHTML = `<span>${escapeHtml(s.name)} &lt;${escapeHtml(s.email)}&gt; — ${s.permission} (${s.share_type})</span>`;
+      const btn = document.createElement("button");
+      btn.className = "icon-btn";
+      btn.textContent = "✕";
+      btn.title = "Revoke";
+      btn.addEventListener("click", async () => {
+        await apiJson(`/api/archive/${editingArchiveId}/share/${s.id}`, { method: "DELETE" });
+        await renderArchiveShareList();
+      });
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+
+  async function openArchiveTrash() {
+    const { items } = await apiJson("/api/archive/trash");
+    const box = document.getElementById("archiveTrashList");
+    box.innerHTML = items.length ? "" : "<p style='margin:0;'>Trash is empty.</p>";
+    items.forEach(i => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);";
+      row.innerHTML = `<span>${escapeHtml(i.title)}<br><small style="color:var(--silver);">Deleted ${fmt(i.deleted_at)}</small></span>`;
+      const btn = document.createElement("button");
+      btn.className = "btn btn-ghost-dark btn-sm";
+      btn.textContent = "Restore";
+      btn.addEventListener("click", async () => {
+        await apiJson(`/api/archive/${i.id}/restore`, { method: "POST", body: JSON.stringify({}) });
+        await openArchiveTrash();
+        await renderArchiveUsage();
+        await renderArchiveList();
+      });
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+    document.getElementById("archiveTrashModal").classList.add("show");
+  }
 </script>
 </body>
 </html>

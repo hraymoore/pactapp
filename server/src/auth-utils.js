@@ -54,6 +54,25 @@ function verifyMfaChallengeToken(token) {
   }
 }
 
+// Short-lived, purpose-tagged JWT for an archive file download — "serve
+// only through authenticated, short-lived signed URLs" per the archive
+// spec. Carries the archive item id and the user id it was issued to, so
+// the download route can't be handed to a different, unauthorized user
+// even if the URL leaked within its 5-minute window.
+const ARCHIVE_DOWNLOAD_PURPOSE = "archive_download";
+function signArchiveDownloadToken(archiveItemId, userId) {
+  return jwt.sign({ sub: userId, archiveItemId, purpose: ARCHIVE_DOWNLOAD_PURPOSE }, getSecret(), { expiresIn: "5m" });
+}
+
+function verifyArchiveDownloadToken(token) {
+  try {
+    const payload = jwt.verify(token, getSecret());
+    return payload.purpose === ARCHIVE_DOWNLOAD_PURPOSE ? payload : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 // Unambiguous alphabet (no 0/O/1/I/l) so a temp password read out of an
 // email doesn't get mistyped.
 const TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -74,4 +93,6 @@ module.exports = {
   generateTempPassword,
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  signArchiveDownloadToken,
+  verifyArchiveDownloadToken,
 };

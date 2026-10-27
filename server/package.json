@@ -10,7 +10,9 @@
     "reminders": "node scripts/ping-expiration-reminders.js",
     "annual-pass-reminders": "node scripts/ping-annual-pass-reminders.js",
     "reminders-local": "node scripts/send-expiration-reminders.js",
-    "annual-pass-reminders-local": "node scripts/send-annual-pass-reminders.js"
+    "annual-pass-reminders-local": "node scripts/send-annual-pass-reminders.js",
+    "archive-purge": "node scripts/ping-archive-purge.js",
+    "archive-purge-local": "node scripts/send-archive-purge.js"
   },
   "engines": {
     "node": ">=22.5.0"
@@ -23,11 +25,14 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.13.0",
     "multer": "^2.0.1",
     "nodemailer": "^9.0.5",
     "otplib": "^12.0.1",
     "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
     "qrcode": "^1.5.4",
-    "stripe": "^16.8.0"
+    "stripe": "^16.8.0",
+    "tesseract.js": "^7.0.0"
   }
 }

@@ -419,6 +419,66 @@ CREATE TABLE IF NOT EXISTS archive_shares (
   UNIQUE (archive_item_id, shared_with_user_id)
 );
 
+-- A formal, signed change to an already-executed contract — never
+-- applied directly to contracts.body the way a pre-signature edit is.
+-- 'amendment' modifies existing terms; 'addendum' adds new ones without
+-- altering the original text; both go through the identical sign/
+-- reject flow below, just labeled differently. proposed_body is the
+-- FULL replacement text (same shape as contract_versions.body), not a
+-- patch — diffed against the contract's current body on demand via
+-- services/versions.js's diffVersions, the same redline engine the
+-- version-history view uses. Only one 'pending' amendment is allowed
+-- per contract at a time (enforced in services/amendments.js), so there
+-- is never ambiguity about what a party is being asked to sign.
+CREATE TABLE IF NOT EXISTS contract_amendments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  proposed_by_user_id INTEGER NOT NULL REFERENCES users(id),
+  amendment_type TEXT NOT NULL DEFAULT 'amendment' CHECK (amendment_type IN ('amendment', 'addendum')),
+  title TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  proposed_body TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'signed', 'rejected', 'withdrawn')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  executed_at TEXT
+);
+
+-- One row per contract_parties row, seeded the moment an amendment is
+-- proposed (see services/amendments.js proposeAmendment) — this is how
+-- "has everyone signed yet" is known without re-deriving party lists,
+-- and mirrors contract_parties.signed_at/signature_name/signature_ip
+-- exactly, just scoped to one amendment instead of the original
+-- contract. A single party's rejection kills the whole amendment
+-- (rejected_at set here, contract_amendments.status moves to
+-- 'rejected') rather than letting the remaining parties sign something
+-- that's no longer fully agreed.
+CREATE TABLE IF NOT EXISTS amendment_signatures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  amendment_id INTEGER NOT NULL REFERENCES contract_amendments(id) ON DELETE CASCADE,
+  party_id INTEGER NOT NULL REFERENCES contract_parties(id),
+  signed_at TEXT,
+  signature_name TEXT,
+  signature_ip TEXT,
+  rejected_at TEXT,
+  rejection_reason TEXT,
+  UNIQUE (amendment_id, party_id)
+);
+
+-- One certificate per fully-executed amendment — generated once, the
+-- moment the last required signature lands (services/amendments.js
+-- executeAmendment), never regenerated. Same storage/hash pattern as
+-- payment_certificates: the PDF lives on disk under server/data/
+-- amendment-certificates/, data_hash is a SHA-256 of the certificate's
+-- data fields (not the PDF bytes) so a later alteration of the file can
+-- be detected independent of re-reading it.
+CREATE TABLE IF NOT EXISTS amendment_certificates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  amendment_id INTEGER NOT NULL REFERENCES contract_amendments(id) ON DELETE CASCADE,
+  pdf_file_ref TEXT NOT NULL,
+  data_hash TEXT NOT NULL,
+  issued_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Idempotency ledger for renewal/expiration reminders, shared by native
 -- contracts and archive items (subject_type distinguishes them — there's
 -- no FK here on purpose, since it points at one of two different tables).

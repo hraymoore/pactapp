@@ -10,7 +10,7 @@ const { contentHash, createContractFromTemplate } = require("../services/contrac
 const { upload, UPLOAD_DIR } = require("../services/uploads");
 const { isValidStateCode } = require("../us-states");
 const { getMembership } = require("../services/organizations");
-const { snapshotVersion, listVersions, diffAgainstCurrent } = require("../services/versions");
+const { snapshotVersion, listVersions, resolveComparable, diffVersions } = require("../services/versions");
 const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const payments = require("../services/payments");
@@ -299,16 +299,25 @@ router.get("/:id/versions", (req, res) => {
   res.json({ versions: listVersions(contract.id) });
 });
 
-router.get("/:id/versions/:versionId/diff", (req, res) => {
+// Compares any two points in a contract's history — either side can be a
+// specific saved version's id or the literal "current" for the live
+// body — not just "this past version vs. today." Replaces the old
+// single-version "vs current" redline endpoint.
+router.get("/:id/versions/compare", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
-  const version = db
-    .prepare("SELECT * FROM contract_versions WHERE id = ? AND contract_id = ?")
-    .get(req.params.versionId, contract.id);
-  if (!version) return res.status(404).json({ error: "Version not found." });
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: "Both 'from' and 'to' are required." });
+
+  const fromSide = resolveComparable(contract, from);
+  const toSide = resolveComparable(contract, to);
+  if (!fromSide) return res.status(404).json({ error: "The 'from' version was not found." });
+  if (!toSide) return res.status(404).json({ error: "The 'to' version was not found." });
+
   res.json({
-    version: { id: version.id, saved_by_name: version.saved_by_name, created_at: version.created_at },
-    diff: diffAgainstCurrent(version.body, contract.body),
+    from: { key: fromSide.key, savedByName: fromSide.savedByName, at: fromSide.at },
+    to: { key: toSide.key, savedByName: toSide.savedByName, at: toSide.at },
+    diff: diffVersions(fromSide.body, toSide.body),
   });
 });
 

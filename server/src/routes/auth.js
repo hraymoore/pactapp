@@ -54,6 +54,14 @@ function publicUser(row) {
     created_at: row.created_at,
     passwordIsTemporary: !!row.temp_password_expires_at,
     mfaEnabled: !!row.mfa_enabled,
+    jobTitle: row.job_title,
+    company: row.company,
+    bio: row.bio,
+    website: row.website,
+    timezone: row.timezone,
+    preferredLanguage: row.preferred_language,
+    dateFormat: row.date_format,
+    photoFileRef: row.photo_file_ref,
   };
 }
 
@@ -471,3 +479,9 @@ router.get("/me", (req, res) => {
 });
 
 module.exports = router;
+// Attached to the router export (not a separate module) so index.js's
+// `app.use("/api/auth", require("./routes/auth"))` doesn't change shape —
+// routes/profile.js needs the exact same serialization /api/auth/me uses,
+// so the PUT /api/profile response matches what a page already expects
+// from CURRENT_USER after a fresh login.
+module.exports.publicUser = publicUser;

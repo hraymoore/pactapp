@@ -147,7 +147,17 @@ async function paintNav() {
   loggedInEls.forEach(el => el.style.display = user ? "" : "none");
 
   if (user) {
-    document.querySelectorAll("[data-user-avatar]").forEach(el => el.textContent = PactAPI.initials(user.name));
+    document.querySelectorAll("[data-user-avatar]").forEach(el => {
+      if (user.photoFileRef) {
+        el.textContent = "";
+        el.style.backgroundImage = `url(/api/profile/photo/${user.id}/thumb)`;
+        el.style.backgroundSize = "cover";
+        el.style.backgroundPosition = "center";
+      } else {
+        el.textContent = PactAPI.initials(user.name);
+        el.style.backgroundImage = "";
+      }
+    });
     document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = user.name);
     document.querySelectorAll("[data-user-tier]").forEach(el => el.textContent = PactAPI.tierMeta(user.tier).label);
   }

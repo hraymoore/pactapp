@@ -8,6 +8,24 @@ const {
   retrieveVerificationSession,
 } = require("../services/identity-provider");
 
+// A verified identity is the source of truth for a legal name from this
+// point on (spec 1.2: "read-only after verification... requires re-
+// running Stripe Identity verification" to change). Rather than a
+// separate "request a change" workflow, re-running verification — which
+// is the only way legal_first_name/legal_last_name ever get written
+// after signup — IS the change mechanism: whatever Stripe verifies here,
+// first-time or a later re-verification, becomes the account's legal
+// name. Only applied once status reaches 'verified' with real output,
+// never on a pending/failed session.
+function syncLegalNameFromVerification(userId, status, firstName, lastName) {
+  if (status !== "verified" || !firstName) return;
+  db.prepare("UPDATE users SET legal_first_name = ?, legal_last_name = ? WHERE id = ?").run(
+    firstName,
+    lastName || "",
+    userId
+  );
+}
+
 // Public — Stripe calls this directly with a raw, signature-verified body.
 router.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
@@ -24,13 +42,14 @@ router.post("/webhook", express.raw({ type: "application/json" }), (req, res) =>
     if (event.type.startsWith("identity.verification_session.")) {
       const session = event.data.object;
       const status = session.status === "verified" ? "verified" : session.status === "canceled" ? "failed" : "pending";
-      const verifiedName =
-        session.verified_outputs && session.verified_outputs.first_name
-          ? `${session.verified_outputs.first_name} ${session.verified_outputs.last_name || ""}`.trim()
-          : null;
+      const firstName = session.verified_outputs && session.verified_outputs.first_name;
+      const lastName = session.verified_outputs && session.verified_outputs.last_name;
+      const verifiedName = firstName ? `${firstName} ${lastName || ""}`.trim() : null;
+      const verification = db.prepare("SELECT user_id FROM identity_verifications WHERE external_session_id = ?").get(session.id);
       db.prepare(
         "UPDATE identity_verifications SET status = ?, verified_name = COALESCE(?, verified_name), updated_at = datetime('now') WHERE external_session_id = ?"
       ).run(status, verifiedName, session.id);
+      if (verification) syncLegalNameFromVerification(verification.user_id, status, firstName, lastName);
     }
     res.json({ received: true });
   } catch (err) {
@@ -79,13 +98,13 @@ router.post("/refresh", async (req, res) => {
   try {
     const session = await retrieveVerificationSession(row.external_session_id);
     const status = session.status === "verified" ? "verified" : session.status === "canceled" ? "failed" : "pending";
-    const verifiedName =
-      session.verified_outputs && session.verified_outputs.first_name
-        ? `${session.verified_outputs.first_name} ${session.verified_outputs.last_name || ""}`.trim()
-        : row.verified_name;
+    const firstName = session.verified_outputs && session.verified_outputs.first_name;
+    const lastName = session.verified_outputs && session.verified_outputs.last_name;
+    const verifiedName = firstName ? `${firstName} ${lastName || ""}`.trim() : row.verified_name;
     db.prepare(
       "UPDATE identity_verifications SET status = ?, verified_name = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(status, verifiedName, row.id);
+    syncLegalNameFromVerification(row.user_id, status, firstName, lastName);
     res.json({ status, verifiedName });
   } catch (err) {
     res.status(500).json({ error: err.message });

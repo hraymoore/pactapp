@@ -306,14 +306,72 @@
         <div>
           <div data-settings-panel="profile">
             <div class="card">
+              <h3>Photo</h3>
+              <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+                <div class="avatar" id="profilePhotoAvatar" data-user-avatar style="width:96px;height:96px;font-size:1.8rem;flex-shrink:0;">—</div>
+                <div>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-ghost-dark btn-sm" id="uploadPhotoBtn">Upload Photo</button>
+                    <button class="btn btn-ghost-dark btn-sm" id="removePhotoBtn" style="display:none;border-color:var(--ruby);color:var(--ruby-bright);">Remove Photo</button>
+                  </div>
+                  <p style="margin-top:10px;margin-bottom:0;font-size:0.78rem;color:var(--silver);">Visible to people you contract with. JPG, PNG, or WebP, up to 5MB.</p>
+                </div>
+              </div>
+              <input id="photoFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;">
+              <p id="photoError" class="alert alert-ruby" style="margin-top:10px;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
               <h3>Profile</h3>
-              <p><strong>Name:</strong> <span data-user-name>—</span></p>
               <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
               <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
-              <p id="settingsLegalNameRow" style="display:none;"><strong>Legal name:</strong> <span id="settingsLegalName">—</span></p>
-              <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
               <p><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
-              <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">Editable display name, photo, and other profile fields are coming in a later phase.</p>
+
+              <div class="field"><label for="profileDisplayName">Display name</label><input id="profileDisplayName" type="text" maxlength="60"></div>
+              <p style="margin:-10px 0 14px;font-size:0.76rem;color:var(--silver);">Shown to people you contract with. 2–60 characters, up to 5 changes per 30 days.</p>
+
+              <div id="settingsLegalNameRow" style="display:none;">
+                <div class="field"><label>Legal name</label><input id="profileLegalName" type="text" disabled></div>
+                <p id="legalNameLockNote" style="margin:-10px 0 14px;font-size:0.76rem;color:var(--silver);"></p>
+              </div>
+              <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
+
+              <div id="individualProfileFields">
+                <div class="field"><label for="profileJobTitle">Job title</label><input id="profileJobTitle" type="text" placeholder="e.g. Freelance Designer"></div>
+                <div class="field"><label for="profileCompany">Company</label><input id="profileCompany" type="text" placeholder="Optional"></div>
+              </div>
+
+              <div class="field">
+                <label for="profileBio">Short bio</label>
+                <textarea id="profileBio" rows="3" maxlength="280"></textarea>
+                <p id="profileBioCount" style="margin:4px 0 0;font-size:0.76rem;color:var(--silver);">0 / 280</p>
+              </div>
+              <div class="field"><label for="profileWebsite">Website</label><input id="profileWebsite" type="text" placeholder="https://"></div>
+
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div class="field" style="max-width:220px;"><label for="profileTimezone">Time zone</label>
+                  <select id="profileTimezone"></select>
+                </div>
+                <div class="field" style="max-width:180px;"><label for="profileLanguage">Preferred language</label>
+                  <select id="profileLanguage">
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="pt">Português</option>
+                  </select>
+                </div>
+                <div class="field" style="max-width:180px;"><label for="profileDateFormat">Date format</label>
+                  <select id="profileDateFormat">
+                    <option value="MDY">MM/DD/YYYY</option>
+                    <option value="DMY">DD/MM/YYYY</option>
+                    <option value="YMD">YYYY-MM-DD</option>
+                  </select>
+                </div>
+              </div>
+
+              <button class="btn btn-gold btn-sm" id="saveProfileBtn" style="margin-top:6px;">Save Profile</button>
+              <p id="profileSaveNote" style="margin-top:14px;font-size:0.82rem;"></p>
             </div>
           </div>
 
@@ -641,6 +699,28 @@
     <div class="field" id="reauthMfaField" style="display:none;"><label for="reauthMfaCode">Verification code</label><input id="reauthMfaCode" placeholder="123456 or a backup code" autocomplete="one-time-code"></div>
     <button class="btn btn-gold btn-block" id="reauthContinueBtn">Continue</button>
     <p id="reauthError" class="alert alert-ruby" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<!-- Profile photo crop/zoom — the crop here is purely a UX convenience;
+     the server (services/profile-photo.js) re-decodes, re-crops and
+     re-encodes the ORIGINAL file it's sent using the same cropX/cropY/
+     cropSize numbers this computes, strips EXIF and validates the real
+     file content itself. Nothing here is a security boundary. -->
+<div class="modal-backdrop" id="photoCropModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-close" id="closePhotoCropModal">&times;</button>
+    <div class="eyebrow">Profile photo</div>
+    <h3>Crop &amp; zoom</h3>
+    <div id="photoCropViewport" style="width:280px;height:280px;margin:0 auto;border-radius:50%;overflow:hidden;position:relative;background:var(--obsidian);cursor:grab;touch-action:none;">
+      <img id="photoCropImage" style="position:absolute;top:0;left:0;max-width:none;user-select:none;-webkit-user-drag:none;">
+    </div>
+    <div class="field" style="margin-top:16px;">
+      <label for="photoCropZoom">Zoom</label>
+      <input id="photoCropZoom" type="range" min="1" max="3" step="0.01" value="1" style="width:100%;">
+    </div>
+    <button class="btn btn-gold btn-block" id="photoCropSaveBtn">Save Photo</button>
+    <p id="photoCropError" class="alert alert-ruby" style="margin-top:10px;"></p>
   </div>
 </div>
 
@@ -2102,6 +2182,219 @@
     });
   }
 
+  // Updates every [data-user-avatar] element on the page — the nav
+  // avatar and the larger one on the Profile panel both carry this same
+  // attribute, so one pass keeps them in sync after an upload/removal
+  // without waiting for the next full page load (paintNav in app.js does
+  // the equivalent on initial boot, from a fresh /api/auth/me).
+  function paintAvatars() {
+    document.querySelectorAll("[data-user-avatar]").forEach(el => {
+      if (CURRENT_USER.photoFileRef) {
+        el.textContent = "";
+        el.style.backgroundImage = `url(/api/profile/photo/${CURRENT_USER.id}/thumb)`;
+        el.style.backgroundSize = "cover";
+        el.style.backgroundPosition = "center";
+      } else {
+        el.textContent = PactAPI.initials(CURRENT_USER.name);
+        el.style.backgroundImage = "";
+      }
+    });
+  }
+
+  async function setupProfile() {
+    document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
+    document.getElementById("settingsAccountType").textContent = CURRENT_USER.accountType === "business" ? "Business" : "Personal";
+    document.getElementById("settingsJoined").textContent = fmt(CURRENT_USER.created_at);
+
+    document.getElementById("profileDisplayName").value = CURRENT_USER.name || "";
+    document.getElementById("profileJobTitle").value = CURRENT_USER.jobTitle || "";
+    document.getElementById("profileCompany").value = CURRENT_USER.company || "";
+    document.getElementById("profileBio").value = CURRENT_USER.bio || "";
+    document.getElementById("profileWebsite").value = CURRENT_USER.website || "";
+    document.getElementById("profileDateFormat").value = CURRENT_USER.dateFormat || "MDY";
+    document.getElementById("profileLanguage").value = CURRENT_USER.preferredLanguage || "en";
+
+    const bioInput = document.getElementById("profileBio");
+    const bioCount = document.getElementById("profileBioCount");
+    const updateBioCount = () => { bioCount.textContent = `${bioInput.value.length} / 280`; };
+    updateBioCount();
+    bioInput.addEventListener("input", updateBioCount);
+
+    const tzSelect = document.getElementById("profileTimezone");
+    let zones = [];
+    try { zones = Intl.supportedValuesOf("timeZone"); } catch (e) { zones = []; }
+    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zones.length === 0) zones = [browserZone];
+    if (!zones.includes(browserZone)) zones.unshift(browserZone);
+    tzSelect.innerHTML = zones.map(z => `<option value="${z}">${z}</option>`).join("");
+    tzSelect.value = CURRENT_USER.timezone || browserZone;
+
+    const isBusiness = CURRENT_USER.accountType === "business";
+    document.getElementById("individualProfileFields").style.display = isBusiness ? "none" : "";
+
+    if (!isBusiness) {
+      document.getElementById("settingsLegalNameRow").style.display = "";
+      document.getElementById("profileLegalName").value = `${CURRENT_USER.legalFirstName || ""} ${CURRENT_USER.legalLastName || ""}`.trim();
+      document.getElementById("settingsDobRow").style.display = "";
+      document.getElementById("settingsDob").textContent = CURRENT_USER.dateOfBirth
+        ? new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString()
+        : "—";
+      try {
+        const { verification } = await apiJson("/api/identity/status");
+        const lockNote = document.getElementById("legalNameLockNote");
+        lockNote.textContent = verification && verification.status === "verified"
+          ? "Locked after identity verification. To change it, go to Security → Identity Verification and re-verify — your legal name updates from the verified result."
+          : "Locked until you verify your identity (Security → Identity Verification) — your legal name is then set from your verified ID.";
+      } catch (err) {
+        // Identity status is best-effort here — the fields stay disabled either way.
+      }
+    }
+
+    document.getElementById("saveProfileBtn").addEventListener("click", async () => {
+      const note = document.getElementById("profileSaveNote");
+      note.style.color = "";
+      note.textContent = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            displayName: document.getElementById("profileDisplayName").value,
+            jobTitle: document.getElementById("profileJobTitle").value,
+            company: document.getElementById("profileCompany").value,
+            bio: document.getElementById("profileBio").value,
+            website: document.getElementById("profileWebsite").value,
+            timezone: document.getElementById("profileTimezone").value,
+            preferredLanguage: document.getElementById("profileLanguage").value,
+            dateFormat: document.getElementById("profileDateFormat").value,
+          }),
+        });
+        CURRENT_USER = data.user;
+        document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = CURRENT_USER.name);
+        paintAvatars();
+        note.textContent = "Profile saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupProfilePhoto() {
+    const CROP_VIEWPORT = 280;
+    paintAvatars();
+    document.getElementById("removePhotoBtn").style.display = CURRENT_USER.photoFileRef ? "" : "none";
+
+    const fileInput = document.getElementById("photoFileInput");
+    document.getElementById("uploadPhotoBtn").addEventListener("click", () => fileInput.click());
+
+    let cropState = null;
+
+    function clampTranslate() {
+      const scale = cropState.baseScale * cropState.zoom;
+      const dispW = cropState.naturalWidth * scale;
+      const dispH = cropState.naturalHeight * scale;
+      cropState.translateX = Math.min(0, Math.max(CROP_VIEWPORT - dispW, cropState.translateX));
+      cropState.translateY = Math.min(0, Math.max(CROP_VIEWPORT - dispH, cropState.translateY));
+    }
+    function applyCropTransform() {
+      clampTranslate();
+      const scale = cropState.baseScale * cropState.zoom;
+      const img = document.getElementById("photoCropImage");
+      img.style.width = `${cropState.naturalWidth * scale}px`;
+      img.style.height = `${cropState.naturalHeight * scale}px`;
+      img.style.transform = `translate(${cropState.translateX}px, ${cropState.translateY}px)`;
+    }
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      fileInput.value = "";
+      if (!file) return;
+      document.getElementById("photoCropError").classList.remove("show");
+      const img = document.getElementById("photoCropImage");
+      img.onload = () => {
+        const baseScale = Math.max(CROP_VIEWPORT / img.naturalWidth, CROP_VIEWPORT / img.naturalHeight);
+        cropState = { file, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, baseScale, zoom: 1, translateX: 0, translateY: 0 };
+        document.getElementById("photoCropZoom").value = 1;
+        applyCropTransform();
+        document.getElementById("photoCropModal").classList.add("show");
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    document.getElementById("photoCropZoom").addEventListener("input", (e) => {
+      if (!cropState) return;
+      cropState.zoom = Number(e.target.value);
+      applyCropTransform();
+    });
+
+    const viewport = document.getElementById("photoCropViewport");
+    let dragging = null;
+    viewport.addEventListener("pointerdown", (e) => {
+      if (!cropState) return;
+      dragging = { startX: e.clientX, startY: e.clientY, startTranslateX: cropState.translateX, startTranslateY: cropState.translateY };
+      viewport.setPointerCapture(e.pointerId);
+      viewport.style.cursor = "grabbing";
+    });
+    viewport.addEventListener("pointermove", (e) => {
+      if (!dragging || !cropState) return;
+      cropState.translateX = dragging.startTranslateX + (e.clientX - dragging.startX);
+      cropState.translateY = dragging.startTranslateY + (e.clientY - dragging.startY);
+      applyCropTransform();
+    });
+    const endDrag = () => { dragging = null; viewport.style.cursor = "grab"; };
+    viewport.addEventListener("pointerup", endDrag);
+    viewport.addEventListener("pointercancel", endDrag);
+
+    document.getElementById("closePhotoCropModal").addEventListener("click", () => {
+      document.getElementById("photoCropModal").classList.remove("show");
+      cropState = null;
+    });
+
+    document.getElementById("photoCropSaveBtn").addEventListener("click", async () => {
+      if (!cropState) return;
+      const errBox = document.getElementById("photoCropError");
+      errBox.classList.remove("show");
+      const saveBtn = document.getElementById("photoCropSaveBtn");
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        const scale = cropState.baseScale * cropState.zoom;
+        const form = new FormData();
+        form.append("photo", cropState.file);
+        form.append("cropX", String((0 - cropState.translateX) / scale));
+        form.append("cropY", String((0 - cropState.translateY) / scale));
+        form.append("cropSize", String(CROP_VIEWPORT / scale));
+        const r = await fetch("/api/profile/photo", { method: "POST", credentials: "include", body: form });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Upload failed.");
+        CURRENT_USER.photoFileRef = data.photoFileRef;
+        paintAvatars();
+        document.getElementById("removePhotoBtn").style.display = "";
+        document.getElementById("photoCropModal").classList.remove("show");
+        cropState = null;
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save Photo";
+      }
+    });
+
+    document.getElementById("removePhotoBtn").addEventListener("click", async () => {
+      if (!confirm("Remove your profile photo?")) return;
+      try {
+        await apiJson("/api/profile/photo", { method: "DELETE" });
+        CURRENT_USER.photoFileRef = null;
+        paintAvatars();
+        document.getElementById("removePhotoBtn").style.display = "none";
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
   // ---- business ----
   let CURRENT_ORG = null;
   let ALL_BIZ_CONTRACTS = [];
@@ -2492,17 +2785,6 @@
       return;
     }
     await ensureTermsAccepted();
-    document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
-    document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
-    document.getElementById("settingsAccountType").textContent = CURRENT_USER.accountType === "business" ? "Business" : "Personal";
-    if (CURRENT_USER.accountType !== "business" && (CURRENT_USER.legalFirstName || CURRENT_USER.legalLastName)) {
-      document.getElementById("settingsLegalNameRow").style.display = "";
-      document.getElementById("settingsLegalName").textContent = `${CURRENT_USER.legalFirstName || ""} ${CURRENT_USER.legalLastName || ""}`.trim();
-    }
-    if (CURRENT_USER.accountType !== "business" && CURRENT_USER.dateOfBirth) {
-      document.getElementById("settingsDobRow").style.display = "";
-      document.getElementById("settingsDob").textContent = new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString();
-    }
     document.getElementById("downloadDataBtn").addEventListener("click", async (e) => {
       if (!(await ensureRecentAuth())) return;
       const btn = e.target;
@@ -2560,6 +2842,8 @@
     await setupMfa();
     setupCloseAccount();
     setupSettingsSubNav();
+    await setupProfile();
+    setupProfilePhoto();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

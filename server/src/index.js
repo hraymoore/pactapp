@@ -23,6 +23,7 @@ app.use(cookieParser());
 app.use(attachUser);
 
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/profile", require("./routes/profile"));
 app.use("/api/templates", require("./routes/templates"));
 app.use("/api/contracts", require("./routes/contracts"));
 app.use("/api/sign", require("./routes/sign"));

@@ -477,6 +477,18 @@ CREATE TABLE IF NOT EXISTS account_audit_log (
   user_agent TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- "Report photo" (spec 1.1) — logged for later manual review. This app
+-- has no admin takedown UI yet, so a report today does not itself hide
+-- anything; it's a durable record a human can act on by hand (or a future
+-- admin tool can query) rather than the report silently going nowhere.
+CREATE TABLE IF NOT EXISTS photo_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reported_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reporter_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -563,6 +575,23 @@ for (const stmt of [
   // fields, nothing reads them to drive logic.
   "ALTER TABLE contracts ADD COLUMN closed_reason TEXT",
   "ALTER TABLE contracts ADD COLUMN reopened_reason TEXT",
+  // Profile fields (spec 1.2). job_title/company apply to individual
+  // accounts only (a business account's identity lives in organizations);
+  // left nullable/unused for business accounts rather than enforced, same
+  // as legal_first_name/legal_last_name above being individual-only.
+  "ALTER TABLE users ADD COLUMN job_title TEXT",
+  "ALTER TABLE users ADD COLUMN company TEXT",
+  "ALTER TABLE users ADD COLUMN bio TEXT",
+  "ALTER TABLE users ADD COLUMN website TEXT",
+  "ALTER TABLE users ADD COLUMN timezone TEXT",
+  "ALTER TABLE users ADD COLUMN preferred_language TEXT NOT NULL DEFAULT 'en'",
+  "ALTER TABLE users ADD COLUMN date_format TEXT NOT NULL DEFAULT 'MDY'",
+  // Base filename shared by both re-encoded sizes on disk (services/
+  // profile-photo.js writes "<photo_file_ref>-full.webp" and "-thumb.webp"
+  // outside the web root) — NULL means "no photo, show the initials
+  // fallback." Never the original upload: that's processed and discarded,
+  // never stored, per spec 1.1.
+  "ALTER TABLE users ADD COLUMN photo_file_ref TEXT",
 ]) {
   try {
     db.exec(stmt);

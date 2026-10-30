@@ -23,9 +23,25 @@ function verifyPassword(password, hash) {
   return bcrypt.compareSync(password, hash);
 }
 
-function signToken(user) {
-  return jwt.sign({ sub: user.id, email: user.email }, getSecret(), { expiresIn: "30d" });
+// sessionId ties this JWT to a row in the sessions table (services/
+// sessions.js) — the JWT itself is still what proves "this request has a
+// valid signature," but the session row is what can actually be listed or
+// revoked. A token without a resolvable, unrevoked session is treated as
+// logged out by attachUser, same as an expired or tampered one.
+function signToken(user, sessionId) {
+  return jwt.sign({ sub: user.id, email: user.email, sid: sessionId }, getSecret(), { expiresIn: "30d" });
 }
+
+// Shared across routes/auth.js (where sessions are created) and
+// middleware/auth.js (which silently re-issues a token for a pre-session
+// legacy cookie) so the cookie's actual attributes can't drift between
+// the two places that set it.
+const COOKIE_OPTS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+};
 
 function verifyToken(token) {
   try {
@@ -90,6 +106,7 @@ module.exports = {
   verifyPassword,
   signToken,
   verifyToken,
+  COOKIE_OPTS,
   generateTempPassword,
   signMfaChallengeToken,
   verifyMfaChallengeToken,

@@ -440,6 +440,43 @@ CREATE TABLE IF NOT EXISTS renewal_reminders_sent (
   sent_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (subject_type, subject_id, interval_days)
 );
+
+-- A real, revocable login session — replaces the old model where the JWT
+-- cookie alone was the entire session (stateless, 30 days, no way to list
+-- or kill one without rotating JWT_SECRET for everyone). The JWT now just
+-- carries this row's id (see auth-utils.js signToken) and this table is
+-- the actual source of truth: attachUser looks the session up on every
+-- request the same way it already re-checks account_status, so a revoked
+-- session stops working immediately with no separate blacklist needed.
+-- reauth_at backs the "recent authentication" gate in middleware/reauth.js
+-- — a sensitive action checks that this session re-proved the password
+-- (+ MFA) within the last 10 minutes before it's allowed to run.
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ip_address TEXT,
+  user_agent TEXT,
+  reauth_at TEXT,
+  revoked_at TEXT
+);
+
+-- Account-level security audit trail — distinct from audit_log above,
+-- which is scoped to a single contract (contract_id NOT NULL) and can't
+-- represent "user changed their password" or "user exported their data,"
+-- neither of which touches any one contract. Every sensitive action in
+-- middleware/reauth.js's gate, win or lose, writes one row here.
+CREATE TABLE IF NOT EXISTS account_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  result TEXT NOT NULL CHECK (result IN ('success', 'failure')),
+  detail TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

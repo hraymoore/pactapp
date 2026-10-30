@@ -8,22 +8,33 @@ const {
   generateTempPassword,
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  COOKIE_OPTS,
 } = require("../auth-utils");
 const { mailerConfigured, sendMail } = require("../services/mailer");
 const { requireAuth } = require("../middleware/auth");
+const { requireRecentAuth } = require("../middleware/reauth");
 const { isValidEinFormat, normalizeEin } = require("../services/organizations");
 const { recordAcceptance, clientIp } = require("../services/terms");
 const { cancelSubscriptionImmediately } = require("../services/billing-provider");
 const { verifyMfaCode } = require("../services/mfa");
+const { createSession, markReauth, hasRecentReauth, revokeAllSessions, revokeSession } = require("../services/sessions");
+const { logAccountAudit } = require("../services/account-audit");
+const { authAttemptLimiter } = require("../middleware/rate-limit");
 
 router.use(express.json());
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.NODE_ENV === "production",
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-};
+// A fresh login/signup/reactivation always gets its own new session row —
+// never reuses one from a prior cookie, even if somehow still present, so
+// each distinct "I signed in" event is independently listable/revocable
+// in Settings → Security (Phase 3).
+function startSession(req, user) {
+  const sessionId = createSession({
+    userId: user.id,
+    ip: clientIp(req),
+    userAgent: req.headers["user-agent"],
+  });
+  return signToken(user, sessionId);
+}
 
 const MAX_LOGIN_ATTEMPTS = 7;
 const TEMP_PASSWORD_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -136,11 +147,11 @@ router.post("/signup", (req, res) => {
   recordAcceptance({ userId, ipAddress: clientIp(req), acceptanceMethod: "checkbox_signup" });
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
   res.status(201).json({ user: publicUser(user) });
 });
 
-router.post("/login", (req, res) => {
+router.post("/login", authAttemptLimiter, (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
@@ -191,7 +202,7 @@ router.post("/login", (req, res) => {
   }
 
   const user = publicUser(refreshed);
-  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
   res.json({ user });
 });
 
@@ -217,7 +228,7 @@ router.post("/mfa/verify-login", (req, res) => {
     return res.status(401).json({ error: "Invalid verification code." });
   }
   const user = publicUser(row);
-  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
   res.json({ user });
 });
 
@@ -244,11 +255,11 @@ router.post("/reactivate", (req, res) => {
   db.prepare("UPDATE users SET account_status = 'active', closed_at = NULL, closed_by = NULL WHERE id = ?").run(row.id);
   const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
   const user = publicUser(refreshed);
-  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
   res.json({ user });
 });
 
-router.post("/forgot-password", (req, res) => {
+router.post("/forgot-password", authAttemptLimiter, (req, res) => {
   const { email } = req.body || {};
   if (!email || !email.trim()) {
     return res.status(400).json({ error: "Email is required." });
@@ -312,7 +323,7 @@ router.post("/change-password", requireAuth, (req, res) => {
   ).run(hashPassword(newPassword), row.id);
   const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
   const user = publicUser(refreshed);
-  res.cookie("pact_token", signToken(user), COOKIE_OPTS);
+  res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
   res.json({ user });
 });
 
@@ -344,6 +355,8 @@ router.post("/close", requireAuth, async (req, res) => {
   }
 
   db.prepare("UPDATE users SET account_status = 'closed', closed_at = datetime('now'), closed_by = 'user' WHERE id = ?").run(row.id);
+  revokeAllSessions(row.id);
+  logAccountAudit({ userId: row.id, action: "close_account", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.clearCookie("pact_token");
   res.json({ ok: true, note: billingNote });
 });
@@ -356,7 +369,53 @@ router.post("/close", requireAuth, async (req, res) => {
 // aren't "your" data, they're someone else's contract you were granted
 // access to, so a personal data export isn't the right channel to bulk-copy
 // them out.
-router.get("/export", requireAuth, (req, res) => {
+// Whether the current session can skip straight to a sensitive action
+// right now, and whether a prompt for one needs to also ask for an MFA
+// code — the frontend's ensureRecentAuth() checks this before deciding
+// whether to show the reauth modal at all.
+router.get("/reauth/status", requireAuth, (req, res) => {
+  res.json({ hasRecentAuth: hasRecentReauth(req.sessionId), mfaRequired: req.user.mfaEnabled });
+});
+
+// The step-up challenge itself — password, plus a TOTP/backup code if MFA
+// is on. A failure here is checked against the same lockout counters as
+// /login (it's the identical credential, so an attacker holding a stolen
+// session cookie shouldn't get an unlimited, separately-counted guessing
+// budget just because they're already "logged in").
+router.post("/reauth", requireAuth, authAttemptLimiter, (req, res) => {
+  const { password, mfaCode } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+
+  if (row.locked_at) {
+    return res.status(423).json({ error: "This account is locked after too many failed login attempts." });
+  }
+  if (!password || !verifyPassword(password, row.password_hash)) {
+    const attempts = (row.failed_login_attempts || 0) + 1;
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      db.prepare("UPDATE users SET failed_login_attempts = ?, locked_at = datetime('now') WHERE id = ?").run(attempts, row.id);
+    } else {
+      db.prepare("UPDATE users SET failed_login_attempts = ? WHERE id = ?").run(attempts, row.id);
+    }
+    logAccountAudit({ userId: row.id, action: "reauth", result: "failure", detail: "Incorrect password", ip, userAgent });
+    return res.status(401).json({ error: "Incorrect password." });
+  }
+  if (row.mfa_enabled) {
+    const result = mfaCode && verifyMfaCode(row, mfaCode);
+    if (!result || !result.ok) {
+      logAccountAudit({ userId: row.id, action: "reauth", result: "failure", detail: "Incorrect MFA code", ip, userAgent });
+      return res.status(401).json({ error: "Incorrect verification code." });
+    }
+  }
+
+  db.prepare("UPDATE users SET failed_login_attempts = 0, locked_at = NULL WHERE id = ?").run(row.id);
+  markReauth(req.sessionId);
+  logAccountAudit({ userId: row.id, action: "reauth", result: "success", ip, userAgent });
+  res.json({ ok: true });
+});
+
+router.get("/export", requireAuth, requireRecentAuth, (req, res) => {
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
   const profile = publicUser(row);
 
@@ -386,6 +445,7 @@ router.get("/export", requireAuth, (req, res) => {
       parties: db.prepare("SELECT name, email, role, signed_at FROM contract_parties WHERE contract_id = ?").all(c.id),
     }));
 
+  logAccountAudit({ userId: row.id, action: "export_data", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.setHeader("Content-Disposition", "attachment; filename=pact-data-export.json");
   res.json({
     exportedAt: new Date().toISOString(),
@@ -396,6 +456,11 @@ router.get("/export", requireAuth, (req, res) => {
 });
 
 router.post("/logout", (req, res) => {
+  // Revokes the session row, not just the cookie — without this, a copy
+  // of the cookie taken before logout (XSS, a shared/borrowed device, a
+  // synced browser profile) would keep working for the rest of its
+  // 30-day JWT lifetime even after the user believes they've signed out.
+  if (req.user && req.sessionId) revokeSession(req.sessionId, req.user.id);
   res.clearCookie("pact_token");
   res.json({ ok: true });
 });

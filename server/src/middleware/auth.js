@@ -1,5 +1,6 @@
 const db = require("../db");
-const { verifyToken } = require("../auth-utils");
+const { verifyToken, signToken, COOKIE_OPTS } = require("../auth-utils");
+const { getActiveSession, touchSession, createSession } = require("../services/sessions");
 
 function attachUser(req, res, next) {
   const token = req.cookies && req.cookies.pact_token;
@@ -17,7 +18,34 @@ function attachUser(req, res, next) {
       // instant an account closes, without needing a separate token
       // blacklist. req.user simply never gets attached, same as being
       // logged out, so every requireAuth route rejects it automatically.
-      if (user && user.account_status === "active") {
+      // A token can fail to resolve to a live session two different ways,
+      // and they must NOT be treated the same:
+      //   - no `sid` claim at all: a cookie issued before sessions
+      //     existed. Safe to quietly mint a session for it now and keep
+      //     the browser logged in — nothing was ever revoked.
+      //   - a `sid` claim that no longer resolves to an active session
+      //     (logout, "sign out everywhere," or account closure revoked
+      //     it): this token was deliberately invalidated. Minting a new
+      //     session here would silently undo that revocation, so this
+      //     case falls straight through to "not logged in" instead.
+      let sessionId = null;
+      if (payload.sid) {
+        if (getActiveSession(payload.sid)) {
+          sessionId = payload.sid;
+          touchSession(sessionId);
+        }
+      } else if (user && user.account_status === "active") {
+        sessionId = createSession({
+          userId: user.id,
+          ip: (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress,
+          userAgent: req.headers["user-agent"],
+        });
+        res.cookie("pact_token", signToken(user, sessionId), COOKIE_OPTS);
+      }
+
+      if (user && user.account_status === "active" && sessionId) {
+        req.sessionId = sessionId;
+
         req.user = {
           id: user.id,
           name: user.name,

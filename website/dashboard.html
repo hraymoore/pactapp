@@ -291,87 +291,141 @@
     </section>
 
     <section id="sec-settings" style="display:none;">
-      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile, subscription and identity verification.</p></div></div>
-      <div class="grid grid-2">
-        <div class="card">
-          <h3>Profile</h3>
-          <p><strong>Name:</strong> <span data-user-name>—</span></p>
-          <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
-          <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
-          <p id="settingsLegalNameRow" style="display:none;"><strong>Legal name:</strong> <span id="settingsLegalName">—</span></p>
-          <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
-          <p><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
-          <button class="btn btn-ghost-dark btn-sm" id="downloadDataBtn" style="margin-top:4px;">Download My Data</button>
-        </div>
-        <div class="card">
-          <h3>Subscription</h3>
-          <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
-          <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
-          <div class="tag-row" id="tierButtons"></div>
-          <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
-          <div id="annualPassBox" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-dark);">
-            <p style="font-size:0.85rem;margin-bottom:10px;">Prefer to pay once a year instead of monthly? Annual passes are a one-time payment — no auto-renewal.</p>
-            <p id="annualPassStatus" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-bottom:10px;"></p>
-            <div class="tag-row">
-              <button class="btn btn-ghost-dark btn-sm" id="annualPassProBtn">Professional Annual — $199/yr</button>
-              <button class="btn btn-ghost-dark btn-sm" id="annualPassBusinessBtn">Enterprise Annual — $389/yr</button>
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile, security, billing and data.</p></div></div>
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:32px;align-items:start;">
+        <nav class="dash-nav" id="settingsSubNav" style="padding:0;">
+          <a href="#" class="active" data-settings-section="profile">Profile</a>
+          <a href="#" data-settings-section="security">Security</a>
+          <a href="#" data-settings-section="contact">Contact &amp; Recovery</a>
+          <a href="#" data-settings-section="notifications">Notifications</a>
+          <a href="#" data-settings-section="billing">Billing &amp; Payouts</a>
+          <a href="#" data-settings-section="privacy">Privacy &amp; Data</a>
+          <a href="#" data-settings-section="danger" style="color:var(--ruby-bright);">Danger Zone</a>
+        </nav>
+
+        <div>
+          <div data-settings-panel="profile">
+            <div class="card">
+              <h3>Profile</h3>
+              <p><strong>Name:</strong> <span data-user-name>—</span></p>
+              <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
+              <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
+              <p id="settingsLegalNameRow" style="display:none;"><strong>Legal name:</strong> <span id="settingsLegalName">—</span></p>
+              <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
+              <p><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
+              <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">Editable display name, photo, and other profile fields are coming in a later phase.</p>
+            </div>
+          </div>
+
+          <div data-settings-panel="security" style="display:none;">
+            <div class="card">
+              <h3>Identity Verification</h3>
+              <p id="identityStatusText">Checking status…</p>
+              <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
+              <p id="identityNote" style="margin-top:14px;font-size:0.82rem;color:var(--silver);"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Password</h3>
+              <p id="tempPasswordBanner" style="display:none;color:var(--ruby-bright);font-size:0.85rem;">You're signed in with a temporary password. Set a permanent one below.</p>
+              <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" placeholder="Current password"></div>
+              <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 6 characters"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
+              <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Two-Factor Authentication</h3>
+              <p id="mfaStatusText" style="font-size:0.85rem;">Checking status…</p>
+              <div id="mfaEnrollBox" style="display:none;">
+                <p style="font-size:0.85rem;">Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code it shows.</p>
+                <img id="mfaQrCode" alt="MFA QR code" style="background:#fff;padding:10px;border-radius:8px;max-width:200px;display:block;margin:12px 0;">
+                <p style="font-size:0.78rem;color:var(--silver);">Can't scan? Enter this key manually: <code id="mfaSecretText"></code></p>
+                <div class="field" style="max-width:220px;"><label for="mfaEnrollCode">Verification code</label><input id="mfaEnrollCode" placeholder="123456" autocomplete="one-time-code"></div>
+                <button class="btn btn-gold btn-sm" id="mfaVerifyEnrollBtn">Confirm and Turn On</button>
+              </div>
+              <div id="mfaBackupCodesBox" style="display:none;margin-top:16px;">
+                <p style="font-size:0.85rem;color:var(--emerald-bright);">Two-factor authentication is on. Save these one-time backup codes somewhere safe — each works once if you lose access to your authenticator app, and they won't be shown again.</p>
+                <pre id="mfaBackupCodesList" style="background:rgba(255,255,255,0.04);padding:12px;border-radius:8px;font-size:0.85rem;line-height:1.6;"></pre>
+              </div>
+              <button class="btn btn-ghost-dark btn-sm" id="mfaEnableBtn" style="display:none;">Turn On Two-Factor Authentication</button>
+              <div id="mfaDisableForm" style="display:none;">
+                <div class="field" style="max-width:220px;"><label for="mfaDisablePassword">Enter your password to confirm</label><input id="mfaDisablePassword" type="password" placeholder="Password"></div>
+                <button class="btn btn-ghost-dark btn-sm" id="mfaDisableBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Turn Off Two-Factor Authentication</button>
+              </div>
+              <p id="mfaNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Active Sessions &amp; Login Activity</h3>
+              <p style="font-size:0.85rem;color:var(--silver);">Listing your signed-in devices and a security activity log are coming in a later phase. Every sensitive action you take here — changing your password, downloading your data, and more — is already being recorded with its outcome, time, and IP address.</p>
+            </div>
+          </div>
+
+          <div data-settings-panel="contact" style="display:none;">
+            <div class="card">
+              <h3>Contact &amp; Recovery</h3>
+              <p style="font-size:0.85rem;color:var(--silver);">Changing your primary email, adding a phone number, and setting a recovery email are coming in a later phase.</p>
+            </div>
+          </div>
+
+          <div data-settings-panel="notifications" style="display:none;">
+            <div class="card">
+              <h3>Notifications</h3>
+              <p style="font-size:0.85rem;color:var(--silver);">Per-category notification preferences (contract activity, payments, reminders, security alerts) are coming in a later phase. Security and legal notices are always sent and can't be turned off.</p>
+            </div>
+          </div>
+
+          <div data-settings-panel="billing" style="display:none;">
+            <div class="card">
+              <h3>Subscription</h3>
+              <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
+              <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
+              <div class="tag-row" id="tierButtons"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
+              <div id="annualPassBox" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-dark);">
+                <p style="font-size:0.85rem;margin-bottom:10px;">Prefer to pay once a year instead of monthly? Annual passes are a one-time payment — no auto-renewal.</p>
+                <p id="annualPassStatus" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-bottom:10px;"></p>
+                <div class="tag-row">
+                  <button class="btn btn-ghost-dark btn-sm" id="annualPassProBtn">Professional Annual — $199/yr</button>
+                  <button class="btn btn-ghost-dark btn-sm" id="annualPassBusinessBtn">Enterprise Annual — $389/yr</button>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:24px;">
+              <h3>Get Paid Through Pact</h3>
+              <p id="payoutsStatusText" style="font-size:0.85rem;">Checking status…</p>
+              <button class="btn btn-ghost-dark btn-sm" id="payoutsSetupBtn" style="display:none;">Finish Payout Setup</button>
+              <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">To request payment on a contract, Stripe needs your bank details and identity — handled entirely on Stripe's own hosted page, never by Pact. Requires the Starter tier or above.</p>
+            </div>
+          </div>
+
+          <div data-settings-panel="privacy" style="display:none;">
+            <div class="card">
+              <h3>Your Data</h3>
+              <p style="font-size:0.85rem;color:var(--silver);">A JSON export of your profile and every contract you own or are a party to. This is a sensitive action — you'll be asked to confirm your password first.</p>
+              <button class="btn btn-ghost-dark btn-sm" id="downloadDataBtn" style="margin-top:4px;">Download My Data</button>
+            </div>
+            <div class="card" style="margin-top:24px;">
+              <h3>Policies</h3>
+              <a href="terms.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;margin-bottom:8px;">Terms of Service</a>
+              <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;margin-bottom:8px;">Privacy Policy</a>
+              <a href="esignature-disclosure.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;">e-Signature Disclosure</a>
+            </div>
+          </div>
+
+          <div data-settings-panel="danger" style="display:none;">
+            <div class="card" style="border-color:var(--ruby);">
+              <h3>Close Account</h3>
+              <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
+              <div id="closeAccountForm">
+                <div class="field" style="max-width:320px;"><label for="closeAccountPassword">Enter your password to confirm</label><input id="closeAccountPassword" type="password" placeholder="Password"></div>
+                <button class="btn btn-ghost-dark btn-sm" id="closeAccountBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Close My Account</button>
+              </div>
+              <p id="closeAccountNote" style="margin-top:14px;font-size:0.82rem;"></p>
             </div>
           </div>
         </div>
-      </div>
-      <div class="card" style="margin-top:24px;">
-        <h3>Get Paid Through Pact</h3>
-        <p id="payoutsStatusText" style="font-size:0.85rem;">Checking status…</p>
-        <button class="btn btn-ghost-dark btn-sm" id="payoutsSetupBtn" style="display:none;">Finish Payout Setup</button>
-        <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">To request payment on a contract, Stripe needs your bank details and identity — handled entirely on Stripe's own hosted page, never by Pact. Requires the Starter tier or above.</p>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Identity Verification</h3>
-        <p id="identityStatusText">Checking status…</p>
-        <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
-        <p id="identityNote" style="margin-top:14px;font-size:0.82rem;color:var(--silver);"></p>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Password</h3>
-        <p id="tempPasswordBanner" style="display:none;color:var(--ruby-bright);font-size:0.85rem;">You're signed in with a temporary password. Set a permanent one below.</p>
-        <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" placeholder="Current password"></div>
-        <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 6 characters"></div>
-        <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
-        <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Two-Factor Authentication</h3>
-        <p id="mfaStatusText" style="font-size:0.85rem;">Checking status…</p>
-        <div id="mfaEnrollBox" style="display:none;">
-          <p style="font-size:0.85rem;">Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code it shows.</p>
-          <img id="mfaQrCode" alt="MFA QR code" style="background:#fff;padding:10px;border-radius:8px;max-width:200px;display:block;margin:12px 0;">
-          <p style="font-size:0.78rem;color:var(--silver);">Can't scan? Enter this key manually: <code id="mfaSecretText"></code></p>
-          <div class="field" style="max-width:220px;"><label for="mfaEnrollCode">Verification code</label><input id="mfaEnrollCode" placeholder="123456" autocomplete="one-time-code"></div>
-          <button class="btn btn-gold btn-sm" id="mfaVerifyEnrollBtn">Confirm and Turn On</button>
-        </div>
-        <div id="mfaBackupCodesBox" style="display:none;margin-top:16px;">
-          <p style="font-size:0.85rem;color:var(--emerald-bright);">Two-factor authentication is on. Save these one-time backup codes somewhere safe — each works once if you lose access to your authenticator app, and they won't be shown again.</p>
-          <pre id="mfaBackupCodesList" style="background:rgba(255,255,255,0.04);padding:12px;border-radius:8px;font-size:0.85rem;line-height:1.6;"></pre>
-        </div>
-        <button class="btn btn-ghost-dark btn-sm" id="mfaEnableBtn" style="display:none;">Turn On Two-Factor Authentication</button>
-        <div id="mfaDisableForm" style="display:none;">
-          <div class="field" style="max-width:220px;"><label for="mfaDisablePassword">Enter your password to confirm</label><input id="mfaDisablePassword" type="password" placeholder="Password"></div>
-          <button class="btn btn-ghost-dark btn-sm" id="mfaDisableBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Turn Off Two-Factor Authentication</button>
-        </div>
-        <p id="mfaNote" style="margin-top:14px;font-size:0.82rem;"></p>
-      </div>
-
-      <div class="card" style="margin-top:24px;border-color:var(--ruby);">
-        <h3>Close Account</h3>
-        <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
-        <div id="closeAccountForm">
-          <div class="field" style="max-width:320px;"><label for="closeAccountPassword">Enter your password to confirm</label><input id="closeAccountPassword" type="password" placeholder="Password"></div>
-          <button class="btn btn-ghost-dark btn-sm" id="closeAccountBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Close My Account</button>
-        </div>
-        <p id="closeAccountNote" style="margin-top:14px;font-size:0.82rem;"></p>
       </div>
     </section>
 
@@ -569,6 +623,24 @@
     </div>
     <button class="btn btn-gold btn-block" id="esignConsentContinueBtn" disabled>Continue</button>
     <p id="esignConsentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<!-- Re-authentication gate — shown the first time in a session (or 10
+     minutes after the last one) that a sensitive action is attempted:
+     downloading your data, changing your password, and more as later
+     phases add them. Confirms the password live rather than trusting
+     whatever the session cookie already proves. -->
+<div class="modal-backdrop" id="reauthModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-close" id="closeReauthModal">&times;</button>
+    <div class="eyebrow">Confirm it's you</div>
+    <h3>Re-enter your password</h3>
+    <p style="font-size:0.9rem;">This is a sensitive action, so we need to confirm your password again before continuing.</p>
+    <div class="field"><label for="reauthPassword">Password</label><input id="reauthPassword" type="password" placeholder="Password" autocomplete="current-password"></div>
+    <div class="field" id="reauthMfaField" style="display:none;"><label for="reauthMfaCode">Verification code</label><input id="reauthMfaCode" placeholder="123456 or a backup code" autocomplete="one-time-code"></div>
+    <button class="btn btn-gold btn-block" id="reauthContinueBtn">Continue</button>
+    <p id="reauthError" class="alert alert-ruby" style="margin-top:10px;"></p>
   </div>
 </div>
 
@@ -2014,6 +2086,22 @@
     });
   }
 
+  // ---- settings: left-nav shell ----
+  function setupSettingsSubNav() {
+    const nav = document.getElementById("settingsSubNav");
+    nav.querySelectorAll("[data-settings-section]").forEach(link => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        nav.querySelectorAll("[data-settings-section]").forEach(a => a.classList.remove("active"));
+        link.classList.add("active");
+        const target = link.dataset.settingsSection;
+        document.querySelectorAll("[data-settings-panel]").forEach(panel => {
+          panel.style.display = panel.dataset.settingsPanel === target ? "" : "none";
+        });
+      });
+    });
+  }
+
   // ---- business ----
   let CURRENT_ORG = null;
   let ALL_BIZ_CONTRACTS = [];
@@ -2343,6 +2431,59 @@
     });
   }
 
+  // The recent-authentication gate's frontend half — mirrors
+  // ensureEsignConsent() above. Server-side, the matching sensitive route
+  // is also wrapped in requireRecentAuth (middleware/reauth.js), so this
+  // modal is a UX nicety, not the actual security boundary: a direct API
+  // call without it still gets refused with needsReauth:true.
+  function ensureRecentAuth() {
+    return new Promise(async (resolve) => {
+      const { hasRecentAuth, mfaRequired } = await apiJson("/api/auth/reauth/status");
+      if (hasRecentAuth) { resolve(true); return; }
+      const modal = document.getElementById("reauthModal");
+      const passwordInput = document.getElementById("reauthPassword");
+      const mfaField = document.getElementById("reauthMfaField");
+      const mfaInput = document.getElementById("reauthMfaCode");
+      const continueBtn = document.getElementById("reauthContinueBtn");
+      const errBox = document.getElementById("reauthError");
+      let settled = false;
+      passwordInput.value = "";
+      mfaInput.value = "";
+      mfaField.style.display = mfaRequired ? "" : "none";
+      errBox.classList.remove("show");
+      modal.classList.add("show");
+      passwordInput.focus();
+      document.getElementById("closeReauthModal").onclick = () => {
+        modal.classList.remove("show");
+        if (!settled) { settled = true; resolve(false); }
+      };
+      continueBtn.onclick = async () => {
+        errBox.classList.remove("show");
+        if (!passwordInput.value) {
+          errBox.textContent = "Enter your password.";
+          errBox.classList.add("show");
+          return;
+        }
+        continueBtn.disabled = true;
+        continueBtn.textContent = "Verifying…";
+        try {
+          await apiJson("/api/auth/reauth", {
+            method: "POST",
+            body: JSON.stringify({ password: passwordInput.value, mfaCode: mfaInput.value }),
+          });
+          modal.classList.remove("show");
+          if (!settled) { settled = true; resolve(true); }
+        } catch (err) {
+          errBox.textContent = err.message;
+          errBox.classList.add("show");
+        } finally {
+          continueBtn.disabled = false;
+          continueBtn.textContent = "Continue";
+        }
+      };
+    });
+  }
+
   // ---- boot ----
   (async () => {
     CURRENT_USER = await PactAPI.me();
@@ -2363,6 +2504,7 @@
       document.getElementById("settingsDob").textContent = new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString();
     }
     document.getElementById("downloadDataBtn").addEventListener("click", async (e) => {
+      if (!(await ensureRecentAuth())) return;
       const btn = e.target;
       btn.disabled = true;
       btn.textContent = "Preparing…";
@@ -2417,6 +2559,7 @@
     setupPasswordChange();
     await setupMfa();
     setupCloseAccount();
+    setupSettingsSubNav();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

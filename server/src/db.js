@@ -494,13 +494,12 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN mfa_secret TEXT",
   "ALTER TABLE users ADD COLUMN mfa_enabled_at TEXT",
   "ALTER TABLE users ADD COLUMN mfa_backup_codes TEXT",
-  // Set only for a tier reached via a one-time "annual pass" payment
-  // (routes/billing.js POST /checkout-annual) rather than a recurring
-  // Stripe subscription — NULL for free/unpaid accounts and for anyone on
-  // an ordinary monthly subscription, since Stripe itself keeps those
-  // renewed. scripts/send-annual-pass-reminders.js reads this column to
-  // email a renewal reminder before it lapses and to downgrade the
-  // account to Free once it does.
+  // Legacy — both columns backed the one-time "annual pass" (12 months of
+  // Professional/Enterprise for a single payment, tracked via an expiry
+  // date instead of a Stripe subscription). That purchase path has been
+  // removed in favor of monthly-only billing, so these are never written
+  // again; left in place rather than dropped since this codebase's
+  // migrations are additive-only (see the pattern throughout this array).
   "ALTER TABLE users ADD COLUMN tier_expires_at TEXT",
   "ALTER TABLE users ADD COLUMN annual_pass_reminder_sent_at TEXT",
   // Stripe Connect Express account for a user who wants to RECEIVE a

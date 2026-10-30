@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm — Pact</title>
+<meta name="description" content="Confirm an email or recovery-email change on your Pact account.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="eyebrow" style="justify-content:center;display:flex;">Account security</div>
+    <h2 class="center" id="actionTitle">Confirming…</h2>
+    <p class="center" id="actionMessage" style="font-size:0.9rem;">One moment.</p>
+    <div id="formAlert" class="alert alert-ruby"></div>
+    <div id="formSuccess" class="alert alert-emerald"></div>
+    <p class="form-note" id="actionLinks" style="display:none;"><a href="dashboard.html">Go to your Settings</a> · <a href="login.html">Log in</a></p>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  const COPY = {
+    "verify-email": {
+      title: "Confirming your new email",
+      endpoint: "/api/auth/email/confirm",
+      success: (data) => `Done — ${data.email} is now your Pact email address.`,
+    },
+    "verify-recovery-email": {
+      title: "Confirming your recovery email",
+      endpoint: "/api/auth/recovery-email/confirm",
+      success: (data) => `Done — ${data.recoveryEmail} is now set as your recovery email.`,
+    },
+    "cancel-email-change": {
+      title: "Cancelling the email change",
+      endpoint: "/api/auth/email/cancel",
+      success: (data) => `Your email was reverted to ${data.email} and your account has been locked for safety. Request a temporary password from the login page to get back in.`,
+    },
+  };
+
+  (async () => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get("action");
+    const token = params.get("token");
+    const titleEl = document.getElementById("actionTitle");
+    const messageEl = document.getElementById("actionMessage");
+    const alertBox = document.getElementById("formAlert");
+    const successBox = document.getElementById("formSuccess");
+    const linksEl = document.getElementById("actionLinks");
+    const copy = COPY[action];
+
+    if (!copy || !token) {
+      titleEl.textContent = "Nothing to confirm";
+      messageEl.textContent = "This link is missing some information. Check that you copied the whole link from the email.";
+      linksEl.style.display = "";
+      return;
+    }
+
+    titleEl.textContent = copy.title;
+    try {
+      const r = await fetch(copy.endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || "That link didn't work.");
+      messageEl.textContent = "";
+      successBox.textContent = copy.success(data);
+      successBox.classList.add("show");
+    } catch (err) {
+      messageEl.textContent = "";
+      alertBox.textContent = err.message;
+      alertBox.classList.add("show");
+    } finally {
+      linksEl.style.display = "";
+    }
+  })();
+</script>
+</body>
+</html>

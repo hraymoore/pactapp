@@ -1,17 +1,20 @@
 const db = require("../db");
 const { verifyToken, signToken, COOKIE_OPTS } = require("../auth-utils");
 const { getActiveSession, touchSession, createSession } = require("../services/sessions");
+const { publicUser } = require("../services/public-user");
 
 function attachUser(req, res, next) {
   const token = req.cookies && req.cookies.pact_token;
   if (token) {
     const payload = verifyToken(token);
     if (payload) {
-      const user = db
-        .prepare(
-          "SELECT id, name, email, tier, tier_expires_at, account_type, legal_first_name, legal_last_name, date_of_birth, created_at, temp_password_expires_at, account_status, mfa_enabled FROM users WHERE id = ?"
-        )
-        .get(payload.sub);
+      // SELECT * (not a hand-picked column list) so req.user — and so GET
+      // /api/auth/me, which just returns it — automatically carries every
+      // field publicUser() knows about. A hand-picked list here is what
+      // silently went stale after Phase 2 added profile fields: this is
+      // the one place a users row is allowed to turn into "what the
+      // client may see about itself" (see services/public-user.js).
+      const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
       // A closed account's token can still be cryptographically valid (JWTs
       // aren't revoked on close, they're stateless) — this per-request DB
       // check is what actually invalidates every existing session the
@@ -45,21 +48,7 @@ function attachUser(req, res, next) {
 
       if (user && user.account_status === "active" && sessionId) {
         req.sessionId = sessionId;
-
-        req.user = {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          tier: user.tier,
-          tierExpiresAt: user.tier_expires_at,
-          accountType: user.account_type,
-          legalFirstName: user.legal_first_name,
-          legalLastName: user.legal_last_name,
-          dateOfBirth: user.date_of_birth,
-          created_at: user.created_at,
-          passwordIsTemporary: !!user.temp_password_expires_at,
-          mfaEnabled: !!user.mfa_enabled,
-        };
+        req.user = publicUser(user);
       }
     }
   }

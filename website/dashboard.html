@@ -431,8 +431,57 @@
 
           <div data-settings-panel="contact" style="display:none;">
             <div class="card">
-              <h3>Contact &amp; Recovery</h3>
-              <p style="font-size:0.85rem;color:var(--silver);">Changing your primary email, adding a phone number, and setting a recovery email are coming in a later phase.</p>
+              <h3>Primary Email</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">The email you use to log in and the address contracts are sent to.</p>
+              <p><strong>Current:</strong> <span id="contactCurrentEmail">—</span></p>
+              <p id="contactPendingEmailNote" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-top:6px;"></p>
+              <div class="field" style="margin-top:14px;">
+                <label for="contactNewEmail">New email address</label>
+                <input id="contactNewEmail" type="email" placeholder="you@newdomain.com">
+              </div>
+              <button class="btn btn-gold btn-sm" id="contactChangeEmailBtn">Send Verification Link</button>
+              <p id="contactEmailNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Recovery Email</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Used only for account recovery and security notices — must be different from your primary email.</p>
+              <p><strong>Current:</strong> <span id="contactRecoveryEmailStatus">Not set</span></p>
+              <div class="field" style="margin-top:14px;">
+                <label for="contactNewRecoveryEmail">Recovery email</label>
+                <input id="contactNewRecoveryEmail" type="email" placeholder="backup@domain.com">
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button class="btn btn-gold btn-sm" id="contactSetRecoveryEmailBtn">Send Verification Link</button>
+                <button class="btn btn-ghost-dark btn-sm" id="contactRemoveRecoveryEmailBtn" style="display:none;border-color:var(--ruby);color:var(--ruby-bright);">Remove</button>
+              </div>
+              <p id="contactRecoveryEmailNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Phone Number</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Optional — used for security alerts and as an MFA fallback. Never shown to other users.</p>
+              <p><strong>Current:</strong> <span id="contactPhoneStatus">Not set</span></p>
+              <div id="contactPhoneAddForm">
+                <div class="field" style="margin-top:14px;">
+                  <label for="contactNewPhone">Phone number</label>
+                  <input id="contactNewPhone" type="tel" placeholder="+15551234567">
+                </div>
+                <label style="display:flex;gap:8px;align-items:flex-start;font-size:0.82rem;margin-top:8px;">
+                  <input type="checkbox" id="contactPhoneConsent" style="margin-top:3px;">
+                  <span>By adding your number you agree to receive security and account texts from Pact. Message and data rates may apply. Reply STOP to opt out.</span>
+                </label>
+                <button class="btn btn-gold btn-sm" id="contactSendPhoneCodeBtn" style="margin-top:10px;">Send Code</button>
+              </div>
+              <div id="contactPhoneVerifyForm" style="display:none;margin-top:14px;">
+                <div class="field">
+                  <label for="contactPhoneCode">Verification code</label>
+                  <input id="contactPhoneCode" placeholder="123456" autocomplete="one-time-code">
+                </div>
+                <button class="btn btn-gold btn-sm" id="contactVerifyPhoneBtn">Verify</button>
+              </div>
+              <button class="btn btn-ghost-dark btn-sm" id="contactRemovePhoneBtn" style="display:none;margin-top:10px;border-color:var(--ruby);color:var(--ruby-bright);">Remove Phone Number</button>
+              <p id="contactPhoneNote" style="margin-top:10px;font-size:0.82rem;"></p>
             </div>
           </div>
 
@@ -2418,6 +2467,15 @@
     display_name_changed: "Display name changed",
     session_revoked: "Signed out a device",
     sessions_revoked_all_others: "Signed out all other devices",
+    email_change_requested: "Email change requested",
+    email_changed: "Email address changed",
+    email_change_cancelled: "Email change cancelled (account locked)",
+    recovery_email_requested: "Recovery email change requested",
+    recovery_email_changed: "Recovery email changed",
+    recovery_email_removed: "Recovery email removed",
+    phone_verification_sent: "Phone verification code sent",
+    phone_verified: "Phone number verified",
+    phone_removed: "Phone number removed",
   };
 
   async function renderSessionsList() {
@@ -2490,6 +2548,155 @@
         note.style.color = "var(--emerald-bright)";
         await renderSessionsList();
         await renderSecurityLog();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupContactRecovery() {
+    function renderContactState() {
+      document.getElementById("contactCurrentEmail").textContent = CURRENT_USER.email;
+      const pendingNote = document.getElementById("contactPendingEmailNote");
+      if (CURRENT_USER.pendingEmail) {
+        pendingNote.textContent = `A confirmation link was sent to ${CURRENT_USER.pendingEmail} — your email won't change until it's confirmed.`;
+        pendingNote.style.display = "";
+      } else {
+        pendingNote.style.display = "none";
+      }
+
+      const recoveryStatus = document.getElementById("contactRecoveryEmailStatus");
+      if (CURRENT_USER.recoveryEmail) {
+        recoveryStatus.textContent = CURRENT_USER.recoveryEmail;
+        document.getElementById("contactRemoveRecoveryEmailBtn").style.display = "";
+      } else {
+        recoveryStatus.textContent = CURRENT_USER.pendingRecoveryEmail
+          ? `Not set — confirmation link sent to ${CURRENT_USER.pendingRecoveryEmail}`
+          : "Not set";
+        document.getElementById("contactRemoveRecoveryEmailBtn").style.display = "none";
+      }
+
+      const phoneStatus = document.getElementById("contactPhoneStatus");
+      const addForm = document.getElementById("contactPhoneAddForm");
+      const verifyForm = document.getElementById("contactPhoneVerifyForm");
+      const removeBtn = document.getElementById("contactRemovePhoneBtn");
+      if (CURRENT_USER.phone) {
+        phoneStatus.textContent = CURRENT_USER.phone;
+        addForm.style.display = "none";
+        verifyForm.style.display = "none";
+        removeBtn.style.display = "";
+      } else if (CURRENT_USER.pendingPhone) {
+        phoneStatus.textContent = `Not set — code sent to ${CURRENT_USER.pendingPhone}`;
+        addForm.style.display = "none";
+        verifyForm.style.display = "";
+        removeBtn.style.display = "none";
+      } else {
+        phoneStatus.textContent = "Not set";
+        addForm.style.display = "";
+        verifyForm.style.display = "none";
+        removeBtn.style.display = "none";
+      }
+    }
+    renderContactState();
+
+    document.getElementById("contactChangeEmailBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactEmailNote");
+      note.style.color = "";
+      const newEmail = document.getElementById("contactNewEmail").value.trim();
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/email/change-request", { method: "POST", body: JSON.stringify({ newEmail }) });
+        document.getElementById("contactNewEmail").value = "";
+        note.textContent = `Check ${newEmail} for a confirmation link.`;
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactSetRecoveryEmailBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactRecoveryEmailNote");
+      note.style.color = "";
+      const email = document.getElementById("contactNewRecoveryEmail").value.trim();
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/recovery-email/request", { method: "POST", body: JSON.stringify({ email }) });
+        document.getElementById("contactNewRecoveryEmail").value = "";
+        note.textContent = `Check ${email} for a confirmation link.`;
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactRemoveRecoveryEmailBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactRecoveryEmailNote");
+      note.style.color = "";
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/recovery-email/remove", { method: "POST", body: JSON.stringify({}) });
+        note.textContent = "Recovery email removed.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactSendPhoneCodeBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactPhoneNote");
+      note.style.color = "";
+      const phone = document.getElementById("contactNewPhone").value.trim();
+      const consent = document.getElementById("contactPhoneConsent").checked;
+      if (!(await ensureRecentAuth())) return;
+      try {
+        const data = await apiJson("/api/auth/phone/request", { method: "POST", body: JSON.stringify({ phone, consent }) });
+        note.textContent = data.devNote ? `${data.devNote}${data.code}` : "A verification code was texted to that number.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactVerifyPhoneBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactPhoneNote");
+      note.style.color = "";
+      const code = document.getElementById("contactPhoneCode").value.trim();
+      try {
+        await apiJson("/api/auth/phone/verify", { method: "POST", body: JSON.stringify({ code }) });
+        document.getElementById("contactPhoneCode").value = "";
+        note.textContent = "Phone number verified.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactRemovePhoneBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactPhoneNote");
+      note.style.color = "";
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/phone/remove", { method: "POST", body: JSON.stringify({}) });
+        note.textContent = "Phone number removed.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
       } catch (err) {
         note.textContent = err.message;
         note.style.color = "var(--ruby-bright)";
@@ -2947,6 +3154,7 @@
     await setupProfile();
     setupProfilePhoto();
     await setupSecurityActivity();
+    setupContactRecovery();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

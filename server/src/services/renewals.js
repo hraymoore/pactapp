@@ -49,7 +49,7 @@ function getUpcomingRenewals(user) {
        FROM contracts
        WHERE expires_at IS NOT NULL
          AND (owner_id = @uid
-              OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email)
+              OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email OR user_id = @uid)
               OR id IN (SELECT contract_id FROM contract_shares WHERE shared_with_user_id = @uid))`
     )
     .all({ uid: user.id, email: user.email });

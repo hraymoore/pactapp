@@ -9,8 +9,16 @@ const {
   signMfaChallengeToken,
   verifyMfaChallengeToken,
   COOKIE_OPTS,
+  signEmailVerifyToken,
+  verifyEmailVerifyToken,
+  signEmailCancelToken,
+  verifyEmailCancelToken,
+  signRecoveryEmailVerifyToken,
+  verifyRecoveryEmailVerifyToken,
+  generateNumericCode,
 } = require("../auth-utils");
 const { mailerConfigured, sendMail } = require("../services/mailer");
+const { publicUser } = require("../services/public-user");
 const { requireAuth } = require("../middleware/auth");
 const { requireRecentAuth } = require("../middleware/reauth");
 const { isValidEinFormat, normalizeEin } = require("../services/organizations");
@@ -30,6 +38,7 @@ const { logAccountAudit, listAccountAudit } = require("../services/account-audit
 const { authAttemptLimiter } = require("../middleware/rate-limit");
 const { checkPasswordBreached } = require("../services/password-breach");
 const { describeUserAgent } = require("../services/user-agent");
+const { smsConfigured, sendSms } = require("../services/sms");
 
 router.use(express.json());
 
@@ -49,31 +58,6 @@ function startSession(req, user) {
 const MAX_LOGIN_ATTEMPTS = 7;
 const TEMP_PASSWORD_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MIN_SIGNUP_AGE_YEARS = 18;
-
-function publicUser(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    tier: row.tier,
-    tierExpiresAt: row.tier_expires_at,
-    accountType: row.account_type,
-    legalFirstName: row.legal_first_name,
-    legalLastName: row.legal_last_name,
-    dateOfBirth: row.date_of_birth,
-    created_at: row.created_at,
-    passwordIsTemporary: !!row.temp_password_expires_at,
-    mfaEnabled: !!row.mfa_enabled,
-    jobTitle: row.job_title,
-    company: row.company,
-    bio: row.bio,
-    website: row.website,
-    timezone: row.timezone,
-    preferredLanguage: row.preferred_language,
-    dateFormat: row.date_format,
-    photoFileRef: row.photo_file_ref,
-  };
-}
 
 // Contracts require legal capacity to enter into — a basic age floor here
 // is a real product concern for a platform whose entire purpose is signing
@@ -450,6 +434,297 @@ router.get("/security-log", requireAuth, (req, res) => {
       createdAt: e.created_at,
     }));
   res.json({ entries });
+});
+
+// ---- Phase 4: email, phone, recovery email ----
+
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_CHANGE_CANCEL_WINDOW_DAYS = 7;
+const PHONE_CODE_TTL_MS = 10 * 60 * 1000;
+const PHONE_FORMAT = /^\+[1-9]\d{6,14}$/; // E.164
+const PHONE_CODE_RATE_LIMIT = 5;
+const PHONE_CODE_RATE_WINDOW_HOURS = 1;
+const TCPA_CONSENT_VERSION = "2026-01-v1";
+const TCPA_CONSENT_TEXT =
+  "By adding your number you agree to receive security and account texts from Pact. " +
+  "Message and data rates may apply. Reply STOP to opt out.";
+
+function baseUrl(req) {
+  return process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
+}
+
+// "j***@domain.com" — enough for the account owner to recognize the
+// target without a shoulder-surfer (or a compromised old inbox) seeing it
+// in full.
+function maskEmail(email) {
+  const [local, domain] = email.split("@");
+  if (!domain) return email;
+  const visible = local.slice(0, 1) || "*";
+  return `${visible}${"*".repeat(Math.max(local.length - 1, 1))}@${domain}`;
+}
+
+function phoneCodeRateCount(column, value) {
+  return db
+    .prepare(
+      `SELECT COUNT(*) as n FROM account_audit_log
+       WHERE action = 'phone_verification_sent' AND ${column} = ?
+         AND created_at > datetime('now', '-${PHONE_CODE_RATE_WINDOW_HOURS} hours')`
+    )
+    .get(value).n;
+}
+
+// Step 1 of a primary-email change: send a verification link to the NEW
+// address (the change doesn't take effect until that's confirmed) and a
+// "this is being changed, click to cancel" notice — with a link that
+// stays valid for a week after confirmation, not just from now — to the
+// OLD address and recovery email, per spec Phase 4.
+router.post("/email/change-request", requireAuth, requireRecentAuth, (req, res) => {
+  const { newEmail } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
+  if (!newEmail || !EMAIL_FORMAT.test(newEmail.trim())) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+  const normalized = newEmail.trim().toLowerCase();
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (normalized === row.email) {
+    return res.status(400).json({ error: "That's already your email address." });
+  }
+  // Generic on purpose — same response whether the address is taken by
+  // another account or just malformed in some way we didn't already
+  // catch, so this can't be used to probe which emails have accounts.
+  const taken = db.prepare("SELECT id FROM users WHERE email = ?").get(normalized);
+  if (taken) {
+    logAccountAudit({ userId: row.id, action: "email_change_requested", result: "failure", detail: "Requested email cannot be used", ip, userAgent });
+    return res.status(400).json({ error: "That email can't be used for your account. Try a different one." });
+  }
+
+  db.prepare(
+    `UPDATE users SET pending_email = ?, email_change_requested_at = datetime('now'),
+       email_change_old_email = ?, email_change_confirmed_at = NULL, email_change_cancel_expires_at = NULL
+     WHERE id = ?`
+  ).run(normalized, row.email, row.id);
+
+  const verifyUrl = `${baseUrl(req)}/email-action.html?action=verify-email&token=${signEmailVerifyToken(row.id, normalized)}`;
+  sendMail({
+    to: normalized,
+    subject: "Confirm your new Pact email address",
+    text:
+      `Click the link below to confirm this is your new Pact email address:\n\n${verifyUrl}\n\n` +
+      "This link expires in 24 hours. Nothing changes on your account until you confirm it.",
+  });
+
+  const cancelUrl = `${baseUrl(req)}/email-action.html?action=cancel-email-change&token=${signEmailCancelToken(row.id)}`;
+  sendMail({
+    to: row.email,
+    subject: "Your Pact email is being changed",
+    text:
+      `Your Pact email is being changed to ${maskEmail(normalized)}. If this wasn't you, click here to cancel it ` +
+      `and lock your account:\n\n${cancelUrl}\n\nThis cancel link stays valid for ${EMAIL_CHANGE_CANCEL_WINDOW_DAYS} days after the change completes.`,
+  });
+  if (row.recovery_email && row.recovery_email_verified_at) {
+    sendMail({
+      to: row.recovery_email,
+      subject: "Your Pact email is being changed",
+      text:
+        `The primary email on a Pact account you're the recovery contact for is being changed to ${maskEmail(normalized)}. ` +
+        `If this wasn't authorized, click here to cancel it and lock the account:\n\n${cancelUrl}`,
+    });
+  }
+
+  logAccountAudit({ userId: row.id, action: "email_change_requested", result: "success", detail: `To ${maskEmail(normalized)}`, ip, userAgent });
+  res.json({ ok: true, pendingEmail: normalized });
+});
+
+router.post("/email/confirm", (req, res) => {
+  const { token } = req.body || {};
+  const payload = token && verifyEmailVerifyToken(token);
+  if (!payload) return res.status(400).json({ error: "This verification link is invalid or has expired." });
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  // A stale link: either already confirmed, or superseded by a newer
+  // change-request for a different address since this one was sent.
+  if (!row || row.pending_email !== payload.newEmail) {
+    return res.status(400).json({ error: "This verification link is no longer valid — it may already be confirmed, or a newer request has replaced it." });
+  }
+
+  // Lock in the link to this account for any contract invitations that
+  // were still addressed to the email about to be replaced, before it's
+  // gone — see resolvePartyUserId's comment in routes/contracts.js.
+  db.prepare("UPDATE contract_parties SET user_id = ? WHERE email = ? AND user_id IS NULL").run(row.id, row.email);
+
+  const cancelExpiresAt = new Date(Date.now() + EMAIL_CHANGE_CANCEL_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+  db.prepare(
+    `UPDATE users SET email = ?, pending_email = NULL, email_change_confirmed_at = datetime('now'),
+       email_change_cancel_expires_at = ? WHERE id = ?`
+  ).run(payload.newEmail, cancelExpiresAt, row.id);
+
+  // The confirming request might be an unauthenticated click from an
+  // email client with no Pact session at all — only keep a session alive
+  // if it's demonstrably the one that's already signed in as this account.
+  const keepSessionId = req.user && req.user.id === row.id ? req.sessionId : null;
+  if (keepSessionId) revokeOtherSessions(row.id, keepSessionId);
+  else revokeAllSessions(row.id);
+
+  logAccountAudit({ userId: row.id, action: "email_changed", result: "success", detail: `To ${maskEmail(payload.newEmail)}`, ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({ to: payload.newEmail, subject: "Your Pact email is now active", text: "This address is now your primary Pact email. You're all set." });
+  res.json({ ok: true, email: payload.newEmail });
+});
+
+router.post("/email/cancel", (req, res) => {
+  const { token } = req.body || {};
+  const payload = token && verifyEmailCancelToken(token);
+  if (!payload) return res.status(400).json({ error: "This cancel link is invalid or has expired." });
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  const cancelExpiresAt = row && row.email_change_cancel_expires_at ? new Date(row.email_change_cancel_expires_at + "Z").getTime() : 0;
+  if (!row || !row.email_change_confirmed_at || !row.email_change_old_email || Date.now() > cancelExpiresAt) {
+    return res.status(400).json({ error: "There's no recent email change on this account that can still be cancelled." });
+  }
+
+  const revertedEmail = row.email_change_old_email;
+  db.prepare(
+    `UPDATE users SET email = ?, pending_email = NULL, email_change_requested_at = NULL,
+       email_change_confirmed_at = NULL, email_change_old_email = NULL, email_change_cancel_expires_at = NULL,
+       locked_at = datetime('now')
+     WHERE id = ?`
+  ).run(revertedEmail, row.id);
+  revokeAllSessions(row.id);
+
+  logAccountAudit({ userId: row.id, action: "email_change_cancelled", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({
+    to: revertedEmail,
+    subject: "Your Pact email change was cancelled — account locked",
+    text:
+      "Your Pact email was reverted and your account has been locked for safety. " +
+      "Request a temporary password from the login page to regain access.",
+  });
+  res.json({ ok: true, email: revertedEmail });
+});
+
+// Recovery email: must differ from the primary and isn't usable for
+// recovery until it's verified (a stale pending_recovery_email that was
+// never confirmed just never counts — there's nothing to clean up).
+router.post("/recovery-email/request", requireAuth, requireRecentAuth, (req, res) => {
+  const { email } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
+  if (!email || !EMAIL_FORMAT.test(email.trim())) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+  const normalized = email.trim().toLowerCase();
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (normalized === row.email) {
+    return res.status(400).json({ error: "Your recovery email must be different from your primary email." });
+  }
+
+  db.prepare("UPDATE users SET pending_recovery_email = ? WHERE id = ?").run(normalized, row.id);
+  const verifyUrl = `${baseUrl(req)}/email-action.html?action=verify-recovery-email&token=${signRecoveryEmailVerifyToken(row.id, normalized)}`;
+  sendMail({
+    to: normalized,
+    subject: "Confirm your Pact recovery email",
+    text: `Click the link below to confirm this as the recovery email for your Pact account:\n\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+  });
+  logAccountAudit({ userId: row.id, action: "recovery_email_requested", result: "success", detail: `To ${maskEmail(normalized)}`, ip, userAgent });
+  res.json({ ok: true, pendingRecoveryEmail: normalized });
+});
+
+router.post("/recovery-email/confirm", (req, res) => {
+  const { token } = req.body || {};
+  const payload = token && verifyRecoveryEmailVerifyToken(token);
+  if (!payload) return res.status(400).json({ error: "This verification link is invalid or has expired." });
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  if (!row || row.pending_recovery_email !== payload.email) {
+    return res.status(400).json({ error: "This verification link is no longer valid." });
+  }
+  const oldRecoveryEmail = row.recovery_email;
+  db.prepare(
+    "UPDATE users SET recovery_email = ?, recovery_email_verified_at = datetime('now'), pending_recovery_email = NULL WHERE id = ?"
+  ).run(payload.email, row.id);
+  logAccountAudit({ userId: row.id, action: "recovery_email_changed", result: "success", detail: `To ${maskEmail(payload.email)}`, ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({ to: row.email, subject: "Your Pact recovery email was set", text: `Your recovery email is now ${maskEmail(payload.email)}.` });
+  if (oldRecoveryEmail) {
+    sendMail({ to: oldRecoveryEmail, subject: "This is no longer your Pact recovery email", text: "A different recovery email was just verified on this Pact account. If that wasn't you, sign in and check your account's security activity." });
+  }
+  res.json({ ok: true, recoveryEmail: payload.email });
+});
+
+router.post("/recovery-email/remove", requireAuth, requireRecentAuth, (req, res) => {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (!row.recovery_email) return res.status(400).json({ error: "No recovery email is set." });
+  const removed = row.recovery_email;
+  db.prepare("UPDATE users SET recovery_email = NULL, recovery_email_verified_at = NULL, pending_recovery_email = NULL WHERE id = ?").run(row.id);
+  logAccountAudit({ userId: row.id, action: "recovery_email_removed", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({ to: row.email, subject: "Your Pact recovery email was removed", text: `${maskEmail(removed)} is no longer the recovery email on your Pact account.` });
+  res.json({ ok: true });
+});
+
+// Phone: Pact generates and hashes its own code (never stored/logged in
+// the clear) and sends it over plain SMS — see services/sms.js for why
+// this doesn't need a Twilio Verify-specific integration.
+router.post("/phone/request", requireAuth, requireRecentAuth, (req, res) => {
+  const { phone, consent } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
+  if (!phone || !PHONE_FORMAT.test(phone.trim())) {
+    return res.status(400).json({ error: "Enter a phone number in international format, e.g. +15551234567." });
+  }
+  if (consent !== true) {
+    return res.status(400).json({ error: "You must agree to receive account texts to add a phone number." });
+  }
+  const normalized = phone.trim();
+  if (phoneCodeRateCount("user_id", req.user.id) >= PHONE_CODE_RATE_LIMIT || phoneCodeRateCount("ip_address", ip) >= PHONE_CODE_RATE_LIMIT) {
+    return res.status(429).json({ error: "Too many verification codes requested. Wait a while and try again." });
+  }
+
+  const code = generateNumericCode();
+  const expiresAt = new Date(Date.now() + PHONE_CODE_TTL_MS).toISOString().slice(0, 19).replace("T", " ");
+  db.prepare(
+    `UPDATE users SET pending_phone = ?, pending_phone_code_hash = ?, pending_phone_code_expires_at = ?,
+       phone_consent_at = datetime('now'), phone_consent_ip = ?, phone_consent_version = ?
+     WHERE id = ?`
+  ).run(normalized, hashPassword(code), expiresAt, ip, TCPA_CONSENT_VERSION, req.user.id);
+
+  const smsResult = sendSms({ to: normalized, body: `Your Pact verification code is ${code}. It expires in 10 minutes.` });
+  logAccountAudit({ userId: req.user.id, action: "phone_verification_sent", result: "success", ip, userAgent });
+
+  if (!smsConfigured()) {
+    return res.json({ ok: true, devNote: "SMS is not configured on this server, so here is the code directly: ", code });
+  }
+  res.json({ ok: true, sent: smsResult.sent });
+});
+
+router.post("/phone/verify", requireAuth, authAttemptLimiter, (req, res) => {
+  const { code } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (!row.pending_phone || !row.pending_phone_code_hash) {
+    return res.status(400).json({ error: "Request a verification code first." });
+  }
+  if (new Date(row.pending_phone_code_expires_at + "Z").getTime() < Date.now()) {
+    return res.status(400).json({ error: "That code has expired. Request a new one." });
+  }
+  if (!code || !verifyPassword(code, row.pending_phone_code_hash)) {
+    logAccountAudit({ userId: row.id, action: "phone_verified", result: "failure", detail: "Incorrect code", ip, userAgent });
+    return res.status(400).json({ error: "That code didn't match." });
+  }
+
+  db.prepare(
+    "UPDATE users SET phone = ?, phone_verified_at = datetime('now'), pending_phone = NULL, pending_phone_code_hash = NULL, pending_phone_code_expires_at = NULL WHERE id = ?"
+  ).run(row.pending_phone, row.id);
+  logAccountAudit({ userId: row.id, action: "phone_verified", result: "success", ip, userAgent });
+  sendMail({ to: row.email, subject: "A phone number was added to your Pact account", text: "A phone number was just verified and added to your Pact account for security alerts and MFA fallback." });
+  res.json({ ok: true, phone: row.pending_phone });
+});
+
+router.post("/phone/remove", requireAuth, requireRecentAuth, (req, res) => {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (!row.phone) return res.status(400).json({ error: "No phone number is set." });
+  db.prepare(
+    "UPDATE users SET phone = NULL, phone_verified_at = NULL, pending_phone = NULL, pending_phone_code_hash = NULL, pending_phone_code_expires_at = NULL WHERE id = ?"
+  ).run(row.id);
+  logAccountAudit({ userId: row.id, action: "phone_removed", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({ to: row.email, subject: "Your phone number was removed from Pact", text: "The phone number on your Pact account was removed." });
+  res.json({ ok: true });
 });
 
 // Soft delete only. This is purely an UPDATE — account_status/closed_at/

@@ -592,6 +592,36 @@ for (const stmt of [
   // fallback." Never the original upload: that's processed and discarded,
   // never stored, per spec 1.1.
   "ALTER TABLE users ADD COLUMN photo_file_ref TEXT",
+  // Primary email change (spec Phase 4) — at most one pending/revertible
+  // change tracked per account at a time. pending_email is NULL once there
+  // is nothing awaiting verification. email_change_old_email is the value
+  // to revert to if the cancel link is used; it (and the cancel window)
+  // stay set for 7 days after confirmation, well after pending_email has
+  // already cleared, which is why this isn't just "the previous value of
+  // users.email" — that's already overwritten by the time cancel matters.
+  "ALTER TABLE users ADD COLUMN pending_email TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_requested_at TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_confirmed_at TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_old_email TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_cancel_expires_at TEXT",
+  // Recovery email — distinct from and must differ from the primary
+  // email; only counts once verified.
+  "ALTER TABLE users ADD COLUMN recovery_email TEXT",
+  "ALTER TABLE users ADD COLUMN recovery_email_verified_at TEXT",
+  "ALTER TABLE users ADD COLUMN pending_recovery_email TEXT",
+  // Phone — optional, SMS-verified, stored in E.164. pending_phone_code_
+  // hash never stores the code itself (spec 1.3: never log/store a
+  // verification code in the clear) — same hashing function as passwords.
+  // consent_at/consent_ip/consent_version are the TCPA consent record
+  // (Part 2 of the spec) captured at the moment the code is requested.
+  "ALTER TABLE users ADD COLUMN phone TEXT",
+  "ALTER TABLE users ADD COLUMN phone_verified_at TEXT",
+  "ALTER TABLE users ADD COLUMN pending_phone TEXT",
+  "ALTER TABLE users ADD COLUMN pending_phone_code_hash TEXT",
+  "ALTER TABLE users ADD COLUMN pending_phone_code_expires_at TEXT",
+  "ALTER TABLE users ADD COLUMN phone_consent_at TEXT",
+  "ALTER TABLE users ADD COLUMN phone_consent_ip TEXT",
+  "ALTER TABLE users ADD COLUMN phone_consent_version TEXT",
 ]) {
   try {
     db.exec(stmt);

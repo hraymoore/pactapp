@@ -40,8 +40,8 @@ router.post("/analyze", async (req, res) => {
 
   const isOwner = contract.owner_id === req.user.id;
   const isParty = !!db
-    .prepare("SELECT id FROM contract_parties WHERE contract_id = ? AND email = ?")
-    .get(contract.id, req.user.email);
+    .prepare("SELECT id FROM contract_parties WHERE contract_id = ? AND (email = ? OR user_id = ?)")
+    .get(contract.id, req.user.email, req.user.id);
   if (!isOwner && !isParty) return res.status(403).json({ error: "You do not have access to this contract." });
 
   if (contract.ai_restricted) {

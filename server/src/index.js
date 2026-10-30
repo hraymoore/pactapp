@@ -56,5 +56,6 @@ app.listen(PORT, () => {
   console.log(`[pact] Billing (Stripe):      ${process.env.STRIPE_SECRET_KEY ? "connected" : "not configured"}`);
   console.log(`[pact] Identity verification: ${process.env.STRIPE_SECRET_KEY ? "connected" : "not configured"}`);
   console.log(`[pact] Email (SMTP):          ${process.env.SMTP_HOST ? "connected" : "not configured"}`);
+  console.log(`[pact] SMS (Twilio):          ${process.env.TWILIO_ACCOUNT_SID ? "connected" : "not configured"}`);
   console.log(`[pact] Scheduled job trigger: ${process.env.INTERNAL_JOB_SECRET ? "configured" : "not configured — /api/internal/* routes will refuse all requests"}`);
 });

@@ -68,6 +68,11 @@
       endpoint: "/api/auth/email/cancel",
       success: (data) => `Your email was reverted to ${data.email} and your account has been locked for safety. Request a temporary password from the login page to get back in.`,
     },
+    "cancel-mfa-recovery": {
+      title: "Cancelling account recovery",
+      endpoint: "/api/auth/mfa/lost-access/cancel",
+      success: () => "Done — the account recovery request was cancelled. Two-factor authentication is still required to sign in to that account.",
+    },
   };
 
   (async () => {

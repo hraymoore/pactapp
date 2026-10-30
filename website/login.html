@@ -73,7 +73,31 @@
         <input id="mfaCode" required placeholder="123456" autocomplete="one-time-code">
       </div>
       <button type="submit" class="btn btn-gold btn-block">Verify</button>
+      <p class="form-note" style="margin-top:10px;">
+        <a href="#" id="smsFallbackLink">Text me a code instead</a> ·
+        <a href="#" id="lostAccessLink">Lost access to your authenticator?</a>
+      </p>
     </form>
+
+    <form id="smsFallbackForm" style="display:none;">
+      <div class="eyebrow" style="justify-content:center;display:flex;margin-top:4px;">Code sent by text</div>
+      <p class="center" style="font-size:0.85rem;" id="smsFallbackNote">Sending a code to your verified phone number…</p>
+      <div class="field">
+        <label for="smsFallbackCode">Verification code</label>
+        <input id="smsFallbackCode" placeholder="123456" autocomplete="one-time-code">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">Verify</button>
+      <p class="form-note"><a href="#" id="backToMfaFromSmsLink">Back to authenticator code</a></p>
+    </form>
+
+    <div id="lostAccessBox" style="display:none;">
+      <div class="eyebrow" style="justify-content:center;display:flex;margin-top:4px;">Account recovery</div>
+      <p class="center" style="font-size:0.85rem;" id="lostAccessStatusText">Starting account recovery…</p>
+      <p class="center" style="font-size:0.82rem;color:var(--silver);">This is never instant — it requires identity re-verification and a 48-hour waiting period, with notices sent to every contact method on the account, so it can be stopped if this wasn't you.</p>
+      <button class="btn btn-ghost-dark btn-block" id="lostAccessRefreshBtn" style="margin-top:12px;">Check Status</button>
+      <p class="form-note"><a href="#" id="backToMfaFromLostAccessLink">Back to authenticator code</a></p>
+    </div>
+
     <div id="reactivateBox" style="display:none;margin-top:16px;text-align:center;">
       <button class="btn btn-ghost-dark btn-block" id="reactivateBtn">Reactivate This Account</button>
     </div>
@@ -146,6 +170,96 @@
       submitBtn.disabled = false;
       submitBtn.textContent = "Verify";
     }
+  });
+
+  // ---- SMS fallback (spec Phase 5: a second factor alternative, not a
+  // standalone way to log in on its own) ----
+  const smsFallbackForm = document.getElementById("smsFallbackForm");
+  let pendingSmsChallengeToken = null;
+
+  document.getElementById("smsFallbackLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    alertBox.classList.remove("show");
+    mfaForm.style.display = "none";
+    smsFallbackForm.style.display = "";
+    const note = document.getElementById("smsFallbackNote");
+    note.textContent = "Sending a code to your verified phone number…";
+    try {
+      const data = await PactAPI.mfaSmsFallbackRequest({ challengeToken: pendingChallengeToken });
+      pendingSmsChallengeToken = data.smsChallengeToken;
+      note.textContent = data.devNote ? `${data.devNote}${data.code}` : "A code was texted to your verified phone number.";
+      document.getElementById("smsFallbackCode").focus();
+    } catch (err) {
+      note.textContent = err.message;
+    }
+  });
+
+  document.getElementById("backToMfaFromSmsLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    smsFallbackForm.style.display = "none";
+    mfaForm.style.display = "";
+  });
+
+  smsFallbackForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("smsFallbackCode").value.trim();
+    const submitBtn = e.target.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Verifying…";
+    try {
+      await PactAPI.verifyMfaLogin({ smsChallengeToken: pendingSmsChallengeToken, code });
+      goToNext();
+    } catch (err) {
+      alertBox.textContent = err.message;
+      alertBox.classList.add("show");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Verify";
+    }
+  });
+
+  // ---- Lost access entirely (spec Phase 5: identity re-verification +
+  // a 48-hour delay, with notices to every contact method — never
+  // instant) ----
+  const lostAccessBox = document.getElementById("lostAccessBox");
+
+  async function refreshLostAccessStatus() {
+    const statusText = document.getElementById("lostAccessStatusText");
+    try {
+      const data = await PactAPI.mfaLostAccessStatus({ challengeToken: pendingChallengeToken });
+      if (data.status === "awaiting_verification") {
+        statusText.textContent = "Waiting on identity verification. Check your email for a link, or come back and check again once you've completed it.";
+      } else if (data.status === "awaiting_delay") {
+        statusText.textContent = `Identity verified. Two-factor authentication will be removed at ${data.eligibleAt} UTC unless this is cancelled before then (see the email for a cancel link) — you can also just sign in normally with your authenticator app once you have it back.`;
+      } else {
+        statusText.textContent = "This recovery request is no longer active.";
+      }
+    } catch (err) {
+      statusText.textContent = err.message;
+    }
+  }
+
+  document.getElementById("lostAccessLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    alertBox.classList.remove("show");
+    mfaForm.style.display = "none";
+    lostAccessBox.style.display = "";
+    const statusText = document.getElementById("lostAccessStatusText");
+    statusText.textContent = "Starting account recovery…";
+    try {
+      const data = await PactAPI.mfaLostAccessStart({ challengeToken: pendingChallengeToken });
+      if (data.devNote) statusText.textContent = data.devNote;
+      await refreshLostAccessStatus();
+    } catch (err) {
+      statusText.textContent = err.message;
+    }
+  });
+
+  document.getElementById("lostAccessRefreshBtn").addEventListener("click", refreshLostAccessStatus);
+
+  document.getElementById("backToMfaFromLostAccessLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    lostAccessBox.style.display = "none";
+    mfaForm.style.display = "";
   });
 
   document.getElementById("reactivateBtn").addEventListener("click", async () => {

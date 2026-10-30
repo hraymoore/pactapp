@@ -489,6 +489,28 @@ CREATE TABLE IF NOT EXISTS photo_reports (
   reason TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- The "lost MFA entirely, no backup codes" path (spec Phase 5) — never an
+-- instant bypass. status moves awaiting_verification -> awaiting_delay
+-- (once Stripe Identity confirms who they are) -> completed (once
+-- eligible_at passes with nothing cancelling it, see services/
+-- mfa-recovery.js's completeMfaRecoveries) or cancelled at any point
+-- before that (the owner objects via the cancel link in the notice, or
+-- simply logs in normally with a real MFA code, which cancels it
+-- automatically). At most one open (non-terminal) request per account —
+-- enforced in code, not a constraint here.
+CREATE TABLE IF NOT EXISTS mfa_recovery_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  identity_verification_id INTEGER REFERENCES identity_verifications(id),
+  status TEXT NOT NULL DEFAULT 'awaiting_verification' CHECK (status IN ('awaiting_verification', 'awaiting_delay', 'completed', 'cancelled')),
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  verified_at TEXT,
+  eligible_at TEXT,
+  completed_at TEXT,
+  cancelled_at TEXT,
+  cancel_reason TEXT
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

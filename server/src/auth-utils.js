@@ -70,6 +70,42 @@ function verifyMfaChallengeToken(token) {
   }
 }
 
+// SMS-as-fallback (spec Phase 5: "SMS as fallback only" — it's an
+// alternative second factor during an MFA login that's already past the
+// password step, not a standalone way in). The code's hash travels in the
+// token itself rather than a DB row, the same reasoning as the MFA
+// challenge token above: nothing to clean up, and it can't outlive its
+// own short expiry.
+const MFA_SMS_FALLBACK_PURPOSE = "mfa_sms_fallback";
+function signMfaSmsFallbackToken(userId, codeHash) {
+  return jwt.sign({ sub: userId, codeHash, purpose: MFA_SMS_FALLBACK_PURPOSE }, getSecret(), { expiresIn: "10m" });
+}
+function verifyMfaSmsFallbackToken(token) {
+  try {
+    const payload = jwt.verify(token, getSecret());
+    return payload.purpose === MFA_SMS_FALLBACK_PURPOSE ? payload : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// The cancel link sent with every lost-MFA-recovery notice (spec Phase 5:
+// notices to all contact methods during the 48-hour delay). Long-lived on
+// purpose — the whole point is a 48-hour-plus window during which the
+// real owner, if this wasn't them, can still kill it.
+const MFA_RECOVERY_CANCEL_PURPOSE = "mfa_recovery_cancel";
+function signMfaRecoveryCancelToken(requestId) {
+  return jwt.sign({ requestId, purpose: MFA_RECOVERY_CANCEL_PURPOSE }, getSecret(), { expiresIn: "9d" });
+}
+function verifyMfaRecoveryCancelToken(token) {
+  try {
+    const payload = jwt.verify(token, getSecret());
+    return payload.purpose === MFA_RECOVERY_CANCEL_PURPOSE ? payload : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 // Short-lived, purpose-tagged JWT for an archive file download — "serve
 // only through authenticated, short-lived signed URLs" per the archive
 // spec. Carries the archive item id and the user id it was issued to, so
@@ -173,6 +209,10 @@ module.exports = {
   generateTempPassword,
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  signMfaSmsFallbackToken,
+  verifyMfaSmsFallbackToken,
+  signMfaRecoveryCancelToken,
+  verifyMfaRecoveryCancelToken,
   signArchiveDownloadToken,
   verifyArchiveDownloadToken,
   signEmailVerifyToken,

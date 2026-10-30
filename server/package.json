@@ -12,7 +12,9 @@
     "reminders-local": "node scripts/send-expiration-reminders.js",
     "annual-pass-reminders-local": "node scripts/send-annual-pass-reminders.js",
     "archive-purge": "node scripts/ping-archive-purge.js",
-    "archive-purge-local": "node scripts/send-archive-purge.js"
+    "archive-purge-local": "node scripts/send-archive-purge.js",
+    "mfa-recovery-completions": "node scripts/ping-mfa-recovery-completions.js",
+    "mfa-recovery-completions-local": "node scripts/send-mfa-recovery-completions.js"
   },
   "engines": {
     "node": ">=22.5.0"

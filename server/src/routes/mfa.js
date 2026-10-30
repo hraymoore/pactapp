@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { requireRecentAuth } = require("../middleware/reauth");
 const { verifyPassword } = require("../auth-utils");
 const {
   generateSecret,
@@ -50,6 +51,20 @@ router.post("/enroll/verify", requireAuth, (req, res) => {
     "UPDATE users SET mfa_enabled = 1, mfa_enabled_at = datetime('now'), mfa_backup_codes = ? WHERE id = ?"
   ).run(JSON.stringify(hashBackupCodes(backupCodes)), req.user.id);
   logAccountAudit({ userId: req.user.id, action: "mfa_enabled", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  res.json({ ok: true, backupCodes });
+});
+
+// Backup codes are meant to be saved somewhere durable (spec 1.4's
+// "account recovery contact kit"), but if that somewhere gets lost too,
+// this mints a fresh set of 10 and immediately invalidates every old one
+// — a half-used, partially-leaked list is exactly the situation this
+// exists for.
+router.post("/backup-codes/regenerate", requireAuth, requireRecentAuth, (req, res) => {
+  const row = db.prepare("SELECT mfa_enabled FROM users WHERE id = ?").get(req.user.id);
+  if (!row.mfa_enabled) return res.status(400).json({ error: "Two-factor authentication isn't on." });
+  const backupCodes = generateBackupCodes();
+  db.prepare("UPDATE users SET mfa_backup_codes = ? WHERE id = ?").run(JSON.stringify(hashBackupCodes(backupCodes)), req.user.id);
+  logAccountAudit({ userId: req.user.id, action: "mfa_backup_codes_regenerated", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ ok: true, backupCodes });
 });
 

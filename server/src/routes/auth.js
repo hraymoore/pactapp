@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const router = express.Router();
 const db = require("../db");
 const {
@@ -8,6 +9,9 @@ const {
   generateTempPassword,
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  signMfaSmsFallbackToken,
+  verifyMfaSmsFallbackToken,
+  verifyMfaRecoveryCancelToken,
   COOKIE_OPTS,
   signEmailVerifyToken,
   verifyEmailVerifyToken,
@@ -39,6 +43,12 @@ const { authAttemptLimiter } = require("../middleware/rate-limit");
 const { checkPasswordBreached } = require("../services/password-breach");
 const { describeUserAgent } = require("../services/user-agent");
 const { smsConfigured, sendSms } = require("../services/sms");
+const {
+  startRecovery: startMfaRecovery,
+  refreshRecoveryStatus: refreshMfaRecoveryStatus,
+  cancelRecovery: cancelMfaRecovery,
+  getOpenRequest: getOpenMfaRecoveryRequest,
+} = require("../services/mfa-recovery");
 
 router.use(express.json());
 
@@ -216,7 +226,37 @@ router.post("/login", authAttemptLimiter, (req, res) => {
 // proves the second factor. Only then does the real session cookie get
 // issued.
 router.post("/mfa/verify-login", (req, res) => {
-  const { challengeToken, code } = req.body || {};
+  const { challengeToken, smsChallengeToken, code } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
+
+  // SMS-fallback branch: a completely separate short-lived token (see
+  // /mfa/sms-fallback/request below) carrying the texted code's hash, so
+  // this never touches a TOTP secret or backup codes at all.
+  if (smsChallengeToken) {
+    const smsPayload = verifyMfaSmsFallbackToken(smsChallengeToken);
+    if (!smsPayload || !code) {
+      return res.status(401).json({ error: "That code expired. Request a new one." });
+    }
+    const row = db.prepare("SELECT * FROM users WHERE id = ?").get(smsPayload.sub);
+    if (!row || row.account_status !== "active" || !row.mfa_enabled) {
+      return res.status(401).json({ error: "That login attempt is no longer valid. Log in again." });
+    }
+    const candidateHash = crypto.createHash("sha256").update(String(code).trim()).digest("hex");
+    const expected = Buffer.from(smsPayload.codeHash, "hex");
+    const candidate = Buffer.from(candidateHash, "hex");
+    const matches = expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
+    if (!matches) {
+      logAccountAudit({ userId: row.id, action: "login", result: "failure", detail: "Incorrect SMS fallback code", ip, userAgent });
+      return res.status(401).json({ error: "Invalid verification code." });
+    }
+    cancelMfaRecoveryOnSuccessfulMfa(row.id, "Signed in with SMS fallback");
+    const user = publicUser(row);
+    res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
+    logAccountAudit({ userId: row.id, action: "login", result: "success", detail: "SMS fallback", ip, userAgent });
+    return res.json({ user });
+  }
+
   if (!challengeToken || !code) {
     return res.status(400).json({ error: "A verification code is required." });
   }
@@ -230,13 +270,95 @@ router.post("/mfa/verify-login", (req, res) => {
   }
   const result = verifyMfaCode(row, code);
   if (!result.ok) {
-    logAccountAudit({ userId: row.id, action: "login", result: "failure", detail: "Incorrect MFA code", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+    logAccountAudit({ userId: row.id, action: "login", result: "failure", detail: "Incorrect MFA code", ip, userAgent });
     return res.status(401).json({ error: "Invalid verification code." });
   }
+  cancelMfaRecoveryOnSuccessfulMfa(row.id, "Signed in normally with MFA");
   const user = publicUser(row);
   res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
-  logAccountAudit({ userId: row.id, action: "login", result: "success", detail: "MFA", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  logAccountAudit({ userId: row.id, action: "login", result: "success", detail: "MFA", ip, userAgent });
   res.json({ user });
+});
+
+// Proof you still have your authenticator/backup codes is proof a
+// pending lost-access recovery wasn't legitimate (or is no longer
+// needed) — cancel it automatically rather than making the owner also
+// remember to go click the cancel link.
+function cancelMfaRecoveryOnSuccessfulMfa(userId, reason) {
+  const open = getOpenMfaRecoveryRequest(userId);
+  if (open) cancelMfaRecovery(open, reason);
+}
+
+// SMS is a fallback second factor only (spec Phase 5) — it's reachable
+// only from an already-password-verified MFA challenge, and only for an
+// account with a verified phone number; it can't be used to start a
+// login on its own.
+router.post("/mfa/sms-fallback/request", authAttemptLimiter, (req, res) => {
+  const { challengeToken } = req.body || {};
+  const payload = challengeToken && verifyMfaChallengeToken(challengeToken);
+  if (!payload) return res.status(401).json({ error: "That login attempt expired. Log in again." });
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  if (!row || row.account_status !== "active" || !row.mfa_enabled) {
+    return res.status(401).json({ error: "That login attempt is no longer valid. Log in again." });
+  }
+  if (!row.phone || !row.phone_verified_at) {
+    return res.status(400).json({ error: "No verified phone number on this account." });
+  }
+  const code = generateNumericCode();
+  const codeHash = crypto.createHash("sha256").update(code).digest("hex");
+  sendSms({ to: row.phone, body: `Your Pact sign-in code is ${code}. It expires in 10 minutes.` });
+  logAccountAudit({ userId: row.id, action: "mfa_sms_fallback_sent", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  const smsChallengeToken = signMfaSmsFallbackToken(row.id, codeHash);
+  if (!smsConfigured()) {
+    return res.json({ ok: true, smsChallengeToken, devNote: "SMS is not configured on this server, so here is the code directly: ", code });
+  }
+  res.json({ ok: true, smsChallengeToken });
+});
+
+// The "lost MFA entirely, no backup codes" path — see services/mfa-
+// recovery.js for the full awaiting_verification -> awaiting_delay ->
+// completed lifecycle. Reachable from the same MFA login challenge as
+// the code step above, since that's the only proof-of-password this
+// unauthenticated moment has.
+router.post("/mfa/lost-access/start", authAttemptLimiter, async (req, res) => {
+  const { challengeToken } = req.body || {};
+  const payload = challengeToken && verifyMfaChallengeToken(challengeToken);
+  if (!payload) return res.status(401).json({ error: "That login attempt expired. Log in again." });
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub);
+  if (!row || row.account_status !== "active" || !row.mfa_enabled) {
+    return res.status(401).json({ error: "That login attempt is no longer valid. Log in again." });
+  }
+  try {
+    const { request, alreadyOpen, devNote } = await startMfaRecovery({ user: row, req });
+    res.json({ ok: true, status: request.status, eligibleAt: request.eligible_at, alreadyOpen: !!alreadyOpen, devNote });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/mfa/lost-access/status", async (req, res) => {
+  const { challengeToken } = req.body || {};
+  const payload = challengeToken && verifyMfaChallengeToken(challengeToken);
+  if (!payload) return res.status(401).json({ error: "That login attempt expired. Log in again." });
+  const open = getOpenMfaRecoveryRequest(payload.sub);
+  if (!open) return res.status(404).json({ error: "No account recovery request found." });
+  try {
+    const refreshed = await refreshMfaRecoveryStatus(open);
+    res.json({ status: refreshed.status, eligibleAt: refreshed.eligible_at });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/mfa/lost-access/cancel", (req, res) => {
+  const { token } = req.body || {};
+  const payload = token && verifyMfaRecoveryCancelToken(token);
+  if (!payload) return res.status(400).json({ error: "This cancel link is invalid or has expired." });
+  const request = db.prepare("SELECT * FROM mfa_recovery_requests WHERE id = ?").get(payload.requestId);
+  if (!request || !cancelMfaRecovery(request, "Cancelled via the notice's cancel link")) {
+    return res.status(400).json({ error: "There's no recovery request that can still be cancelled." });
+  }
+  res.json({ ok: true });
 });
 
 // Credential-verified reactivation for a closed account — not a full

@@ -387,7 +387,7 @@
               <h3>Password</h3>
               <p id="tempPasswordBanner" style="display:none;color:var(--ruby-bright);font-size:0.85rem;">You're signed in with a temporary password. Set a permanent one below.</p>
               <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" placeholder="Current password"></div>
-              <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 6 characters"></div>
+              <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 12 characters" autocomplete="new-password"></div>
               <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
               <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
             </div>
@@ -415,8 +415,17 @@
             </div>
 
             <div class="card" style="margin-top:24px;">
-              <h3>Active Sessions &amp; Login Activity</h3>
-              <p style="font-size:0.85rem;color:var(--silver);">Listing your signed-in devices and a security activity log are coming in a later phase. Every sensitive action you take here — changing your password, downloading your data, and more — is already being recorded with its outcome, time, and IP address.</p>
+              <h3>Active Sessions</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Every device currently signed in to your account.</p>
+              <div id="sessionsList"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="signOutOthersBtn" style="margin-top:12px;border-color:var(--ruby);color:var(--ruby-bright);">Sign Out Everywhere Else</button>
+              <p id="sessionsNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Login &amp; Security Activity</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">The last 90 days of logins, password changes, MFA changes, data exports, and other sensitive actions on your account — read-only.</p>
+              <div id="securityLogList" style="font-size:0.85rem;max-height:420px;overflow-y:auto;"></div>
             </div>
           </div>
 
@@ -2048,8 +2057,10 @@
         document.getElementById("currentPassword").value = "";
         document.getElementById("newPassword").value = "";
         document.getElementById("tempPasswordBanner").style.display = "none";
-        note.textContent = "Password changed.";
+        note.textContent = "Password changed. Every other signed-in device has been signed out, and a confirmation email is on its way.";
         note.style.color = "var(--emerald-bright)";
+        await renderSessionsList();
+        await renderSecurityLog();
       } catch (err) {
         note.textContent = err.message;
         note.style.color = "var(--ruby-bright)";
@@ -2391,6 +2402,97 @@
         document.getElementById("removePhotoBtn").style.display = "none";
       } catch (err) {
         alert(err.message);
+      }
+    });
+  }
+
+  // ---- settings: active sessions + security activity log ----
+  const SECURITY_ACTION_LABEL = {
+    login: "Signed in",
+    password_changed: "Password changed",
+    mfa_enabled: "Two-factor authentication turned on",
+    mfa_disabled: "Two-factor authentication turned off",
+    reauth: "Re-authenticated for a sensitive action",
+    export_data: "Downloaded account data",
+    close_account: "Account closed",
+    display_name_changed: "Display name changed",
+    session_revoked: "Signed out a device",
+    sessions_revoked_all_others: "Signed out all other devices",
+  };
+
+  async function renderSessionsList() {
+    const wrap = document.getElementById("sessionsList");
+    const { sessions } = await apiJson("/api/auth/sessions");
+    wrap.innerHTML = "";
+    sessions.forEach(s => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-dark);flex-wrap:wrap;";
+      row.innerHTML = `
+        <div>
+          <strong style="font-size:0.88rem;">${s.device}${s.isCurrent ? ' <span style="color:var(--emerald-bright);font-size:0.75rem;">(this device)</span>' : ""}</strong>
+          <div style="font-size:0.78rem;color:var(--silver);">${s.ipAddress || "Unknown IP"} &middot; last active ${fmt(s.lastActiveAt)}</div>
+        </div>
+      `;
+      if (!s.isCurrent) {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-ghost-dark btn-sm";
+        btn.textContent = "Sign Out";
+        btn.addEventListener("click", async () => {
+          if (!(await ensureRecentAuth())) return;
+          try {
+            await apiJson(`/api/auth/sessions/${s.id}/revoke`, { method: "POST", body: JSON.stringify({}) });
+            await renderSessionsList();
+            await renderSecurityLog();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        row.appendChild(btn);
+      }
+      wrap.appendChild(row);
+    });
+  }
+
+  async function renderSecurityLog() {
+    const wrap = document.getElementById("securityLogList");
+    const { entries } = await apiJson("/api/auth/security-log");
+    wrap.innerHTML = "";
+    if (entries.length === 0) {
+      wrap.innerHTML = "<p style='margin:0;color:var(--silver);'>No activity recorded yet.</p>";
+      return;
+    }
+    entries.forEach(e => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:8px 0;border-bottom:1px solid var(--border-dark);";
+      const resultColor = e.result === "failure" ? "var(--ruby-bright)" : "var(--silver)";
+      row.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <span>${SECURITY_ACTION_LABEL[e.action] || e.action}${e.result === "failure" ? " — failed" : ""}</span>
+          <span style="color:var(--silver);font-size:0.78rem;">${fmt(e.createdAt)}</span>
+        </div>
+        <div style="font-size:0.76rem;color:${resultColor};">${e.device} &middot; ${e.ipAddress || "unknown IP"}${e.detail ? " &middot; " + e.detail : ""}</div>
+      `;
+      wrap.appendChild(row);
+    });
+  }
+
+  async function setupSecurityActivity() {
+    await renderSessionsList();
+    await renderSecurityLog();
+    document.getElementById("signOutOthersBtn").addEventListener("click", async () => {
+      if (!(await ensureRecentAuth())) return;
+      if (!confirm("Sign out of every other device? This one stays signed in.")) return;
+      const note = document.getElementById("sessionsNote");
+      note.style.color = "";
+      try {
+        await apiJson("/api/auth/sessions/revoke-others", { method: "POST", body: JSON.stringify({}) });
+        note.textContent = "Signed out everywhere else.";
+        note.style.color = "var(--emerald-bright)";
+        await renderSessionsList();
+        await renderSecurityLog();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
       }
     });
   }
@@ -2844,6 +2946,7 @@
     setupSettingsSubNav();
     await setupProfile();
     setupProfilePhoto();
+    await setupSecurityActivity();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

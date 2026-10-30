@@ -17,9 +17,19 @@ const { isValidEinFormat, normalizeEin } = require("../services/organizations");
 const { recordAcceptance, clientIp } = require("../services/terms");
 const { cancelSubscriptionImmediately } = require("../services/billing-provider");
 const { verifyMfaCode } = require("../services/mfa");
-const { createSession, markReauth, hasRecentReauth, revokeAllSessions, revokeSession } = require("../services/sessions");
-const { logAccountAudit } = require("../services/account-audit");
+const {
+  createSession,
+  markReauth,
+  hasRecentReauth,
+  revokeAllSessions,
+  revokeSession,
+  revokeOtherSessions,
+  listActiveSessions,
+} = require("../services/sessions");
+const { logAccountAudit, listAccountAudit } = require("../services/account-audit");
 const { authAttemptLimiter } = require("../middleware/rate-limit");
+const { checkPasswordBreached } = require("../services/password-breach");
+const { describeUserAgent } = require("../services/user-agent");
 
 router.use(express.json());
 
@@ -181,6 +191,7 @@ router.post("/login", authAttemptLimiter, (req, res) => {
 
   if (!verifyPassword(password, row.password_hash)) {
     const attempts = (row.failed_login_attempts || 0) + 1;
+    logAccountAudit({ userId: row.id, action: "login", result: "failure", detail: "Incorrect password", ip: clientIp(req), userAgent: req.headers["user-agent"] });
     if (attempts >= MAX_LOGIN_ATTEMPTS) {
       db.prepare("UPDATE users SET failed_login_attempts = ?, locked_at = datetime('now') WHERE id = ?").run(attempts, row.id);
       return res.status(423).json({
@@ -204,13 +215,15 @@ router.post("/login", authAttemptLimiter, (req, res) => {
   // Password is correct, but that's only step one for an MFA-enrolled
   // account — issue a short-lived challenge token instead of the real
   // session cookie, and make the client complete the code step below
-  // before it gets one.
+  // before it gets one. Not logged as a login yet — the sign-in isn't
+  // complete until /mfa/verify-login below actually succeeds.
   if (refreshed.mfa_enabled) {
     return res.json({ mfaRequired: true, challengeToken: signMfaChallengeToken(refreshed) });
   }
 
   const user = publicUser(refreshed);
   res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
+  logAccountAudit({ userId: row.id, action: "login", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ user });
 });
 
@@ -233,10 +246,12 @@ router.post("/mfa/verify-login", (req, res) => {
   }
   const result = verifyMfaCode(row, code);
   if (!result.ok) {
+    logAccountAudit({ userId: row.id, action: "login", result: "failure", detail: "Incorrect MFA code", ip: clientIp(req), userAgent: req.headers["user-agent"] });
     return res.status(401).json({ error: "Invalid verification code." });
   }
   const user = publicUser(row);
   res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
+  logAccountAudit({ userId: row.id, action: "login", result: "success", detail: "MFA", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ user });
 });
 
@@ -314,25 +329,127 @@ router.post("/forgot-password", authAttemptLimiter, (req, res) => {
   void mailResult;
 });
 
-router.post("/change-password", requireAuth, (req, res) => {
+const NEW_PASSWORD_MIN_LENGTH = 12;
+
+router.post("/change-password", requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
+  const ip = clientIp(req);
+  const userAgent = req.headers["user-agent"];
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: "Current and new password are required." });
   }
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: "New password must be at least 6 characters." });
+  if (newPassword.length < NEW_PASSWORD_MIN_LENGTH) {
+    return res.status(400).json({ error: `New password must be at least ${NEW_PASSWORD_MIN_LENGTH} characters.` });
   }
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
   if (!row || !verifyPassword(currentPassword, row.password_hash)) {
+    logAccountAudit({ userId: req.user.id, action: "password_changed", result: "failure", detail: "Incorrect current password", ip, userAgent });
     return res.status(401).json({ error: "Current password is incorrect." });
   }
+
+  // Advisory, not a hard gate on HIBP being reachable (see services/
+  // password-breach.js) — `checked: false` (API unreachable) never blocks
+  // the change; only a confirmed match does.
+  const { checked, breached } = await checkPasswordBreached(newPassword);
+  if (checked && breached) {
+    logAccountAudit({ userId: row.id, action: "password_changed", result: "failure", detail: "Password found in a known breach", ip, userAgent });
+    return res.status(400).json({
+      error: "That password has appeared in a known data breach — choose a different one.",
+      breached: true,
+    });
+  }
+
   db.prepare(
     "UPDATE users SET password_hash = ?, temp_password_expires_at = NULL, failed_login_attempts = 0, locked_at = NULL WHERE id = ?"
   ).run(hashPassword(newPassword), row.id);
+
+  // The current session's JWT was never tied to the password hash, so it
+  // stays valid as-is — no reason to mint a new session or reissue the
+  // cookie here, only to invalidate every OTHER one someone might be
+  // signed in from.
+  revokeOtherSessions(row.id, req.sessionId);
+  logAccountAudit({ userId: row.id, action: "password_changed", result: "success", ip, userAgent });
+
+  // TODO(Phase 4): also send to the recovery email once that field exists.
+  sendMail({
+    to: row.email,
+    subject: "Your Pact password was changed",
+    text:
+      "Your Pact account password was just changed. Every other signed-in device has been signed out; " +
+      "this one stays signed in since it's the one that made the change.\n\n" +
+      `Time: ${new Date().toISOString()}\nIP address: ${ip}\n\n` +
+      "If you didn't make this change, reset your password immediately from the login page and contact support.",
+  });
+
   const refreshed = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
-  const user = publicUser(refreshed);
-  res.cookie("pact_token", startSession(req, user), COOKIE_OPTS);
-  res.json({ user });
+  res.json({ user: publicUser(refreshed) });
+});
+
+// "device, browser, approximate location from IP" (spec 1.2) — location
+// is the one piece deliberately left out: it needs a geolocation provider
+// (a MaxMind-style DB or a paid/rate-limited API), which isn't configured
+// anywhere in this app yet, same as malware scanning or identity
+// verification before their own provider was wired up. The raw IP is
+// shown instead rather than silently guessing at a city.
+router.get("/sessions", requireAuth, (req, res) => {
+  const sessions = listActiveSessions(req.user.id).map((s) => ({
+    id: s.id,
+    isCurrent: s.id === req.sessionId,
+    device: describeUserAgent(s.user_agent),
+    ipAddress: s.ip_address,
+    createdAt: s.created_at,
+    lastActiveAt: s.last_active_at,
+  }));
+  res.json({ sessions });
+});
+
+// Revoking a session is sensitive enough to gate on its own — a stolen
+// session cookie could otherwise be used to silently kick the real owner
+// out of every OTHER device, extending the window an attacker has
+// exclusive access for.
+router.post("/sessions/:id/revoke", requireAuth, requireRecentAuth, (req, res) => {
+  const revoked = revokeSession(req.params.id, req.user.id);
+  if (!revoked) return res.status(404).json({ error: "Session not found." });
+  logAccountAudit({
+    userId: req.user.id,
+    action: "session_revoked",
+    result: "success",
+    detail: req.params.id === req.sessionId ? "Current session" : "Another session",
+    ip: clientIp(req),
+    userAgent: req.headers["user-agent"],
+  });
+  res.json({ ok: true });
+});
+
+// "Sign out everywhere [else]" — keeps the session making this request
+// alive, matching how a password change behaves (see above): the point
+// is cutting off every OTHER device, not logging yourself out of the one
+// you're actively using to do it.
+router.post("/sessions/revoke-others", requireAuth, requireRecentAuth, (req, res) => {
+  revokeOtherSessions(req.user.id, req.sessionId);
+  logAccountAudit({ userId: req.user.id, action: "sessions_revoked_all_others", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  res.json({ ok: true });
+});
+
+// Read-only activity log (spec 1.2: "last 90 days of logins, password
+// changes, email/phone changes, MFA changes, failed attempts"). Backed
+// entirely by account_audit_log, which every sensitive route above (and
+// routes/profile.js, routes/mfa.js) already writes to — this route adds
+// no new write path, only a read.
+router.get("/security-log", requireAuth, (req, res) => {
+  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - NINETY_DAYS_MS;
+  const entries = listAccountAudit(req.user.id, 500)
+    .filter((e) => new Date(e.created_at + "Z").getTime() >= cutoff)
+    .map((e) => ({
+      action: e.action,
+      result: e.result,
+      detail: e.detail,
+      ipAddress: e.ip_address,
+      device: describeUserAgent(e.user_agent),
+      createdAt: e.created_at,
+    }));
+  res.json({ entries });
 });
 
 // Soft delete only. This is purely an UPDATE — account_status/closed_at/

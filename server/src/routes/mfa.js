@@ -11,6 +11,8 @@ const {
   generateBackupCodes,
   hashBackupCodes,
 } = require("../services/mfa");
+const { logAccountAudit } = require("../services/account-audit");
+const { clientIp } = require("../services/terms");
 
 router.use(express.json());
 
@@ -47,6 +49,7 @@ router.post("/enroll/verify", requireAuth, (req, res) => {
   db.prepare(
     "UPDATE users SET mfa_enabled = 1, mfa_enabled_at = datetime('now'), mfa_backup_codes = ? WHERE id = ?"
   ).run(JSON.stringify(hashBackupCodes(backupCodes)), req.user.id);
+  logAccountAudit({ userId: req.user.id, action: "mfa_enabled", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ ok: true, backupCodes });
 });
 
@@ -58,11 +61,13 @@ router.post("/disable", requireAuth, (req, res) => {
   if (!password) return res.status(400).json({ error: "Enter your password to confirm." });
   const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user.id);
   if (!verifyPassword(password, row.password_hash)) {
+    logAccountAudit({ userId: req.user.id, action: "mfa_disabled", result: "failure", detail: "Incorrect password", ip: clientIp(req), userAgent: req.headers["user-agent"] });
     return res.status(401).json({ error: "Password is incorrect." });
   }
   db.prepare(
     "UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_enabled_at = NULL, mfa_backup_codes = NULL WHERE id = ?"
   ).run(req.user.id);
+  logAccountAudit({ userId: req.user.id, action: "mfa_disabled", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ ok: true });
 });
 

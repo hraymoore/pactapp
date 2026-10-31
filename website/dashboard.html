@@ -488,8 +488,58 @@
 
           <div data-settings-panel="notifications" style="display:none;">
             <div class="card">
-              <h3>Notifications</h3>
-              <p style="font-size:0.85rem;color:var(--silver);">Per-category notification preferences (contract activity, payments, reminders, security alerts) are coming in a later phase. Security and legal notices are always sent and can't be turned off.</p>
+              <h3>Notification Categories</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:14px;">Choose email and text alerts per category. SMS requires a verified phone number (Contact &amp; Recovery).</p>
+              <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
+                <tr style="color:var(--silver);text-align:left;">
+                  <th style="padding:6px 0;">Category</th>
+                  <th style="padding:6px 0;width:70px;">Email</th>
+                  <th style="padding:6px 0;width:70px;">SMS</th>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Contract activity (sent, viewed, signed)</td>
+                  <td><input type="checkbox" id="notifContractActivityEmail"></td>
+                  <td><input type="checkbox" id="notifContractActivitySms"></td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Payment events</td>
+                  <td><input type="checkbox" id="notifPaymentEventsEmail"></td>
+                  <td><input type="checkbox" id="notifPaymentEventsSms"></td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Reminders &amp; renewals</td>
+                  <td><input type="checkbox" id="notifRemindersEmail"></td>
+                  <td><input type="checkbox" id="notifRemindersSms"></td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Security alerts</td>
+                  <td><input type="checkbox" checked disabled title="Always on — can't be turned off."></td>
+                  <td style="color:var(--silver);font-size:0.78rem;">Always on</td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Product updates (marketing)</td>
+                  <td><input type="checkbox" id="notifProductUpdatesEmail"></td>
+                  <td>—</td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Quiet Hours &amp; Digest</h3>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:10px;">
+                <input type="checkbox" id="notifQuietHoursEnabled">
+                Quiet hours — pause optional email/SMS alerts during this window (UTC)
+              </label>
+              <div style="display:flex;gap:16px;margin-bottom:14px;">
+                <div class="field" style="max-width:140px;"><label for="notifQuietHoursStart">Start</label><input type="time" id="notifQuietHoursStart"></div>
+                <div class="field" style="max-width:140px;"><label for="notifQuietHoursEnd">End</label><input type="time" id="notifQuietHoursEnd"></div>
+              </div>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;">
+                <input type="checkbox" id="notifDigestEnabled">
+                Daily digest — one summary email per day instead of as-it-happens alerts
+              </label>
+              <button class="btn btn-gold btn-sm" id="saveNotificationsBtn" style="margin-top:16px;">Save Notification Preferences</button>
+              <p id="notificationsNote" style="margin-top:10px;font-size:0.82rem;"></p>
             </div>
           </div>
 
@@ -523,11 +573,32 @@
               <p style="font-size:0.85rem;color:var(--silver);">A JSON export of your profile and every contract you own or are a party to. This is a sensitive action — you'll be asked to confirm your password first.</p>
               <button class="btn btn-ghost-dark btn-sm" id="downloadDataBtn" style="margin-top:4px;">Download My Data</button>
             </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Public Profile</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">What a counterparty sees if they click your name on a contract: your display name, verification badge, and member-since date are always shown. Your email, phone, date of birth, and address are never shown here.</p>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:8px;">
+                <input type="checkbox" id="privacyShowPhoto">
+                Show my profile photo
+              </label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;">
+                <input type="checkbox" id="privacyShowJobTitle">
+                Show my company and job title
+              </label>
+              <button class="btn btn-ghost-dark btn-sm" id="savePrivacyBtn" style="margin-top:12px;">Save</button>
+              <p id="privacyNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
             <div class="card" style="margin-top:24px;">
               <h3>Policies</h3>
               <a href="terms.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;margin-bottom:8px;">Terms of Service</a>
               <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;margin-bottom:8px;">Privacy Policy</a>
               <a href="esignature-disclosure.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;">e-Signature Disclosure</a>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Terms Acceptance History</h3>
+              <div id="termsHistoryList" style="font-size:0.85rem;"></div>
             </div>
           </div>
 
@@ -2724,6 +2795,84 @@
     });
   }
 
+  function setupNotifications() {
+    const prefs = CURRENT_USER.notificationPreferences;
+    document.getElementById("notifContractActivityEmail").checked = prefs.contractActivity.email;
+    document.getElementById("notifContractActivitySms").checked = prefs.contractActivity.sms;
+    document.getElementById("notifPaymentEventsEmail").checked = prefs.paymentEvents.email;
+    document.getElementById("notifPaymentEventsSms").checked = prefs.paymentEvents.sms;
+    document.getElementById("notifRemindersEmail").checked = prefs.reminders.email;
+    document.getElementById("notifRemindersSms").checked = prefs.reminders.sms;
+    document.getElementById("notifProductUpdatesEmail").checked = prefs.productUpdates.email;
+    document.getElementById("notifQuietHoursEnabled").checked = prefs.quietHours.enabled;
+    document.getElementById("notifQuietHoursStart").value = prefs.quietHours.start;
+    document.getElementById("notifQuietHoursEnd").value = prefs.quietHours.end;
+    document.getElementById("notifDigestEnabled").checked = prefs.digest.enabled;
+
+    document.getElementById("saveNotificationsBtn").addEventListener("click", async () => {
+      const note = document.getElementById("notificationsNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/notifications/preferences", {
+          method: "PUT",
+          body: JSON.stringify({
+            contractActivity: { email: document.getElementById("notifContractActivityEmail").checked, sms: document.getElementById("notifContractActivitySms").checked },
+            paymentEvents: { email: document.getElementById("notifPaymentEventsEmail").checked, sms: document.getElementById("notifPaymentEventsSms").checked },
+            reminders: { email: document.getElementById("notifRemindersEmail").checked, sms: document.getElementById("notifRemindersSms").checked },
+            productUpdates: { email: document.getElementById("notifProductUpdatesEmail").checked },
+            quietHours: {
+              enabled: document.getElementById("notifQuietHoursEnabled").checked,
+              start: document.getElementById("notifQuietHoursStart").value || "21:00",
+              end: document.getElementById("notifQuietHoursEnd").value || "08:00",
+            },
+            digest: { enabled: document.getElementById("notifDigestEnabled").checked },
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Notification preferences saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  async function setupPrivacy() {
+    document.getElementById("privacyShowPhoto").checked = CURRENT_USER.privacyShowPhoto;
+    document.getElementById("privacyShowJobTitle").checked = CURRENT_USER.privacyShowJobTitle;
+
+    document.getElementById("savePrivacyBtn").addEventListener("click", async () => {
+      const note = document.getElementById("privacyNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            privacyShowPhoto: document.getElementById("privacyShowPhoto").checked,
+            privacyShowJobTitle: document.getElementById("privacyShowJobTitle").checked,
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Privacy settings saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    try {
+      const { acceptances } = await apiJson("/api/terms/history");
+      const list = document.getElementById("termsHistoryList");
+      list.innerHTML = acceptances.length
+        ? acceptances.map((a) => `<p style="margin-bottom:6px;">${a.terms_version} — accepted ${fmt(a.accepted_at)}</p>`).join("")
+        : "<p style=\"color:var(--silver);\">No recorded acceptances.</p>";
+    } catch (err) {
+      document.getElementById("termsHistoryList").textContent = "Could not load terms history.";
+    }
+  }
+
   // ---- business ----
   let CURRENT_ORG = null;
   let ALL_BIZ_CONTRACTS = [];
@@ -3175,6 +3324,8 @@
     setupProfilePhoto();
     await setupSecurityActivity();
     setupContactRecovery();
+    setupNotifications();
+    await setupPrivacy();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

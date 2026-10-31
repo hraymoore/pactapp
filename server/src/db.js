@@ -511,6 +511,18 @@ CREATE TABLE IF NOT EXISTS mfa_recovery_requests (
   cancelled_at TEXT,
   cancel_reason TEXT
 );
+
+-- Queued items for users who've turned on the daily digest (spec Phase
+-- 6) — an optional-category notification lands here instead of sending
+-- immediately, and services/notification-digest.js's sweep turns each
+-- user's queued rows into one summary email and clears them.
+CREATE TABLE IF NOT EXISTS pending_digest_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -644,6 +656,22 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN phone_consent_at TEXT",
   "ALTER TABLE users ADD COLUMN phone_consent_ip TEXT",
   "ALTER TABLE users ADD COLUMN phone_consent_version TEXT",
+  // Per-category notification preferences, quiet hours and the digest
+  // toggle (spec Phase 6) — one JSON blob rather than a column per
+  // category/channel, parsed by services/notification-prefs.js, which
+  // also fills in defaults for any field a stored value is missing (so
+  // adding a new category later doesn't need its own migration). NULL
+  // here just means "defaults", same as other nullable JSON-ish columns
+  // in this schema (mfa_backup_codes, etc.). Security alerts and legal/
+  // transactional notices are NOT a key in this object at all — they're
+  // never gated, so there's nothing for them to store.
+  "ALTER TABLE users ADD COLUMN notification_preferences TEXT",
+  // Public-profile visibility (spec 1.4 #6) — both default to visible;
+  // display name and verification badge are never optional, and email/
+  // phone/DOB/address are never shown on the public profile regardless
+  // of these toggles (see routes/profile.js's /public/:id route).
+  "ALTER TABLE users ADD COLUMN privacy_show_photo INTEGER NOT NULL DEFAULT 1",
+  "ALTER TABLE users ADD COLUMN privacy_show_job_title INTEGER NOT NULL DEFAULT 1",
 ]) {
   try {
     db.exec(stmt);

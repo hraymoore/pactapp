@@ -1,3 +1,5 @@
+const { getPreferences } = require("./notification-prefs");
+
 // The one place a `users` row becomes "what the client is allowed to see
 // about its own account" — used both by routes/auth.js (signup/login/
 // profile responses) and middleware/auth.js (req.user, and so GET /api/
@@ -33,6 +35,9 @@ function publicUser(row) {
     phone: row.phone,
     phoneVerified: !!row.phone_verified_at,
     pendingPhone: row.pending_phone,
+    privacyShowPhoto: !!row.privacy_show_photo,
+    privacyShowJobTitle: !!row.privacy_show_job_title,
+    notificationPreferences: getPreferences(row),
   };
 }
 

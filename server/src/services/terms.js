@@ -25,6 +25,14 @@ function needsAcceptance(userId) {
   return !latest || latest.terms_version !== CURRENT_TERMS_VERSION;
 }
 
+// "A list of Terms versions the user accepted with dates" (spec 1.2,
+// Privacy & Data).
+function listAcceptances(userId) {
+  return db
+    .prepare("SELECT terms_version, accepted_at, acceptance_method FROM terms_acceptances WHERE user_id = ? ORDER BY accepted_at DESC, id DESC")
+    .all(userId);
+}
+
 // Same x-forwarded-for-first pattern used for e-signature IP capture in
 // routes/sign.js — behind Render's reverse proxy, req.socket.remoteAddress
 // is the proxy's own address, not the visitor's.
@@ -33,4 +41,4 @@ function clientIp(req) {
   return (forwardedFor ? forwardedFor.split(",")[0].trim() : null) || req.socket.remoteAddress || "unknown";
 }
 
-module.exports = { CURRENT_TERMS_VERSION, recordAcceptance, latestAcceptance, needsAcceptance, clientIp };
+module.exports = { CURRENT_TERMS_VERSION, recordAcceptance, latestAcceptance, needsAcceptance, listAcceptances, clientIp };

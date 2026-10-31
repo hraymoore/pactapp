@@ -39,6 +39,7 @@ app.use("/api/attorney-review", require("./routes/attorney-review"));
 app.use("/api/terms", require("./routes/terms"));
 app.use("/api/esign-consent", require("./routes/esign-consent"));
 app.use("/api/mfa", require("./routes/mfa"));
+app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/internal", require("./routes/internal"));
 
 // dotfiles: "allow" — express.static hides dot-directories by default,

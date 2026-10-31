@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile — Pact</title>
+<meta name="description" content="A Pact user's public profile.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="templates.html">Templates</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="features.html">Security &amp; AI</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <div data-auth="out" style="display:flex;gap:12px;">
+        <a href="login.html" class="btn btn-ghost-dark btn-sm">Log In</a>
+        <a href="signup.html" class="btn btn-gold btn-sm">Create Profile</a>
+      </div>
+      <div data-auth="in" style="display:none;align-items:center;gap:12px;">
+        <span class="tier-pill" data-user-tier>Starter</span>
+        <a href="dashboard.html" class="avatar" data-user-avatar>P</a>
+      </div>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+  </div>
+</nav>
+
+<div class="auth-shell">
+  <div class="auth-card" style="text-align:center;">
+    <div id="profileAvatar" class="avatar" style="width:88px;height:88px;font-size:2rem;margin:0 auto 16px;"></div>
+    <h2 id="profileName">Loading…</h2>
+    <p id="profileBadge" style="color:var(--emerald-bright);font-size:0.85rem;display:none;"></p>
+    <p id="profileCompany" style="font-size:0.9rem;color:var(--silver);display:none;"></p>
+    <p id="profileMemberSince" style="font-size:0.82rem;color:var(--silver);"></p>
+    <div id="profileError" class="alert alert-ruby" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  (async () => {
+    const userId = new URLSearchParams(window.location.search).get("user");
+    const errorBox = document.getElementById("profileError");
+    if (!userId) {
+      document.getElementById("profileName").textContent = "No profile specified";
+      return;
+    }
+    try {
+      const data = await apiJson(`/api/profile/public/${encodeURIComponent(userId)}`);
+      const p = data.profile;
+      document.getElementById("profileName").textContent = p.displayName;
+      const avatar = document.getElementById("profileAvatar");
+      if (p.photoFileRef) {
+        avatar.style.backgroundImage = `url(/api/profile/photo/${p.id}/full)`;
+        avatar.style.backgroundSize = "cover";
+        avatar.style.backgroundPosition = "center";
+      } else {
+        avatar.textContent = PactAPI.initials(p.displayName);
+      }
+      if (p.verificationBadge) {
+        const badge = document.getElementById("profileBadge");
+        badge.textContent = `✓ ${p.verificationBadge}`;
+        badge.style.display = "";
+      }
+      if (p.company || p.jobTitle) {
+        const companyEl = document.getElementById("profileCompany");
+        companyEl.textContent = [p.jobTitle, p.company].filter(Boolean).join(" at ");
+        companyEl.style.display = "";
+      }
+      document.getElementById("profileMemberSince").textContent = `Member since ${new Date(p.memberSince.replace(" ", "T") + "Z").toLocaleDateString()}`;
+    } catch (err) {
+      document.getElementById("profileName").textContent = "Profile not available";
+      errorBox.textContent = err.message;
+      errorBox.classList.add("show");
+    }
+  })();
+</script>
+</body>
+</html>

@@ -14,6 +14,7 @@ const { snapshotVersion, listVersions, resolveComparable, diffVersions } = requi
 const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const payments = require("../services/payments");
+const { notifyUser } = require("../services/notify");
 const { clearRemindersForSubject } = require("../services/renewals");
 const { billingConfigured, createPaymentRequestIntent, getStripe } = require("../services/billing-provider");
 const fs = require("fs");
@@ -632,10 +633,12 @@ router.post("/:id/payment-request", async (req, res) => {
       createdByIp: req.socket.remoteAddress || null,
     });
     logAudit(contract.id, req.user, "payment_requested", `${req.user.name} requested payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()}.`);
-    sendMail({
-      to: payerUser.email,
+    notifyUser({
+      user: payerUser,
+      category: "paymentEvents",
       subject: `Payment requested: ${contract.name}`,
       text: `${req.user.name} requested a payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()} on "${contract.name}". Open the contract on Pact to pay.`,
+      smsBody: `Pact: ${req.user.name} requested a payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()} on "${contract.name}".`,
     });
     res.status(201).json({ clientSecret: intent.client_secret, paymentIntentId: intent.id, amountCents, currency: terms.currency, applicationFeeCents });
   } catch (err) {

@@ -14,7 +14,9 @@
     "archive-purge": "node scripts/ping-archive-purge.js",
     "archive-purge-local": "node scripts/send-archive-purge.js",
     "mfa-recovery-completions": "node scripts/ping-mfa-recovery-completions.js",
-    "mfa-recovery-completions-local": "node scripts/send-mfa-recovery-completions.js"
+    "mfa-recovery-completions-local": "node scripts/send-mfa-recovery-completions.js",
+    "notification-digests": "node scripts/ping-notification-digests.js",
+    "notification-digests-local": "node scripts/send-notification-digests.js"
   },
   "engines": {
     "node": ">=22.5.0"

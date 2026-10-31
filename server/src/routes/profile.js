@@ -34,7 +34,7 @@ function displayNameChangeCount(userId) {
 // credentials/contact/payout/export) so there's no requireRecentAuth gate
 // here, just the ordinary session.
 router.put("/", (req, res) => {
-  const { displayName, jobTitle, company, bio, website, timezone, preferredLanguage, dateFormat } = req.body || {};
+  const { displayName, jobTitle, company, bio, website, timezone, preferredLanguage, dateFormat, privacyShowPhoto, privacyShowJobTitle } = req.body || {};
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
 
   if (typeof displayName === "string" && displayName.trim() !== row.name) {
@@ -73,7 +73,9 @@ router.put("/", (req, res) => {
        website = COALESCE(?, website),
        timezone = COALESCE(?, timezone),
        preferred_language = COALESCE(?, preferred_language),
-       date_format = COALESCE(?, date_format)
+       date_format = COALESCE(?, date_format),
+       privacy_show_photo = COALESCE(?, privacy_show_photo),
+       privacy_show_job_title = COALESCE(?, privacy_show_job_title)
      WHERE id = ?`
   ).run(
     typeof jobTitle === "string" ? jobTitle.trim() : null,
@@ -83,6 +85,8 @@ router.put("/", (req, res) => {
     typeof timezone === "string" ? timezone : null,
     typeof preferredLanguage === "string" ? preferredLanguage : null,
     dateFormat !== undefined && dateFormat ? dateFormat : null,
+    typeof privacyShowPhoto === "boolean" ? (privacyShowPhoto ? 1 : 0) : null,
+    typeof privacyShowJobTitle === "boolean" ? (privacyShowJobTitle ? 1 : 0) : null,
     row.id
   );
 
@@ -135,6 +139,42 @@ router.get("/photo/:userId/:size", (req, res) => {
   const file = req.params.size === "thumb" ? thumbPath(row.photo_file_ref) : fullPath(row.photo_file_ref);
   res.sendFile(file, (err) => {
     if (err && !res.headersSent) res.status(404).json({ error: "Photo file not found." });
+  });
+});
+
+// "Public vs. private profile view" (spec 1.4 #6) — what a counterparty
+// sees when they click a name on a contract: display name, photo,
+// verification badge, member-since date, and company/job title only if
+// the user opted into sharing them. Never DOB, email, phone, or address,
+// full stop — those columns are never read into this response at all,
+// not merely left out after being fetched, so there's nothing to leak
+// even if this handler is edited carelessly later.
+router.get("/public/:userId", (req, res) => {
+  const row = db
+    .prepare("SELECT id, name, account_type, created_at, job_title, company, photo_file_ref, privacy_show_photo, privacy_show_job_title FROM users WHERE id = ? AND account_status = 'active'")
+    .get(req.params.userId);
+  if (!row) return res.status(404).json({ error: "Profile not found." });
+
+  let verificationBadge = null;
+  if (row.account_type === "business") {
+    verificationBadge = "EIN self-reported";
+  } else {
+    const verification = db
+      .prepare("SELECT status FROM identity_verifications WHERE user_id = ? ORDER BY id DESC LIMIT 1")
+      .get(row.id);
+    if (verification && verification.status === "verified") verificationBadge = "Identity verified";
+  }
+
+  res.json({
+    profile: {
+      id: row.id,
+      displayName: row.name,
+      photoFileRef: row.privacy_show_photo ? row.photo_file_ref : null,
+      verificationBadge,
+      memberSince: row.created_at,
+      company: row.privacy_show_job_title ? row.company : null,
+      jobTitle: row.privacy_show_job_title ? row.job_title : null,
+    },
   });
 });
 

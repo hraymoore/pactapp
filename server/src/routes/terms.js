@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { requireAuth } = require("../middleware/auth");
-const { CURRENT_TERMS_VERSION, recordAcceptance, needsAcceptance, clientIp } = require("../services/terms");
+const { CURRENT_TERMS_VERSION, recordAcceptance, needsAcceptance, listAcceptances, clientIp } = require("../services/terms");
 
 router.use(express.json());
 router.use(requireAuth);
@@ -12,6 +12,10 @@ router.use(requireAuth);
 // at most a few times a year.
 router.get("/status", (req, res) => {
   res.json({ currentVersion: CURRENT_TERMS_VERSION, mustAccept: needsAcceptance(req.user.id) });
+});
+
+router.get("/history", (req, res) => {
+  res.json({ acceptances: listAcceptances(req.user.id) });
 });
 
 router.post("/accept", (req, res) => {

@@ -1,4 +1,18 @@
 const db = require("../db");
+const { notifyUser } = require("./notify");
+
+// Small local copy of the same "user_id first, email as fallback" lookup
+// payments.js's findPartyUser does — not reused from there because
+// services/payments.js already requires this file (for logAudit),
+// so requiring it back here would be circular.
+function findPartyUser(party) {
+  if (!party) return null;
+  if (party.user_id) {
+    const byId = db.prepare("SELECT * FROM users WHERE id = ?").get(party.user_id);
+    if (byId) return byId;
+  }
+  return db.prepare("SELECT * FROM users WHERE email = ?").get(party.email) || null;
+}
 
 function logAudit(contractId, actor, action, detail) {
   db.prepare(
@@ -69,6 +83,26 @@ function applySignature({ partyId, typedSignature, ip }) {
       "fully_executed",
       "Contract signed by all parties and locked. Every change from this point on is a time-stamped amendment."
     );
+
+    // "Contract activity ... signed" (spec Phase 6) — only on full
+    // execution, not on every individual signature or view, to keep this
+    // from turning into a flood. Each signing party who has a Pact
+    // account gets notified; one with no account (an outside counterparty
+    // who signed via the public token link) has no preferences to check
+    // and isn't emailed here — they already got the contract by email to
+    // begin with.
+    const contract = db.prepare("SELECT * FROM contracts WHERE id = ?").get(party.contract_id);
+    for (const p of allParties) {
+      const user = findPartyUser(p);
+      if (!user) continue;
+      notifyUser({
+        user,
+        category: "contractActivity",
+        subject: `Fully executed: ${contract.name}`,
+        text: `"${contract.name}" has been signed by all parties and is now fully executed.`,
+        smsBody: `Pact: "${contract.name}" is now fully executed.`,
+      });
+    }
   }
 
   return { allSigned };

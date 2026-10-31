@@ -196,8 +196,19 @@ async function paintNav() {
     });
     document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = user.name);
     document.querySelectorAll("[data-user-tier]").forEach(el => el.textContent = PactAPI.tierMeta(user.tier).label);
+    applyA11yPrefs(user);
   }
   return user;
+}
+
+// Accessibility settings (spec 1.4 #7) — applied here, inside paintNav,
+// so they take effect on every page a signed-in user loads, not only
+// inside Settings where they're changed.
+function applyA11yPrefs(user) {
+  const html = document.documentElement;
+  html.setAttribute("data-large-text", user.a11yLargeText ? "true" : "false");
+  html.setAttribute("data-reduced-motion", user.a11yReducedMotion ? "true" : "false");
+  html.setAttribute("data-high-contrast", user.a11yHighContrast ? "true" : "false");
 }
 
 function wireNavToggle() {

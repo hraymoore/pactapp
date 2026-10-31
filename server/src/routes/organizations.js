@@ -2,8 +2,12 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { requireRecentAuth } = require("../middleware/reauth");
 const { isValidEinFormat, normalizeEin, getMembership, requireMembership } = require("../services/organizations");
 const { logAudit } = require("../services/signing");
+const { sendMail } = require("../services/mailer");
+const { logAccountAudit } = require("../services/account-audit");
+const { clientIp } = require("../services/terms");
 
 router.use(express.json());
 router.use(requireAuth);
@@ -214,10 +218,13 @@ router.put("/:id/members/:memberId", requireMfaForOrgAdmin, (req, res) => {
   if (!target) return res.status(404).json({ error: "Member not found." });
 
   const { role } = req.body || {};
-  if (!["owner", "admin", "member"].includes(role)) {
-    return res.status(400).json({ error: "role must be 'owner', 'admin' or 'member'." });
+  if (!["admin", "member"].includes(role)) {
+    // Promoting TO owner never happens here — see POST /:id/transfer-
+    // ownership, which requires the recipient's own password+MFA to
+    // accept, not just the current owner's say-so (spec 1.4 #4).
+    return res.status(400).json({ error: "role must be 'admin' or 'member' — to make someone the owner, use Transfer Ownership instead." });
   }
-  if (target.role === "owner" && role !== "owner") {
+  if (target.role === "owner") {
     const otherOwners = db
       .prepare("SELECT COUNT(*) as n FROM organization_members WHERE organization_id = ? AND role = 'owner' AND id != ?")
       .get(org.id, target.id).n;
@@ -252,6 +259,93 @@ router.delete("/:id/members/:memberId", (req, res) => {
   }
 
   db.prepare("DELETE FROM organization_members WHERE id = ?").run(target.id);
+  res.json({ ok: true });
+});
+
+function getOpenTransfer(organizationId) {
+  return db
+    .prepare("SELECT * FROM org_ownership_transfers WHERE organization_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1")
+    .get(organizationId);
+}
+
+// "Transfer account ownership (requires password + MFA of both owner
+// and recipient)" (spec 1.4 #4) — a two-step handshake, not a
+// unilateral role change: requireRecentAuth here proves the current
+// owner's password+MFA; the /accept route below separately requires
+// the SAME of the recipient, on their own session, before anything
+// actually changes. The target must already be a member — this
+// transfers ownership of an existing seat, it doesn't invite someone new.
+router.post("/:id/transfer-ownership", requireRecentAuth, (req, res) => {
+  const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
+  if (!org) return res.status(404).json({ error: "Organization not found." });
+  try {
+    requireMembership(org.id, req.user.id, ["owner"]);
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.message });
+  }
+  const { memberId } = req.body || {};
+  const target = db.prepare("SELECT * FROM organization_members WHERE id = ? AND organization_id = ?").get(memberId, org.id);
+  if (!target) return res.status(404).json({ error: "Member not found." });
+  if (target.user_id === req.user.id) return res.status(400).json({ error: "You're already the owner." });
+
+  if (getOpenTransfer(org.id)) {
+    return res.status(409).json({ error: "A transfer is already pending for this organization — cancel it first." });
+  }
+  const targetUser = db.prepare("SELECT * FROM users WHERE id = ?").get(target.user_id);
+  db.prepare("INSERT INTO org_ownership_transfers (organization_id, from_user_id, to_user_id) VALUES (?, ?, ?)").run(
+    org.id,
+    req.user.id,
+    target.user_id
+  );
+  logAccountAudit({ userId: req.user.id, action: "org_ownership_transfer_requested", result: "success", detail: `${org.name} -> ${targetUser.email}`, ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({
+    to: targetUser.email,
+    subject: `${req.user.name} wants to transfer ownership of "${org.name}" to you`,
+    text: `${req.user.name} wants to make you the owner of "${org.name}" on Pact. Log in and confirm from Settings → Business to accept — you'll need to re-enter your password${targetUser.mfa_enabled ? " and verification code" : ""}.`,
+  });
+  res.json({ ok: true });
+});
+
+router.get("/:id/transfer-ownership", (req, res) => {
+  const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
+  if (!org) return res.status(404).json({ error: "Organization not found." });
+  try {
+    requireMembership(org.id, req.user.id, ["owner", "admin", "member"]);
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.message });
+  }
+  const transfer = getOpenTransfer(org.id);
+  if (!transfer) return res.json({ transfer: null });
+  const toUser = db.prepare("SELECT name, email FROM users WHERE id = ?").get(transfer.to_user_id);
+  res.json({ transfer: { id: transfer.id, toName: toUser.name, toEmail: toUser.email, requestedAt: transfer.requested_at, isRecipient: transfer.to_user_id === req.user.id } });
+});
+
+router.post("/:id/transfer-ownership/accept", requireRecentAuth, (req, res) => {
+  const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
+  if (!org) return res.status(404).json({ error: "Organization not found." });
+  const transfer = getOpenTransfer(org.id);
+  if (!transfer || transfer.to_user_id !== req.user.id) {
+    return res.status(404).json({ error: "No pending ownership transfer to you for this organization." });
+  }
+
+  db.prepare("UPDATE organization_members SET role = 'owner' WHERE organization_id = ? AND user_id = ?").run(org.id, transfer.to_user_id);
+  db.prepare("UPDATE organization_members SET role = 'admin' WHERE organization_id = ? AND user_id = ?").run(org.id, transfer.from_user_id);
+  db.prepare("UPDATE org_ownership_transfers SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?").run(transfer.id);
+
+  const fromUser = db.prepare("SELECT name, email FROM users WHERE id = ?").get(transfer.from_user_id);
+  logAccountAudit({ userId: req.user.id, action: "org_ownership_transfer_accepted", result: "success", detail: `${org.name} from ${fromUser.email}`, ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  sendMail({ to: fromUser.email, subject: `Ownership of "${org.name}" transferred`, text: `${req.user.name} accepted ownership of "${org.name}". You're now an admin on it.` });
+  res.json({ ok: true });
+});
+
+router.post("/:id/transfer-ownership/cancel", (req, res) => {
+  const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
+  if (!org) return res.status(404).json({ error: "Organization not found." });
+  const transfer = getOpenTransfer(org.id);
+  if (!transfer || transfer.from_user_id !== req.user.id) {
+    return res.status(404).json({ error: "No pending ownership transfer from you for this organization." });
+  }
+  db.prepare("UPDATE org_ownership_transfers SET status = 'cancelled', cancelled_at = datetime('now') WHERE id = ?").run(transfer.id);
   res.json({ ok: true });
 });
 

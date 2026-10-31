@@ -157,7 +157,12 @@ function requirePaidTier(req, res) {
 }
 
 router.post("/", (req, res) => {
-  const { name, templateId, counterpartyName, counterpartyEmail, state, organizationId } = req.body || {};
+  const { name, templateId, counterpartyName, counterpartyEmail, organizationId } = req.body || {};
+  // Default governing state (spec 1.4 #5) — omitting `state` falls back
+  // to the account's saved default rather than rejecting the request;
+  // an explicitly-sent state (even one that happens to match the
+  // default) still goes through the same validation below either way.
+  const state = req.body && req.body.state ? req.body.state : req.user.defaultGoverningState;
   if (!name || !name.trim()) return res.status(400).json({ error: "Contract name is required." });
   if (!isValidStateCode(state)) {
     return res.status(400).json({ error: "Select the state whose laws will govern this contract." });

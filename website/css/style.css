@@ -405,3 +405,28 @@ p { margin: 0 0 1em; color: var(--silver); }
   .contract-row { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- Accessibility settings (spec 1.4 #7) ----------
+   Driven by data-attributes on <html>, set from the signed-in user's
+   saved preference by js/app.js's applyA11yPrefs() on every page —
+   not just dashboard.html — so these hold across the whole site, not
+   only inside Settings. */
+html[data-large-text="true"] { font-size: 112.5%; }
+html[data-reduced-motion="true"] *, html[data-reduced-motion="true"] *::before, html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-high-contrast="true"] {
+  --silver: #ffffff;
+  --silver-soft: #e4e6ea;
+  --ink-soft: #000000;
+  --border-dark: rgba(255, 255, 255, 0.45);
+  --border-light: rgba(0, 0, 0, 0.45);
+}
+html[data-high-contrast="true"] .btn-gold { background: #ffd877; color: #000; }
+html[data-high-contrast="true"] .btn-ghost-dark { border-width: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

@@ -200,6 +200,8 @@
           </div>
         </div>
 
+        <div class="card" id="bizTransferBox" style="margin-top:20px;display:none;border-color:var(--gold);"></div>
+
         <div class="card" style="margin-top:20px;">
           <h3>Members</h3>
           <div id="bizMemberList"></div>
@@ -305,7 +307,15 @@
 
         <div>
           <div data-settings-panel="profile">
-            <div class="card">
+            <div class="card" id="completenessCard">
+              <h3>Profile Completeness</h3>
+              <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;margin:10px 0 14px;">
+                <div id="completenessBar" style="height:100%;width:0%;background:var(--gold);transition:width .4s ease;"></div>
+              </div>
+              <ul id="completenessList" style="list-style:none;padding:0;margin:0;font-size:0.85rem;"></ul>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
               <h3>Photo</h3>
               <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
                 <div class="avatar" id="profilePhotoAvatar" data-user-avatar style="width:96px;height:96px;font-size:1.8rem;flex-shrink:0;">—</div>
@@ -372,6 +382,59 @@
 
               <button class="btn btn-gold btn-sm" id="saveProfileBtn" style="margin-top:6px;">Save Profile</button>
               <p id="profileSaveNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Saved Signature</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Prefills the signing form so you don't have to retype it — every signature still requires its own explicit consent and gets its own timestamp.</p>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div class="field" style="max-width:260px;"><label for="savedSignatureName">Typed signature</label><input id="savedSignatureName" type="text" maxlength="100" placeholder="Your full legal name"></div>
+                <div class="field" style="max-width:120px;"><label for="savedSignatureInitials">Initials</label><input id="savedSignatureInitials" type="text" maxlength="6"></div>
+              </div>
+              <button class="btn btn-ghost-dark btn-sm" id="saveSignatureBtn">Save Signature</button>
+              <p id="savedSignatureNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Default Contract Preferences</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Prefills new contracts. Governing state also applies server-side if a contract is created without one specified.</p>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div class="field" style="max-width:220px;"><label for="defaultGoverningState">Default governing state</label><select id="defaultGoverningState"><option value="">None</option></select></div>
+                <div class="field" style="max-width:160px;"><label for="defaultCurrency">Default currency</label>
+                  <select id="defaultCurrency">
+                    <option value="">None</option>
+                    <option value="usd">USD</option>
+                    <option value="eur">EUR</option>
+                    <option value="gbp">GBP</option>
+                    <option value="cad">CAD</option>
+                    <option value="aud">AUD</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field"><label for="defaultPaymentTerms">Default payment terms (notes)</label><input id="defaultPaymentTerms" type="text" placeholder="e.g. Net 30, 50% deposit"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="saveDefaultsBtn">Save Defaults</button>
+              <p id="defaultsNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Accessibility</h3>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:8px;"><input type="checkbox" id="a11yLargeText"> Larger text</label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:8px;"><input type="checkbox" id="a11yReducedMotion"> Reduce motion</label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;"><input type="checkbox" id="a11yHighContrast"> High contrast</label>
+              <button class="btn btn-ghost-dark btn-sm" id="saveA11yBtn" style="margin-top:12px;">Save</button>
+              <p id="a11yNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Address Book</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Saved contacts for faster contract sending.</p>
+              <div id="savedContactsList" style="margin-bottom:14px;"></div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <div class="field" style="max-width:200px;margin-bottom:0;"><input id="newContactName" type="text" placeholder="Name"></div>
+                <div class="field" style="max-width:240px;margin-bottom:0;"><input id="newContactEmail" type="email" placeholder="Email"></div>
+                <button class="btn btn-ghost-dark btn-sm" id="addContactBtn">Add</button>
+              </div>
+              <p id="savedContactsNote" style="margin-top:10px;font-size:0.82rem;"></p>
             </div>
           </div>
 
@@ -786,8 +849,10 @@
     <div class="eyebrow">Send for signature</div>
     <h3 id="sendTitle">Contract</h3>
     <div id="sendFields">
-      <div class="field"><label>Counterparty name</label><input id="sendName" type="text" placeholder="Sam Rivera"></div>
-      <div class="field"><label>Counterparty email</label><input id="sendEmail" type="email" placeholder="sam@example.com"></div>
+      <div class="field"><label>Counterparty name</label><input id="sendName" type="text" placeholder="Sam Rivera" list="sendContactsNameList"></div>
+      <div class="field"><label>Counterparty email</label><input id="sendEmail" type="email" placeholder="sam@example.com" list="sendContactsEmailList"></div>
+      <datalist id="sendContactsNameList"></datalist>
+      <datalist id="sendContactsEmailList"></datalist>
     </div>
     <button class="btn btn-gold btn-block" id="confirmSendBtn">Send</button>
     <div id="sendResult" style="margin-top:16px;display:none;"></div>
@@ -1764,7 +1829,7 @@
   function openSignModal(id, name) {
     signingId = id;
     document.getElementById("signModalTitle").textContent = name;
-    document.getElementById("ownerTypedSignature").value = CURRENT_USER.name;
+    document.getElementById("ownerTypedSignature").value = CURRENT_USER.savedSignatureName || CURRENT_USER.name;
     document.getElementById("ownerConsent").checked = false;
     document.getElementById("signResult").style.display = "none";
     signModal.classList.add("show");
@@ -2127,6 +2192,15 @@
     const statusText = document.getElementById("identityStatusText");
     const verifyBtn = document.getElementById("verifyIdentityBtn");
     const note = document.getElementById("identityNote");
+    // Verification badge logic (spec 1.4 #1) — a business's identity
+    // check is its self-reported EIN at signup, not a personal document/
+    // selfie match, so business accounts never see the individual
+    // Stripe Identity flow at all, and never show "verified" for it.
+    if (CURRENT_USER.accountType === "business") {
+      statusText.textContent = "EIN self-reported — not independently verified.";
+      note.textContent = "Pact doesn't yet verify business EINs against an official registry (real EIN/KYB verification is a later feature); this reflects what was entered at signup.";
+      return;
+    }
     try {
       const { configured, verification } = await apiJson("/api/identity/status");
       if (!configured) {
@@ -2424,6 +2498,156 @@
         paintAvatars();
         note.textContent = "Profile saved.";
         note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  async function setupCompleteness() {
+    try {
+      const { items, percent } = await apiJson("/api/profile/completeness");
+      document.getElementById("completenessBar").style.width = `${percent}%`;
+      document.getElementById("completenessList").innerHTML = items
+        .map((i) => `<li style="padding:4px 0;color:${i.done ? "var(--emerald-bright)" : "var(--silver)"};">${i.done ? "✓" : "○"} ${i.label}</li>`)
+        .join("");
+    } catch (err) {
+      document.getElementById("completenessCard").style.display = "none";
+    }
+  }
+
+  function setupSavedSignature() {
+    document.getElementById("savedSignatureName").value = CURRENT_USER.savedSignatureName || "";
+    document.getElementById("savedSignatureInitials").value = CURRENT_USER.savedSignatureInitials || "";
+    document.getElementById("saveSignatureBtn").addEventListener("click", async () => {
+      const note = document.getElementById("savedSignatureNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            savedSignatureName: document.getElementById("savedSignatureName").value,
+            savedSignatureInitials: document.getElementById("savedSignatureInitials").value,
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Signature saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupDefaults() {
+    document.getElementById("defaultGoverningState").value = CURRENT_USER.defaultGoverningState || "";
+    document.getElementById("defaultCurrency").value = CURRENT_USER.defaultCurrency || "";
+    document.getElementById("defaultPaymentTerms").value = CURRENT_USER.defaultPaymentTerms || "";
+    document.getElementById("saveDefaultsBtn").addEventListener("click", async () => {
+      const note = document.getElementById("defaultsNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            defaultGoverningState: document.getElementById("defaultGoverningState").value,
+            defaultCurrency: document.getElementById("defaultCurrency").value,
+            defaultPaymentTerms: document.getElementById("defaultPaymentTerms").value,
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Defaults saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupA11y() {
+    document.getElementById("a11yLargeText").checked = CURRENT_USER.a11yLargeText;
+    document.getElementById("a11yReducedMotion").checked = CURRENT_USER.a11yReducedMotion;
+    document.getElementById("a11yHighContrast").checked = CURRENT_USER.a11yHighContrast;
+    document.getElementById("saveA11yBtn").addEventListener("click", async () => {
+      const note = document.getElementById("a11yNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            a11yLargeText: document.getElementById("a11yLargeText").checked,
+            a11yReducedMotion: document.getElementById("a11yReducedMotion").checked,
+            a11yHighContrast: document.getElementById("a11yHighContrast").checked,
+          }),
+        });
+        CURRENT_USER = data.user;
+        document.documentElement.setAttribute("data-large-text", CURRENT_USER.a11yLargeText ? "true" : "false");
+        document.documentElement.setAttribute("data-reduced-motion", CURRENT_USER.a11yReducedMotion ? "true" : "false");
+        document.documentElement.setAttribute("data-high-contrast", CURRENT_USER.a11yHighContrast ? "true" : "false");
+        note.textContent = "Accessibility settings saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  async function setupContactsManager() {
+    let contactsByName = {};
+    let contactsByEmail = {};
+
+    async function renderContacts() {
+      const { contacts } = await apiJson("/api/contacts");
+
+      // Feeds the "send contract" counterparty fields' autocomplete
+      // (spec 1.4 #8: "saved contacts for faster contract sending") —
+      // picking a saved name or email fills in its matching other field.
+      contactsByName = {};
+      contactsByEmail = {};
+      contacts.forEach((c) => { contactsByName[c.name] = c.email; contactsByEmail[c.email] = c.name; });
+      document.getElementById("sendContactsNameList").innerHTML = contacts.map((c) => `<option value="${c.name}">`).join("");
+      document.getElementById("sendContactsEmailList").innerHTML = contacts.map((c) => `<option value="${c.email}">`).join("");
+
+      const list = document.getElementById("savedContactsList");
+      list.innerHTML = contacts.length
+        ? contacts.map((c) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-dark);font-size:0.85rem;">
+              <span>${c.name} — ${c.email}</span>
+              <button class="btn btn-ghost-dark btn-sm" data-remove-contact="${c.id}" style="padding:2px 10px;border-color:var(--ruby);color:var(--ruby-bright);">Remove</button>
+            </div>`).join("")
+        : "<p style=\"color:var(--silver);font-size:0.85rem;\">No saved contacts yet.</p>";
+      list.querySelectorAll("[data-remove-contact]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await apiJson(`/api/contacts/${btn.dataset.removeContact}`, { method: "DELETE" });
+          await renderContacts();
+        });
+      });
+    }
+    await renderContacts();
+
+    document.getElementById("sendName").addEventListener("input", (e) => {
+      if (contactsByName[e.target.value]) document.getElementById("sendEmail").value = contactsByName[e.target.value];
+    });
+    document.getElementById("sendEmail").addEventListener("input", (e) => {
+      if (contactsByEmail[e.target.value]) document.getElementById("sendName").value = contactsByEmail[e.target.value];
+    });
+
+    document.getElementById("addContactBtn").addEventListener("click", async () => {
+      const note = document.getElementById("savedContactsNote");
+      note.style.color = "";
+      const name = document.getElementById("newContactName").value.trim();
+      const email = document.getElementById("newContactEmail").value.trim();
+      try {
+        await apiJson("/api/contacts", { method: "POST", body: JSON.stringify({ name, email }) });
+        document.getElementById("newContactName").value = "";
+        document.getElementById("newContactEmail").value = "";
+        note.textContent = "Contact added.";
+        note.style.color = "var(--emerald-bright)";
+        await renderContacts();
       } catch (err) {
         note.textContent = err.message;
         note.style.color = "var(--ruby-bright)";
@@ -2905,6 +3129,7 @@
     document.getElementById("bizInviteRow").style.display = canManage ? "" : "none";
 
     await renderBizMembers();
+    await renderOwnershipTransfer();
     await renderBizContracts();
 
     document.getElementById("bizInviteBtn").addEventListener("click", async () => {
@@ -2958,12 +3183,14 @@
         <span style="font-size:0.85rem;">${escapeHtmlBiz(m.name)} <span style="color:var(--silver);">&lt;${escapeHtmlBiz(m.email)}&gt;</span></span>
         <span style="display:flex;gap:8px;align-items:center;">
           ${canEditThisRow
-            ? `<select data-role-select="${m.id}" style="width:auto;padding:4px 8px;font-size:0.8rem;">
-                 <option value="member" ${m.role === "member" ? "selected" : ""}>Member</option>
-                 <option value="admin" ${m.role === "admin" ? "selected" : ""}>Admin</option>
-                 ${CURRENT_ORG.myRole === "owner" ? `<option value="owner" ${m.role === "owner" ? "selected" : ""}>Owner</option>` : ""}
-               </select>
-               <button class="icon-btn" title="Remove" data-remove-member="${m.id}">&times;</button>`
+            ? m.role === "owner"
+              ? `<span class="mini-tag">owner</span>`
+              : `<select data-role-select="${m.id}" style="width:auto;padding:4px 8px;font-size:0.8rem;">
+                   <option value="member" ${m.role === "member" ? "selected" : ""}>Member</option>
+                   <option value="admin" ${m.role === "admin" ? "selected" : ""}>Admin</option>
+                 </select>
+                 ${CURRENT_ORG.myRole === "owner" ? `<button class="btn btn-ghost-dark btn-sm" data-transfer-to="${m.id}" style="padding:2px 10px;font-size:0.76rem;">Make Owner</button>` : ""}
+                 <button class="icon-btn" title="Remove" data-remove-member="${m.id}">&times;</button>`
             : `<span class="mini-tag">${m.role}</span>`}
         </span>`;
       wrap.appendChild(row);
@@ -2993,6 +3220,47 @@
         }
       });
     });
+    wrap.querySelectorAll("[data-transfer-to]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Start transferring ownership to this member? They'll need to confirm with their own password" + (CURRENT_USER.mfaEnabled ? " and code" : "") + " before anything changes, and you stay owner until they do.")) return;
+        if (!(await ensureRecentAuth())) return;
+        try {
+          await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership`, { method: "POST", body: JSON.stringify({ memberId: btn.dataset.transferTo }) });
+          await renderOwnershipTransfer();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  async function renderOwnershipTransfer() {
+    const box = document.getElementById("bizTransferBox");
+    const { transfer } = await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership`);
+    if (!transfer) { box.style.display = "none"; return; }
+    box.style.display = "";
+    if (transfer.isRecipient) {
+      box.innerHTML = `
+        <p style="font-size:0.85rem;">The current owner wants to make you the owner of this business.</p>
+        <button class="btn btn-gold btn-sm" id="bizAcceptTransferBtn">Accept Ownership</button>`;
+      document.getElementById("bizAcceptTransferBtn").addEventListener("click", async () => {
+        if (!(await ensureRecentAuth())) return;
+        try {
+          await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership/accept`, { method: "POST", body: JSON.stringify({}) });
+          await setupBusiness();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    } else {
+      box.innerHTML = `
+        <p style="font-size:0.85rem;">Ownership transfer to ${escapeHtmlBiz(transfer.toName)} is pending their acceptance.</p>
+        <button class="btn btn-ghost-dark btn-sm" id="bizCancelTransferBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Cancel Transfer</button>`;
+      document.getElementById("bizCancelTransferBtn").addEventListener("click", async () => {
+        await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership/cancel`, { method: "POST", body: JSON.stringify({}) });
+        await renderOwnershipTransfer();
+      });
+    }
   }
 
   async function renderBizContracts() {
@@ -3292,7 +3560,7 @@
     document.getElementById("contractSearch").addEventListener("input", debounce(() => renderArchiveInContractsList(), 300));
 
     apiJson("/api/templates/states").then(({ states }) => {
-      ["uploadState", "archiveUploadState", "archiveGoverningState"].forEach(id => {
+      ["uploadState", "archiveUploadState", "archiveGoverningState", "defaultGoverningState"].forEach(id => {
         const sel = document.getElementById(id);
         states.forEach(s => {
           const opt = document.createElement("option");
@@ -3322,6 +3590,11 @@
     setupSettingsSubNav();
     await setupProfile();
     setupProfilePhoto();
+    await setupCompleteness();
+    setupSavedSignature();
+    setupDefaults();
+    setupA11y();
+    await setupContactsManager();
     await setupSecurityActivity();
     setupContactRecovery();
     setupNotifications();

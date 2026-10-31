@@ -38,6 +38,14 @@ function publicUser(row) {
     privacyShowPhoto: !!row.privacy_show_photo,
     privacyShowJobTitle: !!row.privacy_show_job_title,
     notificationPreferences: getPreferences(row),
+    savedSignatureName: row.saved_signature_name,
+    savedSignatureInitials: row.saved_signature_initials,
+    defaultGoverningState: row.default_governing_state,
+    defaultCurrency: row.default_currency,
+    defaultPaymentTerms: row.default_payment_terms,
+    a11yLargeText: !!row.a11y_large_text,
+    a11yReducedMotion: !!row.a11y_reduced_motion,
+    a11yHighContrast: !!row.a11y_high_contrast,
   };
 }
 

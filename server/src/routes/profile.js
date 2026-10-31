@@ -7,6 +7,7 @@ const { processAndStorePhoto, deletePhotoFiles, fullPath, thumbPath, MAX_UPLOAD_
 const { logAccountAudit } = require("../services/account-audit");
 const { clientIp } = require("../services/terms");
 const { publicUser } = require("./auth");
+const { isValidStateCode } = require("../us-states");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES } });
 
@@ -14,6 +15,9 @@ const DISPLAY_NAME_CHANGE_LIMIT = 5;
 const DISPLAY_NAME_CHANGE_WINDOW_DAYS = 30;
 const BIO_MAX_LENGTH = 280;
 const ALLOWED_DATE_FORMATS = new Set(["MDY", "DMY", "YMD"]);
+const ALLOWED_CURRENCIES = new Set(["usd", "eur", "gbp", "cad", "aud"]);
+const SIGNATURE_NAME_MAX_LENGTH = 100;
+const SIGNATURE_INITIALS_MAX_LENGTH = 6;
 
 router.use(express.json());
 router.use(requireAuth);
@@ -34,7 +38,11 @@ function displayNameChangeCount(userId) {
 // credentials/contact/payout/export) so there's no requireRecentAuth gate
 // here, just the ordinary session.
 router.put("/", (req, res) => {
-  const { displayName, jobTitle, company, bio, website, timezone, preferredLanguage, dateFormat, privacyShowPhoto, privacyShowJobTitle } = req.body || {};
+  const {
+    displayName, jobTitle, company, bio, website, timezone, preferredLanguage, dateFormat, privacyShowPhoto, privacyShowJobTitle,
+    savedSignatureName, savedSignatureInitials, defaultGoverningState, defaultCurrency, defaultPaymentTerms,
+    a11yLargeText, a11yReducedMotion, a11yHighContrast,
+  } = req.body || {};
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
 
   if (typeof displayName === "string" && displayName.trim() !== row.name) {
@@ -64,6 +72,18 @@ router.put("/", (req, res) => {
   if (dateFormat && !ALLOWED_DATE_FORMATS.has(dateFormat)) {
     return res.status(400).json({ error: "Unknown date format." });
   }
+  if (typeof savedSignatureName === "string" && savedSignatureName.length > SIGNATURE_NAME_MAX_LENGTH) {
+    return res.status(400).json({ error: `Saved signature must be ${SIGNATURE_NAME_MAX_LENGTH} characters or fewer.` });
+  }
+  if (typeof savedSignatureInitials === "string" && savedSignatureInitials.length > SIGNATURE_INITIALS_MAX_LENGTH) {
+    return res.status(400).json({ error: `Saved initials must be ${SIGNATURE_INITIALS_MAX_LENGTH} characters or fewer.` });
+  }
+  if (typeof defaultGoverningState === "string" && defaultGoverningState !== "" && !isValidStateCode(defaultGoverningState)) {
+    return res.status(400).json({ error: "Unknown default governing state." });
+  }
+  if (typeof defaultCurrency === "string" && defaultCurrency !== "" && !ALLOWED_CURRENCIES.has(defaultCurrency)) {
+    return res.status(400).json({ error: "Unknown default currency." });
+  }
 
   db.prepare(
     `UPDATE users SET
@@ -75,7 +95,15 @@ router.put("/", (req, res) => {
        preferred_language = COALESCE(?, preferred_language),
        date_format = COALESCE(?, date_format),
        privacy_show_photo = COALESCE(?, privacy_show_photo),
-       privacy_show_job_title = COALESCE(?, privacy_show_job_title)
+       privacy_show_job_title = COALESCE(?, privacy_show_job_title),
+       saved_signature_name = COALESCE(?, saved_signature_name),
+       saved_signature_initials = COALESCE(?, saved_signature_initials),
+       default_governing_state = COALESCE(?, default_governing_state),
+       default_currency = COALESCE(?, default_currency),
+       default_payment_terms = COALESCE(?, default_payment_terms),
+       a11y_large_text = COALESCE(?, a11y_large_text),
+       a11y_reduced_motion = COALESCE(?, a11y_reduced_motion),
+       a11y_high_contrast = COALESCE(?, a11y_high_contrast)
      WHERE id = ?`
   ).run(
     typeof jobTitle === "string" ? jobTitle.trim() : null,
@@ -87,11 +115,46 @@ router.put("/", (req, res) => {
     dateFormat !== undefined && dateFormat ? dateFormat : null,
     typeof privacyShowPhoto === "boolean" ? (privacyShowPhoto ? 1 : 0) : null,
     typeof privacyShowJobTitle === "boolean" ? (privacyShowJobTitle ? 1 : 0) : null,
+    typeof savedSignatureName === "string" ? savedSignatureName.trim() : null,
+    typeof savedSignatureInitials === "string" ? savedSignatureInitials.trim() : null,
+    typeof defaultGoverningState === "string" ? defaultGoverningState : null,
+    typeof defaultCurrency === "string" ? defaultCurrency : null,
+    typeof defaultPaymentTerms === "string" ? defaultPaymentTerms : null,
+    typeof a11yLargeText === "boolean" ? (a11yLargeText ? 1 : 0) : null,
+    typeof a11yReducedMotion === "boolean" ? (a11yReducedMotion ? 1 : 0) : null,
+    typeof a11yHighContrast === "boolean" ? (a11yHighContrast ? 1 : 0) : null,
     row.id
   );
 
   const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(row.id);
   res.json({ user: publicUser(updated) });
+});
+
+// "Profile completeness checklist" (spec 1.4 #2) — computed fresh on
+// every call rather than stored, since every input already lives
+// somewhere else (photo_file_ref, identity_verifications, mfa_enabled,
+// recovery_email_verified_at) and would just drift if duplicated here.
+router.get("/completeness", (req, res) => {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  const verification = db
+    .prepare("SELECT status FROM identity_verifications WHERE user_id = ? ORDER BY id DESC LIMIT 1")
+    .get(row.id);
+  // Business accounts self-report their EIN at signup, so there's no
+  // separate "verify" step for them — this item is always done.
+  const isBusiness = row.account_type === "business";
+  const items = [
+    { key: "photo", label: "Add a profile photo", done: !!row.photo_file_ref },
+    {
+      key: "identity",
+      label: isBusiness ? "EIN self-reported" : "Verify your identity",
+      done: isBusiness || !!(verification && verification.status === "verified"),
+    },
+    { key: "mfa", label: "Enable two-factor authentication", done: !!row.mfa_enabled },
+    { key: "recoveryEmail", label: "Add a recovery email", done: !!row.recovery_email_verified_at },
+  ];
+
+  const doneCount = items.filter((i) => i.done).length;
+  res.json({ items, percent: Math.round((doneCount / items.length) * 100) });
 });
 
 router.post("/photo", (req, res) => {

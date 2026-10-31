@@ -523,6 +523,36 @@ CREATE TABLE IF NOT EXISTS pending_digest_items (
   summary TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- "Trusted counterparties / address book" (spec 1.4 #8) — saved contacts
+-- for faster contract sending. Purely a per-owner convenience list, not
+-- itself a relationship to anything; a saved contact need not have a
+-- Pact account at all (same as any counterparty).
+CREATE TABLE IF NOT EXISTS saved_contacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- "Transfer account ownership (requires password + MFA of both owner
+-- and recipient)" (spec 1.4 #4) — a two-party handshake, not a
+-- unilateral admin action: from_user_id must be freshly reauthed to
+-- create this row, and to_user_id must independently and separately be
+-- freshly reauthed to accept it. At most one pending transfer per
+-- organization — enforced in code, not a constraint here, same as
+-- mfa_recovery_requests.
+CREATE TABLE IF NOT EXISTS org_ownership_transfers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  from_user_id INTEGER NOT NULL REFERENCES users(id),
+  to_user_id INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'cancelled')),
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  accepted_at TEXT,
+  cancelled_at TEXT
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -672,6 +702,29 @@ for (const stmt of [
   // of these toggles (see routes/profile.js's /public/:id route).
   "ALTER TABLE users ADD COLUMN privacy_show_photo INTEGER NOT NULL DEFAULT 1",
   "ALTER TABLE users ADD COLUMN privacy_show_job_title INTEGER NOT NULL DEFAULT 1",
+  // Saved signature (spec 1.4 #3) — typed only, matching the rest of
+  // this app's signing flow (routes/contracts.js and routes/sign.js's
+  // `typedSignature` has never been anything but plain text; there is
+  // no drawn/canvas-capture infrastructure anywhere here to extend).
+  // Purely a prefill convenience for the signing form — every signature
+  // still goes through the same applySignature() call with its own
+  // fresh timestamp and the same explicit consent checkbox, saved or not.
+  "ALTER TABLE users ADD COLUMN saved_signature_name TEXT",
+  "ALTER TABLE users ADD COLUMN saved_signature_initials TEXT",
+  // Default contract preferences (spec 1.4 #5) — prefills for a new
+  // contract and its payment terms. default_governing_state is also a
+  // real server-side fallback: routes/contracts.js's POST / now accepts
+  // an omitted `state` and falls back to this before rejecting the
+  // request, not just a client-side prefill.
+  "ALTER TABLE users ADD COLUMN default_governing_state TEXT",
+  "ALTER TABLE users ADD COLUMN default_currency TEXT",
+  "ALTER TABLE users ADD COLUMN default_payment_terms TEXT",
+  // Accessibility settings (spec 1.4 #7) — language already existed
+  // (preferred_language, Phase 2). These three are booleans the client
+  // reads on every page load to toggle CSS, not server-side behavior.
+  "ALTER TABLE users ADD COLUMN a11y_large_text INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN a11y_reduced_motion INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN a11y_high_contrast INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(stmt);

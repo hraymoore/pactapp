@@ -261,8 +261,12 @@ router.get("/:id", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
   logView(contract.id, { userId: req.user.id, name: req.user.name, email: req.user.email });
+  // user_id is included so the frontend can link a party to their public
+  // profile (GET /api/profile/public/:userId) when they're a resolved Pact
+  // account — it's null for a counterparty entered by email who never had
+  // (or hasn't yet linked) an account, which just renders as plain text.
   const parties = db
-    .prepare("SELECT id, name, email, role, signed_at FROM contract_parties WHERE contract_id = ?")
+    .prepare("SELECT id, name, email, role, signed_at, user_id FROM contract_parties WHERE contract_id = ?")
     .all(contract.id);
   const audit = db
     .prepare("SELECT * FROM audit_log WHERE contract_id = ? ORDER BY created_at DESC")

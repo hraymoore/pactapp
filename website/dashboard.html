@@ -760,6 +760,11 @@
     </div>
 
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">PARTIES</label>
+      <div id="partiesList" style="font-size:0.85rem;"></div>
+    </div>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
       <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">VIEWED BY</label>
       <div id="viewList" style="font-size:0.85rem;"></div>
     </div>
@@ -1272,6 +1277,7 @@
     await renderHealthScore();
     await renderVersionList();
     await renderReviewStatus();
+    await renderParties();
     await renderViewList();
     await renderPaymentPanel();
   }
@@ -1427,6 +1433,28 @@
   document.getElementById("closeVersionDiffBtn").addEventListener("click", () => {
     document.getElementById("versionDiffBox").style.display = "none";
   });
+
+  // Links a party's name to their public profile (profile.html, built in
+  // Phase 6) when they're a resolved Pact account — deferred from Phase 6
+  // itself and picked up here. A party entered by email who has no
+  // linked Pact account (user_id is null) just renders as plain text,
+  // same as it always has.
+  async function renderParties() {
+    const { parties } = await apiJson(`/api/contracts/${editingId}`);
+    const wrap = document.getElementById("partiesList");
+    wrap.innerHTML = "";
+    parties.forEach(p => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:6px 0;color:var(--silver);";
+      const nameHtml = p.user_id
+        ? `<a href="profile.html?user=${encodeURIComponent(p.user_id)}" target="_blank" rel="noopener" style="color:var(--gold-bright);">${escapeHtml(p.name)}</a>`
+        : `<strong style="color:var(--silver);">${escapeHtml(p.name)}</strong>`;
+      const roleLabel = p.role === "owner" ? "Owner" : "Counterparty";
+      const statusLabel = p.signed_at ? `Signed ${fmt(p.signed_at)}` : "Not yet signed";
+      row.innerHTML = `${nameHtml} &middot; ${roleLabel} &middot; ${statusLabel}`;
+      wrap.appendChild(row);
+    });
+  }
 
   async function renderViewList() {
     const { views } = await apiJson(`/api/contracts/${editingId}/views`);

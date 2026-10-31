@@ -59,17 +59,53 @@ const PactAPI = {
     return data.user;
   },
 
-  async verifyMfaLogin({ challengeToken, code }) {
+  async verifyMfaLogin({ challengeToken, smsChallengeToken, code }) {
     const r = await fetch("/api/auth/mfa/verify-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ challengeToken, code }),
+      body: JSON.stringify({ challengeToken, smsChallengeToken, code }),
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || "Verification failed.");
     this._cache = data.user;
     return data.user;
+  },
+
+  async mfaSmsFallbackRequest({ challengeToken }) {
+    const r = await fetch("/api/auth/mfa/sms-fallback/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ challengeToken }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Could not send a code.");
+    return data;
+  },
+
+  async mfaLostAccessStart({ challengeToken }) {
+    const r = await fetch("/api/auth/mfa/lost-access/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ challengeToken }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Could not start account recovery.");
+    return data;
+  },
+
+  async mfaLostAccessStatus({ challengeToken }) {
+    const r = await fetch("/api/auth/mfa/lost-access/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ challengeToken }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Could not check recovery status.");
+    return data;
   },
 
   async reactivate({ email, password }) {
@@ -147,11 +183,32 @@ async function paintNav() {
   loggedInEls.forEach(el => el.style.display = user ? "" : "none");
 
   if (user) {
-    document.querySelectorAll("[data-user-avatar]").forEach(el => el.textContent = PactAPI.initials(user.name));
+    document.querySelectorAll("[data-user-avatar]").forEach(el => {
+      if (user.photoFileRef) {
+        el.textContent = "";
+        el.style.backgroundImage = `url(/api/profile/photo/${user.id}/thumb)`;
+        el.style.backgroundSize = "cover";
+        el.style.backgroundPosition = "center";
+      } else {
+        el.textContent = PactAPI.initials(user.name);
+        el.style.backgroundImage = "";
+      }
+    });
     document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = user.name);
     document.querySelectorAll("[data-user-tier]").forEach(el => el.textContent = PactAPI.tierMeta(user.tier).label);
+    applyA11yPrefs(user);
   }
   return user;
+}
+
+// Accessibility settings (spec 1.4 #7) — applied here, inside paintNav,
+// so they take effect on every page a signed-in user loads, not only
+// inside Settings where they're changed.
+function applyA11yPrefs(user) {
+  const html = document.documentElement;
+  html.setAttribute("data-large-text", user.a11yLargeText ? "true" : "false");
+  html.setAttribute("data-reduced-motion", user.a11yReducedMotion ? "true" : "false");
+  html.setAttribute("data-high-contrast", user.a11yHighContrast ? "true" : "false");
 }
 
 function wireNavToggle() {

@@ -200,6 +200,8 @@
           </div>
         </div>
 
+        <div class="card" id="bizTransferBox" style="margin-top:20px;display:none;border-color:var(--gold);"></div>
+
         <div class="card" style="margin-top:20px;">
           <h3>Members</h3>
           <div id="bizMemberList"></div>
@@ -291,87 +293,390 @@
     </section>
 
     <section id="sec-settings" style="display:none;">
-      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile, subscription and identity verification.</p></div></div>
-      <div class="grid grid-2">
-        <div class="card">
-          <h3>Profile</h3>
-          <p><strong>Name:</strong> <span data-user-name>—</span></p>
-          <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
-          <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
-          <p id="settingsLegalNameRow" style="display:none;"><strong>Legal name:</strong> <span id="settingsLegalName">—</span></p>
-          <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
-          <p><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
-          <button class="btn btn-ghost-dark btn-sm" id="downloadDataBtn" style="margin-top:4px;">Download My Data</button>
-        </div>
-        <div class="card">
-          <h3>Subscription</h3>
-          <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
-          <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
-          <div class="tag-row" id="tierButtons"></div>
-          <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
-          <div id="annualPassBox" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-dark);">
-            <p style="font-size:0.85rem;margin-bottom:10px;">Prefer to pay once a year instead of monthly? Annual passes are a one-time payment — no auto-renewal.</p>
-            <p id="annualPassStatus" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-bottom:10px;"></p>
-            <div class="tag-row">
-              <button class="btn btn-ghost-dark btn-sm" id="annualPassProBtn">Professional Annual — $199/yr</button>
-              <button class="btn btn-ghost-dark btn-sm" id="annualPassBusinessBtn">Enterprise Annual — $389/yr</button>
+      <div class="dash-head"><div><h2 style="margin-bottom:4px;">Profile Settings</h2><p style="margin:0;">Manage your Pact profile, security, billing and data.</p></div></div>
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:32px;align-items:start;">
+        <nav class="dash-nav" id="settingsSubNav" style="padding:0;">
+          <a href="#" class="active" data-settings-section="profile">Profile</a>
+          <a href="#" data-settings-section="security">Security</a>
+          <a href="#" data-settings-section="contact">Contact &amp; Recovery</a>
+          <a href="#" data-settings-section="notifications">Notifications</a>
+          <a href="#" data-settings-section="billing">Billing &amp; Payouts</a>
+          <a href="#" data-settings-section="privacy">Privacy &amp; Data</a>
+          <a href="#" data-settings-section="danger" style="color:var(--ruby-bright);">Danger Zone</a>
+        </nav>
+
+        <div>
+          <div data-settings-panel="profile">
+            <div class="card" id="completenessCard">
+              <h3>Profile Completeness</h3>
+              <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;margin:10px 0 14px;">
+                <div id="completenessBar" style="height:100%;width:0%;background:var(--gold);transition:width .4s ease;"></div>
+              </div>
+              <ul id="completenessList" style="list-style:none;padding:0;margin:0;font-size:0.85rem;"></ul>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Photo</h3>
+              <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+                <div class="avatar" id="profilePhotoAvatar" data-user-avatar style="width:96px;height:96px;font-size:1.8rem;flex-shrink:0;">—</div>
+                <div>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-ghost-dark btn-sm" id="uploadPhotoBtn">Upload Photo</button>
+                    <button class="btn btn-ghost-dark btn-sm" id="removePhotoBtn" style="display:none;border-color:var(--ruby);color:var(--ruby-bright);">Remove Photo</button>
+                  </div>
+                  <p style="margin-top:10px;margin-bottom:0;font-size:0.78rem;color:var(--silver);">Visible to people you contract with. JPG, PNG, or WebP, up to 5MB.</p>
+                </div>
+              </div>
+              <input id="photoFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;">
+              <p id="photoError" class="alert alert-ruby" style="margin-top:10px;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Profile</h3>
+              <p><strong>Email:</strong> <span id="settingsEmail">—</span></p>
+              <p><strong>Account type:</strong> <span id="settingsAccountType">—</span></p>
+              <p><strong>Member since:</strong> <span id="settingsJoined">—</span></p>
+
+              <div class="field"><label for="profileDisplayName">Display name</label><input id="profileDisplayName" type="text" maxlength="60"></div>
+              <p style="margin:-10px 0 14px;font-size:0.76rem;color:var(--silver);">Shown to people you contract with. 2–60 characters, up to 5 changes per 30 days.</p>
+
+              <div id="settingsLegalNameRow" style="display:none;">
+                <div class="field"><label>Legal name</label><input id="profileLegalName" type="text" disabled></div>
+                <p id="legalNameLockNote" style="margin:-10px 0 14px;font-size:0.76rem;color:var(--silver);"></p>
+              </div>
+              <p id="settingsDobRow" style="display:none;"><strong>Date of birth:</strong> <span id="settingsDob">—</span></p>
+
+              <div id="individualProfileFields">
+                <div class="field"><label for="profileJobTitle">Job title</label><input id="profileJobTitle" type="text" placeholder="e.g. Freelance Designer"></div>
+                <div class="field"><label for="profileCompany">Company</label><input id="profileCompany" type="text" placeholder="Optional"></div>
+              </div>
+
+              <div class="field">
+                <label for="profileBio">Short bio</label>
+                <textarea id="profileBio" rows="3" maxlength="280"></textarea>
+                <p id="profileBioCount" style="margin:4px 0 0;font-size:0.76rem;color:var(--silver);">0 / 280</p>
+              </div>
+              <div class="field"><label for="profileWebsite">Website</label><input id="profileWebsite" type="text" placeholder="https://"></div>
+
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div class="field" style="max-width:220px;"><label for="profileTimezone">Time zone</label>
+                  <select id="profileTimezone"></select>
+                </div>
+                <div class="field" style="max-width:180px;"><label for="profileLanguage">Preferred language</label>
+                  <select id="profileLanguage">
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="pt">Português</option>
+                  </select>
+                </div>
+                <div class="field" style="max-width:180px;"><label for="profileDateFormat">Date format</label>
+                  <select id="profileDateFormat">
+                    <option value="MDY">MM/DD/YYYY</option>
+                    <option value="DMY">DD/MM/YYYY</option>
+                    <option value="YMD">YYYY-MM-DD</option>
+                  </select>
+                </div>
+              </div>
+
+              <button class="btn btn-gold btn-sm" id="saveProfileBtn" style="margin-top:6px;">Save Profile</button>
+              <p id="profileSaveNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Saved Signature</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Prefills the signing form so you don't have to retype it — every signature still requires its own explicit consent and gets its own timestamp.</p>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div class="field" style="max-width:260px;"><label for="savedSignatureName">Typed signature</label><input id="savedSignatureName" type="text" maxlength="100" placeholder="Your full legal name"></div>
+                <div class="field" style="max-width:120px;"><label for="savedSignatureInitials">Initials</label><input id="savedSignatureInitials" type="text" maxlength="6"></div>
+              </div>
+              <button class="btn btn-ghost-dark btn-sm" id="saveSignatureBtn">Save Signature</button>
+              <p id="savedSignatureNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Default Contract Preferences</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Prefills new contracts. Governing state also applies server-side if a contract is created without one specified.</p>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div class="field" style="max-width:220px;"><label for="defaultGoverningState">Default governing state</label><select id="defaultGoverningState"><option value="">None</option></select></div>
+                <div class="field" style="max-width:160px;"><label for="defaultCurrency">Default currency</label>
+                  <select id="defaultCurrency">
+                    <option value="">None</option>
+                    <option value="usd">USD</option>
+                    <option value="eur">EUR</option>
+                    <option value="gbp">GBP</option>
+                    <option value="cad">CAD</option>
+                    <option value="aud">AUD</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field"><label for="defaultPaymentTerms">Default payment terms (notes)</label><input id="defaultPaymentTerms" type="text" placeholder="e.g. Net 30, 50% deposit"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="saveDefaultsBtn">Save Defaults</button>
+              <p id="defaultsNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Accessibility</h3>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:8px;"><input type="checkbox" id="a11yLargeText"> Larger text</label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:8px;"><input type="checkbox" id="a11yReducedMotion"> Reduce motion</label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;"><input type="checkbox" id="a11yHighContrast"> High contrast</label>
+              <button class="btn btn-ghost-dark btn-sm" id="saveA11yBtn" style="margin-top:12px;">Save</button>
+              <p id="a11yNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Address Book</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Saved contacts for faster contract sending.</p>
+              <div id="savedContactsList" style="margin-bottom:14px;"></div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <div class="field" style="max-width:200px;margin-bottom:0;"><input id="newContactName" type="text" placeholder="Name"></div>
+                <div class="field" style="max-width:240px;margin-bottom:0;"><input id="newContactEmail" type="email" placeholder="Email"></div>
+                <button class="btn btn-ghost-dark btn-sm" id="addContactBtn">Add</button>
+              </div>
+              <p id="savedContactsNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+          </div>
+
+          <div data-settings-panel="security" style="display:none;">
+            <div class="card">
+              <h3>Identity Verification</h3>
+              <p id="identityStatusText">Checking status…</p>
+              <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
+              <p id="identityNote" style="margin-top:14px;font-size:0.82rem;color:var(--silver);"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Password</h3>
+              <p id="tempPasswordBanner" style="display:none;color:var(--ruby-bright);font-size:0.85rem;">You're signed in with a temporary password. Set a permanent one below.</p>
+              <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" placeholder="Current password"></div>
+              <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 12 characters" autocomplete="new-password"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
+              <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Two-Factor Authentication</h3>
+              <p id="mfaStatusText" style="font-size:0.85rem;">Checking status…</p>
+              <div id="mfaEnrollBox" style="display:none;">
+                <p style="font-size:0.85rem;">Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code it shows.</p>
+                <img id="mfaQrCode" alt="MFA QR code" style="background:#fff;padding:10px;border-radius:8px;max-width:200px;display:block;margin:12px 0;">
+                <p style="font-size:0.78rem;color:var(--silver);">Can't scan? Enter this key manually: <code id="mfaSecretText"></code></p>
+                <div class="field" style="max-width:220px;"><label for="mfaEnrollCode">Verification code</label><input id="mfaEnrollCode" placeholder="123456" autocomplete="one-time-code"></div>
+                <button class="btn btn-gold btn-sm" id="mfaVerifyEnrollBtn">Confirm and Turn On</button>
+              </div>
+              <div id="mfaBackupCodesBox" style="display:none;margin-top:16px;">
+                <p style="font-size:0.85rem;color:var(--emerald-bright);">Two-factor authentication is on. Save these one-time backup codes somewhere safe — each works once if you lose access to your authenticator app, and they won't be shown again.</p>
+                <pre id="mfaBackupCodesList" style="background:rgba(255,255,255,0.04);padding:12px;border-radius:8px;font-size:0.85rem;line-height:1.6;"></pre>
+              </div>
+              <button class="btn btn-ghost-dark btn-sm" id="mfaEnableBtn" style="display:none;">Turn On Two-Factor Authentication</button>
+              <button class="btn btn-ghost-dark btn-sm" id="mfaRegenerateBackupCodesBtn" style="display:none;">Regenerate Backup Codes</button>
+              <div id="mfaDisableForm" style="display:none;">
+                <div class="field" style="max-width:220px;"><label for="mfaDisablePassword">Enter your password to confirm</label><input id="mfaDisablePassword" type="password" placeholder="Password"></div>
+                <button class="btn btn-ghost-dark btn-sm" id="mfaDisableBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Turn Off Two-Factor Authentication</button>
+              </div>
+              <p id="mfaNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Active Sessions</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Every device currently signed in to your account.</p>
+              <div id="sessionsList"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="signOutOthersBtn" style="margin-top:12px;border-color:var(--ruby);color:var(--ruby-bright);">Sign Out Everywhere Else</button>
+              <p id="sessionsNote" style="margin-top:14px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Login &amp; Security Activity</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">The last 90 days of logins, password changes, MFA changes, data exports, and other sensitive actions on your account — read-only.</p>
+              <div id="securityLogList" style="font-size:0.85rem;max-height:420px;overflow-y:auto;"></div>
+            </div>
+          </div>
+
+          <div data-settings-panel="contact" style="display:none;">
+            <div class="card">
+              <h3>Primary Email</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">The email you use to log in and the address contracts are sent to.</p>
+              <p><strong>Current:</strong> <span id="contactCurrentEmail">—</span></p>
+              <p id="contactPendingEmailNote" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-top:6px;"></p>
+              <div class="field" style="margin-top:14px;">
+                <label for="contactNewEmail">New email address</label>
+                <input id="contactNewEmail" type="email" placeholder="you@newdomain.com">
+              </div>
+              <button class="btn btn-gold btn-sm" id="contactChangeEmailBtn">Send Verification Link</button>
+              <p id="contactEmailNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Recovery Email</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Used only for account recovery and security notices — must be different from your primary email.</p>
+              <p><strong>Current:</strong> <span id="contactRecoveryEmailStatus">Not set</span></p>
+              <div class="field" style="margin-top:14px;">
+                <label for="contactNewRecoveryEmail">Recovery email</label>
+                <input id="contactNewRecoveryEmail" type="email" placeholder="backup@domain.com">
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button class="btn btn-gold btn-sm" id="contactSetRecoveryEmailBtn">Send Verification Link</button>
+                <button class="btn btn-ghost-dark btn-sm" id="contactRemoveRecoveryEmailBtn" style="display:none;border-color:var(--ruby);color:var(--ruby-bright);">Remove</button>
+              </div>
+              <p id="contactRecoveryEmailNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Phone Number</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">Optional — used for security alerts and as an MFA fallback. Never shown to other users.</p>
+              <p><strong>Current:</strong> <span id="contactPhoneStatus">Not set</span></p>
+              <div id="contactPhoneAddForm">
+                <div class="field" style="margin-top:14px;">
+                  <label for="contactNewPhone">Phone number</label>
+                  <input id="contactNewPhone" type="tel" placeholder="+15551234567">
+                </div>
+                <label style="display:flex;gap:8px;align-items:flex-start;font-size:0.82rem;margin-top:8px;">
+                  <input type="checkbox" id="contactPhoneConsent" style="margin-top:3px;">
+                  <span>By adding your number you agree to receive security and account texts from Pact. Message and data rates may apply. Reply STOP to opt out.</span>
+                </label>
+                <button class="btn btn-gold btn-sm" id="contactSendPhoneCodeBtn" style="margin-top:10px;">Send Code</button>
+              </div>
+              <div id="contactPhoneVerifyForm" style="display:none;margin-top:14px;">
+                <div class="field">
+                  <label for="contactPhoneCode">Verification code</label>
+                  <input id="contactPhoneCode" placeholder="123456" autocomplete="one-time-code">
+                </div>
+                <button class="btn btn-gold btn-sm" id="contactVerifyPhoneBtn">Verify</button>
+              </div>
+              <button class="btn btn-ghost-dark btn-sm" id="contactRemovePhoneBtn" style="display:none;margin-top:10px;border-color:var(--ruby);color:var(--ruby-bright);">Remove Phone Number</button>
+              <p id="contactPhoneNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+          </div>
+
+          <div data-settings-panel="notifications" style="display:none;">
+            <div class="card">
+              <h3>Notification Categories</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:14px;">Choose email and text alerts per category. SMS requires a verified phone number (Contact &amp; Recovery).</p>
+              <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
+                <tr style="color:var(--silver);text-align:left;">
+                  <th style="padding:6px 0;">Category</th>
+                  <th style="padding:6px 0;width:70px;">Email</th>
+                  <th style="padding:6px 0;width:70px;">SMS</th>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Contract activity (sent, viewed, signed)</td>
+                  <td><input type="checkbox" id="notifContractActivityEmail"></td>
+                  <td><input type="checkbox" id="notifContractActivitySms"></td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Payment events</td>
+                  <td><input type="checkbox" id="notifPaymentEventsEmail"></td>
+                  <td><input type="checkbox" id="notifPaymentEventsSms"></td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Reminders &amp; renewals</td>
+                  <td><input type="checkbox" id="notifRemindersEmail"></td>
+                  <td><input type="checkbox" id="notifRemindersSms"></td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Security alerts</td>
+                  <td><input type="checkbox" checked disabled title="Always on — can't be turned off."></td>
+                  <td style="color:var(--silver);font-size:0.78rem;">Always on</td>
+                </tr>
+                <tr style="border-top:1px solid var(--border-dark);">
+                  <td style="padding:8px 0;">Product updates (marketing)</td>
+                  <td><input type="checkbox" id="notifProductUpdatesEmail"></td>
+                  <td>—</td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Quiet Hours &amp; Digest</h3>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:10px;">
+                <input type="checkbox" id="notifQuietHoursEnabled">
+                Quiet hours — pause optional email/SMS alerts during this window (UTC)
+              </label>
+              <div style="display:flex;gap:16px;margin-bottom:14px;">
+                <div class="field" style="max-width:140px;"><label for="notifQuietHoursStart">Start</label><input type="time" id="notifQuietHoursStart"></div>
+                <div class="field" style="max-width:140px;"><label for="notifQuietHoursEnd">End</label><input type="time" id="notifQuietHoursEnd"></div>
+              </div>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;">
+                <input type="checkbox" id="notifDigestEnabled">
+                Daily digest — one summary email per day instead of as-it-happens alerts
+              </label>
+              <button class="btn btn-gold btn-sm" id="saveNotificationsBtn" style="margin-top:16px;">Save Notification Preferences</button>
+              <p id="notificationsNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+          </div>
+
+          <div data-settings-panel="billing" style="display:none;">
+            <div class="card">
+              <h3>Subscription</h3>
+              <p><strong>Current tier:</strong> <span data-user-tier>—</span></p>
+              <p id="billingNote" style="margin-bottom:18px;font-size:0.85rem;"></p>
+              <div class="tag-row" id="tierButtons"></div>
+              <button class="btn btn-ghost-dark btn-sm" id="manageBillingBtn" style="display:none;margin-top:12px;">Manage Billing (update card, view invoices, cancel)</button>
+              <div id="annualPassBox" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-dark);">
+                <p style="font-size:0.85rem;margin-bottom:10px;">Prefer to pay once a year instead of monthly? Annual passes are a one-time payment — no auto-renewal.</p>
+                <p id="annualPassStatus" style="display:none;font-size:0.82rem;color:var(--gold-bright);margin-bottom:10px;"></p>
+                <div class="tag-row">
+                  <button class="btn btn-ghost-dark btn-sm" id="annualPassProBtn">Professional Annual — $199/yr</button>
+                  <button class="btn btn-ghost-dark btn-sm" id="annualPassBusinessBtn">Enterprise Annual — $389/yr</button>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:24px;">
+              <h3>Get Paid Through Pact</h3>
+              <p id="payoutsStatusText" style="font-size:0.85rem;">Checking status…</p>
+              <button class="btn btn-ghost-dark btn-sm" id="payoutsSetupBtn" style="display:none;">Finish Payout Setup</button>
+              <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">To request payment on a contract, Stripe needs your bank details and identity — handled entirely on Stripe's own hosted page, never by Pact. Requires the Starter tier or above.</p>
+            </div>
+          </div>
+
+          <div data-settings-panel="privacy" style="display:none;">
+            <div class="card">
+              <h3>Your Data</h3>
+              <p style="font-size:0.85rem;color:var(--silver);">A JSON export of your profile and every contract you own or are a party to. This is a sensitive action — you'll be asked to confirm your password first.</p>
+              <button class="btn btn-ghost-dark btn-sm" id="downloadDataBtn" style="margin-top:4px;">Download My Data</button>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Public Profile</h3>
+              <p style="font-size:0.85rem;color:var(--silver);margin-bottom:12px;">What a counterparty sees if they click your name on a contract: your display name, verification badge, and member-since date are always shown. Your email, phone, date of birth, and address are never shown here.</p>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;margin-bottom:8px;">
+                <input type="checkbox" id="privacyShowPhoto">
+                Show my profile photo
+              </label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:0.85rem;">
+                <input type="checkbox" id="privacyShowJobTitle">
+                Show my company and job title
+              </label>
+              <button class="btn btn-ghost-dark btn-sm" id="savePrivacyBtn" style="margin-top:12px;">Save</button>
+              <p id="privacyNote" style="margin-top:10px;font-size:0.82rem;"></p>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Policies</h3>
+              <a href="terms.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;margin-bottom:8px;">Terms of Service</a>
+              <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;margin-bottom:8px;">Privacy Policy</a>
+              <a href="esignature-disclosure.html" target="_blank" rel="noopener" style="color:var(--gold-bright);display:block;">e-Signature Disclosure</a>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <h3>Terms Acceptance History</h3>
+              <div id="termsHistoryList" style="font-size:0.85rem;"></div>
+            </div>
+          </div>
+
+          <div data-settings-panel="danger" style="display:none;">
+            <div class="card" style="border-color:var(--ruby);">
+              <h3>Close Account</h3>
+              <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
+              <div id="closeAccountForm">
+                <div class="field" style="max-width:320px;"><label for="closeAccountPassword">Enter your password to confirm</label><input id="closeAccountPassword" type="password" placeholder="Password"></div>
+                <button class="btn btn-ghost-dark btn-sm" id="closeAccountBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Close My Account</button>
+              </div>
+              <p id="closeAccountNote" style="margin-top:14px;font-size:0.82rem;"></p>
             </div>
           </div>
         </div>
-      </div>
-      <div class="card" style="margin-top:24px;">
-        <h3>Get Paid Through Pact</h3>
-        <p id="payoutsStatusText" style="font-size:0.85rem;">Checking status…</p>
-        <button class="btn btn-ghost-dark btn-sm" id="payoutsSetupBtn" style="display:none;">Finish Payout Setup</button>
-        <p style="margin-top:14px;font-size:0.82rem;color:var(--silver);">To request payment on a contract, Stripe needs your bank details and identity — handled entirely on Stripe's own hosted page, never by Pact. Requires the Starter tier or above.</p>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Identity Verification</h3>
-        <p id="identityStatusText">Checking status…</p>
-        <button class="btn btn-ghost-dark btn-sm" id="verifyIdentityBtn" style="display:none;">Verify My Identity</button>
-        <p id="identityNote" style="margin-top:14px;font-size:0.82rem;color:var(--silver);"></p>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Password</h3>
-        <p id="tempPasswordBanner" style="display:none;color:var(--ruby-bright);font-size:0.85rem;">You're signed in with a temporary password. Set a permanent one below.</p>
-        <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" placeholder="Current password"></div>
-        <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" placeholder="At least 6 characters"></div>
-        <button class="btn btn-ghost-dark btn-sm" id="changePasswordBtn">Change Password</button>
-        <p id="passwordChangeNote" style="margin-top:14px;font-size:0.82rem;"></p>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Two-Factor Authentication</h3>
-        <p id="mfaStatusText" style="font-size:0.85rem;">Checking status…</p>
-        <div id="mfaEnrollBox" style="display:none;">
-          <p style="font-size:0.85rem;">Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code it shows.</p>
-          <img id="mfaQrCode" alt="MFA QR code" style="background:#fff;padding:10px;border-radius:8px;max-width:200px;display:block;margin:12px 0;">
-          <p style="font-size:0.78rem;color:var(--silver);">Can't scan? Enter this key manually: <code id="mfaSecretText"></code></p>
-          <div class="field" style="max-width:220px;"><label for="mfaEnrollCode">Verification code</label><input id="mfaEnrollCode" placeholder="123456" autocomplete="one-time-code"></div>
-          <button class="btn btn-gold btn-sm" id="mfaVerifyEnrollBtn">Confirm and Turn On</button>
-        </div>
-        <div id="mfaBackupCodesBox" style="display:none;margin-top:16px;">
-          <p style="font-size:0.85rem;color:var(--emerald-bright);">Two-factor authentication is on. Save these one-time backup codes somewhere safe — each works once if you lose access to your authenticator app, and they won't be shown again.</p>
-          <pre id="mfaBackupCodesList" style="background:rgba(255,255,255,0.04);padding:12px;border-radius:8px;font-size:0.85rem;line-height:1.6;"></pre>
-        </div>
-        <button class="btn btn-ghost-dark btn-sm" id="mfaEnableBtn" style="display:none;">Turn On Two-Factor Authentication</button>
-        <div id="mfaDisableForm" style="display:none;">
-          <div class="field" style="max-width:220px;"><label for="mfaDisablePassword">Enter your password to confirm</label><input id="mfaDisablePassword" type="password" placeholder="Password"></div>
-          <button class="btn btn-ghost-dark btn-sm" id="mfaDisableBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Turn Off Two-Factor Authentication</button>
-        </div>
-        <p id="mfaNote" style="margin-top:14px;font-size:0.82rem;"></p>
-      </div>
-
-      <div class="card" style="margin-top:24px;border-color:var(--ruby);">
-        <h3>Close Account</h3>
-        <p style="font-size:0.85rem;">This deactivates your profile — it does not delete it. Your login is disabled immediately, any subscription is canceled, and you're removed from search and invite lookups. Every contract you're a party to, and your name as it appears on them, stays exactly as-is for every other party. See <a href="terms.html#s13a" target="_blank" rel="noopener" style="color:var(--gold-bright);">Section 13a of the Terms of Service</a> for the full retention policy. You can reactivate with your password at any time before any later data purge.</p>
-        <div id="closeAccountForm">
-          <div class="field" style="max-width:320px;"><label for="closeAccountPassword">Enter your password to confirm</label><input id="closeAccountPassword" type="password" placeholder="Password"></div>
-          <button class="btn btn-ghost-dark btn-sm" id="closeAccountBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Close My Account</button>
-        </div>
-        <p id="closeAccountNote" style="margin-top:14px;font-size:0.82rem;"></p>
       </div>
     </section>
 
@@ -452,6 +757,11 @@
         </div>
         <button class="btn btn-ghost-dark btn-sm" id="closeVersionDiffBtn" style="margin-top:10px;">Close redline</button>
       </div>
+    </div>
+
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
+      <label style="display:block;font-size:0.8rem;color:var(--silver);font-family:var(--font-mono);margin-bottom:10px;">PARTIES</label>
+      <div id="partiesList" style="font-size:0.85rem;"></div>
     </div>
 
     <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-dark);">
@@ -544,8 +854,10 @@
     <div class="eyebrow">Send for signature</div>
     <h3 id="sendTitle">Contract</h3>
     <div id="sendFields">
-      <div class="field"><label>Counterparty name</label><input id="sendName" type="text" placeholder="Sam Rivera"></div>
-      <div class="field"><label>Counterparty email</label><input id="sendEmail" type="email" placeholder="sam@example.com"></div>
+      <div class="field"><label>Counterparty name</label><input id="sendName" type="text" placeholder="Sam Rivera" list="sendContactsNameList"></div>
+      <div class="field"><label>Counterparty email</label><input id="sendEmail" type="email" placeholder="sam@example.com" list="sendContactsEmailList"></div>
+      <datalist id="sendContactsNameList"></datalist>
+      <datalist id="sendContactsEmailList"></datalist>
     </div>
     <button class="btn btn-gold btn-block" id="confirmSendBtn">Send</button>
     <div id="sendResult" style="margin-top:16px;display:none;"></div>
@@ -569,6 +881,46 @@
     </div>
     <button class="btn btn-gold btn-block" id="esignConsentContinueBtn" disabled>Continue</button>
     <p id="esignConsentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<!-- Re-authentication gate — shown the first time in a session (or 10
+     minutes after the last one) that a sensitive action is attempted:
+     downloading your data, changing your password, and more as later
+     phases add them. Confirms the password live rather than trusting
+     whatever the session cookie already proves. -->
+<div class="modal-backdrop" id="reauthModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-close" id="closeReauthModal">&times;</button>
+    <div class="eyebrow">Confirm it's you</div>
+    <h3>Re-enter your password</h3>
+    <p style="font-size:0.9rem;">This is a sensitive action, so we need to confirm your password again before continuing.</p>
+    <div class="field"><label for="reauthPassword">Password</label><input id="reauthPassword" type="password" placeholder="Password" autocomplete="current-password"></div>
+    <div class="field" id="reauthMfaField" style="display:none;"><label for="reauthMfaCode">Verification code</label><input id="reauthMfaCode" placeholder="123456 or a backup code" autocomplete="one-time-code"></div>
+    <button class="btn btn-gold btn-block" id="reauthContinueBtn">Continue</button>
+    <p id="reauthError" class="alert alert-ruby" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<!-- Profile photo crop/zoom — the crop here is purely a UX convenience;
+     the server (services/profile-photo.js) re-decodes, re-crops and
+     re-encodes the ORIGINAL file it's sent using the same cropX/cropY/
+     cropSize numbers this computes, strips EXIF and validates the real
+     file content itself. Nothing here is a security boundary. -->
+<div class="modal-backdrop" id="photoCropModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-close" id="closePhotoCropModal">&times;</button>
+    <div class="eyebrow">Profile photo</div>
+    <h3>Crop &amp; zoom</h3>
+    <div id="photoCropViewport" style="width:280px;height:280px;margin:0 auto;border-radius:50%;overflow:hidden;position:relative;background:var(--obsidian);cursor:grab;touch-action:none;">
+      <img id="photoCropImage" style="position:absolute;top:0;left:0;max-width:none;user-select:none;-webkit-user-drag:none;">
+    </div>
+    <div class="field" style="margin-top:16px;">
+      <label for="photoCropZoom">Zoom</label>
+      <input id="photoCropZoom" type="range" min="1" max="3" step="0.01" value="1" style="width:100%;">
+    </div>
+    <button class="btn btn-gold btn-block" id="photoCropSaveBtn">Save Photo</button>
+    <p id="photoCropError" class="alert alert-ruby" style="margin-top:10px;"></p>
   </div>
 </div>
 
@@ -925,6 +1277,7 @@
     await renderHealthScore();
     await renderVersionList();
     await renderReviewStatus();
+    await renderParties();
     await renderViewList();
     await renderPaymentPanel();
   }
@@ -1080,6 +1433,28 @@
   document.getElementById("closeVersionDiffBtn").addEventListener("click", () => {
     document.getElementById("versionDiffBox").style.display = "none";
   });
+
+  // Links a party's name to their public profile (profile.html, built in
+  // Phase 6) when they're a resolved Pact account — deferred from Phase 6
+  // itself and picked up here. A party entered by email who has no
+  // linked Pact account (user_id is null) just renders as plain text,
+  // same as it always has.
+  async function renderParties() {
+    const { parties } = await apiJson(`/api/contracts/${editingId}`);
+    const wrap = document.getElementById("partiesList");
+    wrap.innerHTML = "";
+    parties.forEach(p => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:6px 0;color:var(--silver);";
+      const nameHtml = p.user_id
+        ? `<a href="profile.html?user=${encodeURIComponent(p.user_id)}" target="_blank" rel="noopener" style="color:var(--gold-bright);">${escapeHtml(p.name)}</a>`
+        : `<strong style="color:var(--silver);">${escapeHtml(p.name)}</strong>`;
+      const roleLabel = p.role === "owner" ? "Owner" : "Counterparty";
+      const statusLabel = p.signed_at ? `Signed ${fmt(p.signed_at)}` : "Not yet signed";
+      row.innerHTML = `${nameHtml} &middot; ${roleLabel} &middot; ${statusLabel}`;
+      wrap.appendChild(row);
+    });
+  }
 
   async function renderViewList() {
     const { views } = await apiJson(`/api/contracts/${editingId}/views`);
@@ -1482,7 +1857,7 @@
   function openSignModal(id, name) {
     signingId = id;
     document.getElementById("signModalTitle").textContent = name;
-    document.getElementById("ownerTypedSignature").value = CURRENT_USER.name;
+    document.getElementById("ownerTypedSignature").value = CURRENT_USER.savedSignatureName || CURRENT_USER.name;
     document.getElementById("ownerConsent").checked = false;
     document.getElementById("signResult").style.display = "none";
     signModal.classList.add("show");
@@ -1619,8 +1994,18 @@
   let AI_CHAT_HISTORY = [];
   let AI_LAST_DRAFT = null;
 
+  // Phase 8 fix: used to only replace "<", which is enough inside a text
+  // node but not inside an attribute value like <option value="...">,
+  // where an unescaped '"' can break out and inject a new attribute.
+  // Escapes all five HTML-special characters so every existing call site
+  // (text nodes and attribute values alike) is actually safe.
   function escapeHtml(s) {
-    return String(s).replace(/</g, "&lt;");
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function extractDraft(text) {
@@ -1845,6 +2230,15 @@
     const statusText = document.getElementById("identityStatusText");
     const verifyBtn = document.getElementById("verifyIdentityBtn");
     const note = document.getElementById("identityNote");
+    // Verification badge logic (spec 1.4 #1) — a business's identity
+    // check is its self-reported EIN at signup, not a personal document/
+    // selfie match, so business accounts never see the individual
+    // Stripe Identity flow at all, and never show "verified" for it.
+    if (CURRENT_USER.accountType === "business") {
+      statusText.textContent = "EIN self-reported — not independently verified.";
+      note.textContent = "Pact doesn't yet verify business EINs against an official registry (real EIN/KYB verification is a later feature); this reflects what was entered at signup.";
+      return;
+    }
     try {
       const { configured, verification } = await apiJson("/api/identity/status");
       if (!configured) {
@@ -1896,8 +2290,10 @@
         document.getElementById("currentPassword").value = "";
         document.getElementById("newPassword").value = "";
         document.getElementById("tempPasswordBanner").style.display = "none";
-        note.textContent = "Password changed.";
+        note.textContent = "Password changed. Every other signed-in device has been signed out, and a confirmation email is on its way.";
         note.style.color = "var(--emerald-bright)";
+        await renderSessionsList();
+        await renderSecurityLog();
       } catch (err) {
         note.textContent = err.message;
         note.style.color = "var(--ruby-bright)";
@@ -1912,6 +2308,7 @@
     const backupBox = document.getElementById("mfaBackupCodesBox");
     const enableBtn = document.getElementById("mfaEnableBtn");
     const disableForm = document.getElementById("mfaDisableForm");
+    const regenerateBtn = document.getElementById("mfaRegenerateBackupCodesBtn");
     const note = document.getElementById("mfaNote");
 
     async function refreshStatus(keepBackupCodesVisible) {
@@ -1921,10 +2318,12 @@
       if (enabled) {
         statusText.innerHTML = `<span style="color:var(--emerald-bright);">On</span> — your account requires a code from your authenticator app to log in.`;
         enableBtn.style.display = "none";
+        regenerateBtn.style.display = "";
         disableForm.style.display = "";
       } else {
         statusText.textContent = "Off. Turning this on adds a second step at login using an authenticator app.";
         enableBtn.style.display = "";
+        regenerateBtn.style.display = "none";
         disableForm.style.display = "none";
       }
       return enabled;
@@ -1962,6 +2361,22 @@
         note.textContent = "";
         CURRENT_USER.mfaEnabled = true;
         await refreshStatus(true);
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    regenerateBtn.addEventListener("click", async () => {
+      note.style.color = "";
+      if (!confirm("Regenerate backup codes? Every existing backup code stops working immediately.")) return;
+      if (!(await ensureRecentAuth())) return;
+      try {
+        const { backupCodes } = await apiJson("/api/mfa/backup-codes/regenerate", { method: "POST", body: JSON.stringify({}) });
+        document.getElementById("mfaBackupCodesList").textContent = backupCodes.join("\n");
+        backupBox.style.display = "";
+        note.textContent = "New backup codes generated — save them somewhere safe.";
+        note.style.color = "var(--emerald-bright)";
       } catch (err) {
         note.textContent = err.message;
         note.style.color = "var(--ruby-bright)";
@@ -2014,6 +2429,712 @@
     });
   }
 
+  // ---- settings: left-nav shell ----
+  function setupSettingsSubNav() {
+    const nav = document.getElementById("settingsSubNav");
+    nav.querySelectorAll("[data-settings-section]").forEach(link => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        nav.querySelectorAll("[data-settings-section]").forEach(a => a.classList.remove("active"));
+        link.classList.add("active");
+        const target = link.dataset.settingsSection;
+        document.querySelectorAll("[data-settings-panel]").forEach(panel => {
+          panel.style.display = panel.dataset.settingsPanel === target ? "" : "none";
+        });
+      });
+    });
+  }
+
+  // Updates every [data-user-avatar] element on the page — the nav
+  // avatar and the larger one on the Profile panel both carry this same
+  // attribute, so one pass keeps them in sync after an upload/removal
+  // without waiting for the next full page load (paintNav in app.js does
+  // the equivalent on initial boot, from a fresh /api/auth/me).
+  function paintAvatars() {
+    document.querySelectorAll("[data-user-avatar]").forEach(el => {
+      if (CURRENT_USER.photoFileRef) {
+        el.textContent = "";
+        el.style.backgroundImage = `url(/api/profile/photo/${CURRENT_USER.id}/thumb)`;
+        el.style.backgroundSize = "cover";
+        el.style.backgroundPosition = "center";
+      } else {
+        el.textContent = PactAPI.initials(CURRENT_USER.name);
+        el.style.backgroundImage = "";
+      }
+    });
+  }
+
+  async function setupProfile() {
+    document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
+    document.getElementById("settingsAccountType").textContent = CURRENT_USER.accountType === "business" ? "Business" : "Personal";
+    document.getElementById("settingsJoined").textContent = fmt(CURRENT_USER.created_at);
+
+    document.getElementById("profileDisplayName").value = CURRENT_USER.name || "";
+    document.getElementById("profileJobTitle").value = CURRENT_USER.jobTitle || "";
+    document.getElementById("profileCompany").value = CURRENT_USER.company || "";
+    document.getElementById("profileBio").value = CURRENT_USER.bio || "";
+    document.getElementById("profileWebsite").value = CURRENT_USER.website || "";
+    document.getElementById("profileDateFormat").value = CURRENT_USER.dateFormat || "MDY";
+    document.getElementById("profileLanguage").value = CURRENT_USER.preferredLanguage || "en";
+
+    const bioInput = document.getElementById("profileBio");
+    const bioCount = document.getElementById("profileBioCount");
+    const updateBioCount = () => { bioCount.textContent = `${bioInput.value.length} / 280`; };
+    updateBioCount();
+    bioInput.addEventListener("input", updateBioCount);
+
+    const tzSelect = document.getElementById("profileTimezone");
+    let zones = [];
+    try { zones = Intl.supportedValuesOf("timeZone"); } catch (e) { zones = []; }
+    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zones.length === 0) zones = [browserZone];
+    if (!zones.includes(browserZone)) zones.unshift(browserZone);
+    tzSelect.innerHTML = zones.map(z => `<option value="${z}">${z}</option>`).join("");
+    tzSelect.value = CURRENT_USER.timezone || browserZone;
+
+    const isBusiness = CURRENT_USER.accountType === "business";
+    document.getElementById("individualProfileFields").style.display = isBusiness ? "none" : "";
+
+    if (!isBusiness) {
+      document.getElementById("settingsLegalNameRow").style.display = "";
+      document.getElementById("profileLegalName").value = `${CURRENT_USER.legalFirstName || ""} ${CURRENT_USER.legalLastName || ""}`.trim();
+      document.getElementById("settingsDobRow").style.display = "";
+      document.getElementById("settingsDob").textContent = CURRENT_USER.dateOfBirth
+        ? new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString()
+        : "—";
+      try {
+        const { verification } = await apiJson("/api/identity/status");
+        const lockNote = document.getElementById("legalNameLockNote");
+        lockNote.textContent = verification && verification.status === "verified"
+          ? "Locked after identity verification. To change it, go to Security → Identity Verification and re-verify — your legal name updates from the verified result."
+          : "Locked until you verify your identity (Security → Identity Verification) — your legal name is then set from your verified ID.";
+      } catch (err) {
+        // Identity status is best-effort here — the fields stay disabled either way.
+      }
+    }
+
+    document.getElementById("saveProfileBtn").addEventListener("click", async () => {
+      const note = document.getElementById("profileSaveNote");
+      note.style.color = "";
+      note.textContent = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            displayName: document.getElementById("profileDisplayName").value,
+            jobTitle: document.getElementById("profileJobTitle").value,
+            company: document.getElementById("profileCompany").value,
+            bio: document.getElementById("profileBio").value,
+            website: document.getElementById("profileWebsite").value,
+            timezone: document.getElementById("profileTimezone").value,
+            preferredLanguage: document.getElementById("profileLanguage").value,
+            dateFormat: document.getElementById("profileDateFormat").value,
+          }),
+        });
+        CURRENT_USER = data.user;
+        document.querySelectorAll("[data-user-name]").forEach(el => el.textContent = CURRENT_USER.name);
+        paintAvatars();
+        note.textContent = "Profile saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  async function setupCompleteness() {
+    try {
+      const { items, percent } = await apiJson("/api/profile/completeness");
+      document.getElementById("completenessBar").style.width = `${percent}%`;
+      document.getElementById("completenessList").innerHTML = items
+        .map((i) => `<li style="padding:4px 0;color:${i.done ? "var(--emerald-bright)" : "var(--silver)"};">${i.done ? "✓" : "○"} ${i.label}</li>`)
+        .join("");
+    } catch (err) {
+      document.getElementById("completenessCard").style.display = "none";
+    }
+  }
+
+  function setupSavedSignature() {
+    document.getElementById("savedSignatureName").value = CURRENT_USER.savedSignatureName || "";
+    document.getElementById("savedSignatureInitials").value = CURRENT_USER.savedSignatureInitials || "";
+    document.getElementById("saveSignatureBtn").addEventListener("click", async () => {
+      const note = document.getElementById("savedSignatureNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            savedSignatureName: document.getElementById("savedSignatureName").value,
+            savedSignatureInitials: document.getElementById("savedSignatureInitials").value,
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Signature saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupDefaults() {
+    document.getElementById("defaultGoverningState").value = CURRENT_USER.defaultGoverningState || "";
+    document.getElementById("defaultCurrency").value = CURRENT_USER.defaultCurrency || "";
+    document.getElementById("defaultPaymentTerms").value = CURRENT_USER.defaultPaymentTerms || "";
+    document.getElementById("saveDefaultsBtn").addEventListener("click", async () => {
+      const note = document.getElementById("defaultsNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            defaultGoverningState: document.getElementById("defaultGoverningState").value,
+            defaultCurrency: document.getElementById("defaultCurrency").value,
+            defaultPaymentTerms: document.getElementById("defaultPaymentTerms").value,
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Defaults saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupA11y() {
+    document.getElementById("a11yLargeText").checked = CURRENT_USER.a11yLargeText;
+    document.getElementById("a11yReducedMotion").checked = CURRENT_USER.a11yReducedMotion;
+    document.getElementById("a11yHighContrast").checked = CURRENT_USER.a11yHighContrast;
+    document.getElementById("saveA11yBtn").addEventListener("click", async () => {
+      const note = document.getElementById("a11yNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            a11yLargeText: document.getElementById("a11yLargeText").checked,
+            a11yReducedMotion: document.getElementById("a11yReducedMotion").checked,
+            a11yHighContrast: document.getElementById("a11yHighContrast").checked,
+          }),
+        });
+        CURRENT_USER = data.user;
+        document.documentElement.setAttribute("data-large-text", CURRENT_USER.a11yLargeText ? "true" : "false");
+        document.documentElement.setAttribute("data-reduced-motion", CURRENT_USER.a11yReducedMotion ? "true" : "false");
+        document.documentElement.setAttribute("data-high-contrast", CURRENT_USER.a11yHighContrast ? "true" : "false");
+        note.textContent = "Accessibility settings saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  async function setupContactsManager() {
+    let contactsByName = {};
+    let contactsByEmail = {};
+
+    async function renderContacts() {
+      const { contacts } = await apiJson("/api/contacts");
+
+      // Feeds the "send contract" counterparty fields' autocomplete
+      // (spec 1.4 #8: "saved contacts for faster contract sending") —
+      // picking a saved name or email fills in its matching other field.
+      contactsByName = {};
+      contactsByEmail = {};
+      contacts.forEach((c) => { contactsByName[c.name] = c.email; contactsByEmail[c.email] = c.name; });
+      document.getElementById("sendContactsNameList").innerHTML = contacts.map((c) => `<option value="${escapeHtml(c.name)}">`).join("");
+      document.getElementById("sendContactsEmailList").innerHTML = contacts.map((c) => `<option value="${escapeHtml(c.email)}">`).join("");
+
+      const list = document.getElementById("savedContactsList");
+      list.innerHTML = contacts.length
+        ? contacts.map((c) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-dark);font-size:0.85rem;">
+              <span>${escapeHtml(c.name)} — ${escapeHtml(c.email)}</span>
+              <button class="btn btn-ghost-dark btn-sm" data-remove-contact="${c.id}" style="padding:2px 10px;border-color:var(--ruby);color:var(--ruby-bright);">Remove</button>
+            </div>`).join("")
+        : "<p style=\"color:var(--silver);font-size:0.85rem;\">No saved contacts yet.</p>";
+      list.querySelectorAll("[data-remove-contact]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await apiJson(`/api/contacts/${btn.dataset.removeContact}`, { method: "DELETE" });
+          await renderContacts();
+        });
+      });
+    }
+    await renderContacts();
+
+    document.getElementById("sendName").addEventListener("input", (e) => {
+      if (contactsByName[e.target.value]) document.getElementById("sendEmail").value = contactsByName[e.target.value];
+    });
+    document.getElementById("sendEmail").addEventListener("input", (e) => {
+      if (contactsByEmail[e.target.value]) document.getElementById("sendName").value = contactsByEmail[e.target.value];
+    });
+
+    document.getElementById("addContactBtn").addEventListener("click", async () => {
+      const note = document.getElementById("savedContactsNote");
+      note.style.color = "";
+      const name = document.getElementById("newContactName").value.trim();
+      const email = document.getElementById("newContactEmail").value.trim();
+      try {
+        await apiJson("/api/contacts", { method: "POST", body: JSON.stringify({ name, email }) });
+        document.getElementById("newContactName").value = "";
+        document.getElementById("newContactEmail").value = "";
+        note.textContent = "Contact added.";
+        note.style.color = "var(--emerald-bright)";
+        await renderContacts();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupProfilePhoto() {
+    const CROP_VIEWPORT = 280;
+    paintAvatars();
+    document.getElementById("removePhotoBtn").style.display = CURRENT_USER.photoFileRef ? "" : "none";
+
+    const fileInput = document.getElementById("photoFileInput");
+    document.getElementById("uploadPhotoBtn").addEventListener("click", () => fileInput.click());
+
+    let cropState = null;
+
+    function clampTranslate() {
+      const scale = cropState.baseScale * cropState.zoom;
+      const dispW = cropState.naturalWidth * scale;
+      const dispH = cropState.naturalHeight * scale;
+      cropState.translateX = Math.min(0, Math.max(CROP_VIEWPORT - dispW, cropState.translateX));
+      cropState.translateY = Math.min(0, Math.max(CROP_VIEWPORT - dispH, cropState.translateY));
+    }
+    function applyCropTransform() {
+      clampTranslate();
+      const scale = cropState.baseScale * cropState.zoom;
+      const img = document.getElementById("photoCropImage");
+      img.style.width = `${cropState.naturalWidth * scale}px`;
+      img.style.height = `${cropState.naturalHeight * scale}px`;
+      img.style.transform = `translate(${cropState.translateX}px, ${cropState.translateY}px)`;
+    }
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      fileInput.value = "";
+      if (!file) return;
+      document.getElementById("photoCropError").classList.remove("show");
+      const img = document.getElementById("photoCropImage");
+      img.onload = () => {
+        const baseScale = Math.max(CROP_VIEWPORT / img.naturalWidth, CROP_VIEWPORT / img.naturalHeight);
+        cropState = { file, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, baseScale, zoom: 1, translateX: 0, translateY: 0 };
+        document.getElementById("photoCropZoom").value = 1;
+        applyCropTransform();
+        document.getElementById("photoCropModal").classList.add("show");
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    document.getElementById("photoCropZoom").addEventListener("input", (e) => {
+      if (!cropState) return;
+      cropState.zoom = Number(e.target.value);
+      applyCropTransform();
+    });
+
+    const viewport = document.getElementById("photoCropViewport");
+    let dragging = null;
+    viewport.addEventListener("pointerdown", (e) => {
+      if (!cropState) return;
+      dragging = { startX: e.clientX, startY: e.clientY, startTranslateX: cropState.translateX, startTranslateY: cropState.translateY };
+      viewport.setPointerCapture(e.pointerId);
+      viewport.style.cursor = "grabbing";
+    });
+    viewport.addEventListener("pointermove", (e) => {
+      if (!dragging || !cropState) return;
+      cropState.translateX = dragging.startTranslateX + (e.clientX - dragging.startX);
+      cropState.translateY = dragging.startTranslateY + (e.clientY - dragging.startY);
+      applyCropTransform();
+    });
+    const endDrag = () => { dragging = null; viewport.style.cursor = "grab"; };
+    viewport.addEventListener("pointerup", endDrag);
+    viewport.addEventListener("pointercancel", endDrag);
+
+    document.getElementById("closePhotoCropModal").addEventListener("click", () => {
+      document.getElementById("photoCropModal").classList.remove("show");
+      cropState = null;
+    });
+
+    document.getElementById("photoCropSaveBtn").addEventListener("click", async () => {
+      if (!cropState) return;
+      const errBox = document.getElementById("photoCropError");
+      errBox.classList.remove("show");
+      const saveBtn = document.getElementById("photoCropSaveBtn");
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        const scale = cropState.baseScale * cropState.zoom;
+        const form = new FormData();
+        form.append("photo", cropState.file);
+        form.append("cropX", String((0 - cropState.translateX) / scale));
+        form.append("cropY", String((0 - cropState.translateY) / scale));
+        form.append("cropSize", String(CROP_VIEWPORT / scale));
+        const r = await fetch("/api/profile/photo", { method: "POST", credentials: "include", body: form });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Upload failed.");
+        CURRENT_USER.photoFileRef = data.photoFileRef;
+        paintAvatars();
+        document.getElementById("removePhotoBtn").style.display = "";
+        document.getElementById("photoCropModal").classList.remove("show");
+        cropState = null;
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save Photo";
+      }
+    });
+
+    document.getElementById("removePhotoBtn").addEventListener("click", async () => {
+      if (!confirm("Remove your profile photo?")) return;
+      try {
+        await apiJson("/api/profile/photo", { method: "DELETE" });
+        CURRENT_USER.photoFileRef = null;
+        paintAvatars();
+        document.getElementById("removePhotoBtn").style.display = "none";
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
+  // ---- settings: active sessions + security activity log ----
+  const SECURITY_ACTION_LABEL = {
+    login: "Signed in",
+    password_changed: "Password changed",
+    mfa_enabled: "Two-factor authentication turned on",
+    mfa_disabled: "Two-factor authentication turned off",
+    reauth: "Re-authenticated for a sensitive action",
+    export_data: "Downloaded account data",
+    close_account: "Account closed",
+    display_name_changed: "Display name changed",
+    session_revoked: "Signed out a device",
+    sessions_revoked_all_others: "Signed out all other devices",
+    email_change_requested: "Email change requested",
+    email_changed: "Email address changed",
+    email_change_cancelled: "Email change cancelled (account locked)",
+    recovery_email_requested: "Recovery email change requested",
+    recovery_email_changed: "Recovery email changed",
+    recovery_email_removed: "Recovery email removed",
+    phone_verification_sent: "Phone verification code sent",
+    phone_verified: "Phone number verified",
+    phone_removed: "Phone number removed",
+  };
+
+  async function renderSessionsList() {
+    const wrap = document.getElementById("sessionsList");
+    const { sessions } = await apiJson("/api/auth/sessions");
+    wrap.innerHTML = "";
+    sessions.forEach(s => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-dark);flex-wrap:wrap;";
+      row.innerHTML = `
+        <div>
+          <strong style="font-size:0.88rem;">${s.device}${s.isCurrent ? ' <span style="color:var(--emerald-bright);font-size:0.75rem;">(this device)</span>' : ""}</strong>
+          <div style="font-size:0.78rem;color:var(--silver);">${s.ipAddress || "Unknown IP"} &middot; last active ${fmt(s.lastActiveAt)}</div>
+        </div>
+      `;
+      if (!s.isCurrent) {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-ghost-dark btn-sm";
+        btn.textContent = "Sign Out";
+        btn.addEventListener("click", async () => {
+          if (!(await ensureRecentAuth())) return;
+          try {
+            await apiJson(`/api/auth/sessions/${s.id}/revoke`, { method: "POST", body: JSON.stringify({}) });
+            await renderSessionsList();
+            await renderSecurityLog();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        row.appendChild(btn);
+      }
+      wrap.appendChild(row);
+    });
+  }
+
+  async function renderSecurityLog() {
+    const wrap = document.getElementById("securityLogList");
+    const { entries } = await apiJson("/api/auth/security-log");
+    wrap.innerHTML = "";
+    if (entries.length === 0) {
+      wrap.innerHTML = "<p style='margin:0;color:var(--silver);'>No activity recorded yet.</p>";
+      return;
+    }
+    entries.forEach(e => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:8px 0;border-bottom:1px solid var(--border-dark);";
+      const resultColor = e.result === "failure" ? "var(--ruby-bright)" : "var(--silver)";
+      row.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <span>${SECURITY_ACTION_LABEL[e.action] || e.action}${e.result === "failure" ? " — failed" : ""}</span>
+          <span style="color:var(--silver);font-size:0.78rem;">${fmt(e.createdAt)}</span>
+        </div>
+        <div style="font-size:0.76rem;color:${resultColor};">${e.device} &middot; ${e.ipAddress || "unknown IP"}${e.detail ? " &middot; " + e.detail : ""}</div>
+      `;
+      wrap.appendChild(row);
+    });
+  }
+
+  async function setupSecurityActivity() {
+    await renderSessionsList();
+    await renderSecurityLog();
+    document.getElementById("signOutOthersBtn").addEventListener("click", async () => {
+      if (!(await ensureRecentAuth())) return;
+      if (!confirm("Sign out of every other device? This one stays signed in.")) return;
+      const note = document.getElementById("sessionsNote");
+      note.style.color = "";
+      try {
+        await apiJson("/api/auth/sessions/revoke-others", { method: "POST", body: JSON.stringify({}) });
+        note.textContent = "Signed out everywhere else.";
+        note.style.color = "var(--emerald-bright)";
+        await renderSessionsList();
+        await renderSecurityLog();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupContactRecovery() {
+    function renderContactState() {
+      document.getElementById("contactCurrentEmail").textContent = CURRENT_USER.email;
+      const pendingNote = document.getElementById("contactPendingEmailNote");
+      if (CURRENT_USER.pendingEmail) {
+        pendingNote.textContent = `A confirmation link was sent to ${CURRENT_USER.pendingEmail} — your email won't change until it's confirmed.`;
+        pendingNote.style.display = "";
+      } else {
+        pendingNote.style.display = "none";
+      }
+
+      const recoveryStatus = document.getElementById("contactRecoveryEmailStatus");
+      if (CURRENT_USER.recoveryEmail) {
+        recoveryStatus.textContent = CURRENT_USER.recoveryEmail;
+        document.getElementById("contactRemoveRecoveryEmailBtn").style.display = "";
+      } else {
+        recoveryStatus.textContent = CURRENT_USER.pendingRecoveryEmail
+          ? `Not set — confirmation link sent to ${CURRENT_USER.pendingRecoveryEmail}`
+          : "Not set";
+        document.getElementById("contactRemoveRecoveryEmailBtn").style.display = "none";
+      }
+
+      const phoneStatus = document.getElementById("contactPhoneStatus");
+      const addForm = document.getElementById("contactPhoneAddForm");
+      const verifyForm = document.getElementById("contactPhoneVerifyForm");
+      const removeBtn = document.getElementById("contactRemovePhoneBtn");
+      if (CURRENT_USER.phone) {
+        phoneStatus.textContent = CURRENT_USER.phone;
+        addForm.style.display = "none";
+        verifyForm.style.display = "none";
+        removeBtn.style.display = "";
+      } else if (CURRENT_USER.pendingPhone) {
+        phoneStatus.textContent = `Not set — code sent to ${CURRENT_USER.pendingPhone}`;
+        addForm.style.display = "none";
+        verifyForm.style.display = "";
+        removeBtn.style.display = "none";
+      } else {
+        phoneStatus.textContent = "Not set";
+        addForm.style.display = "";
+        verifyForm.style.display = "none";
+        removeBtn.style.display = "none";
+      }
+    }
+    renderContactState();
+
+    document.getElementById("contactChangeEmailBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactEmailNote");
+      note.style.color = "";
+      const newEmail = document.getElementById("contactNewEmail").value.trim();
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/email/change-request", { method: "POST", body: JSON.stringify({ newEmail }) });
+        document.getElementById("contactNewEmail").value = "";
+        note.textContent = `Check ${newEmail} for a confirmation link.`;
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactSetRecoveryEmailBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactRecoveryEmailNote");
+      note.style.color = "";
+      const email = document.getElementById("contactNewRecoveryEmail").value.trim();
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/recovery-email/request", { method: "POST", body: JSON.stringify({ email }) });
+        document.getElementById("contactNewRecoveryEmail").value = "";
+        note.textContent = `Check ${email} for a confirmation link.`;
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactRemoveRecoveryEmailBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactRecoveryEmailNote");
+      note.style.color = "";
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/recovery-email/remove", { method: "POST", body: JSON.stringify({}) });
+        note.textContent = "Recovery email removed.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactSendPhoneCodeBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactPhoneNote");
+      note.style.color = "";
+      const phone = document.getElementById("contactNewPhone").value.trim();
+      const consent = document.getElementById("contactPhoneConsent").checked;
+      if (!(await ensureRecentAuth())) return;
+      try {
+        const data = await apiJson("/api/auth/phone/request", { method: "POST", body: JSON.stringify({ phone, consent }) });
+        note.textContent = data.devNote ? `${data.devNote}${data.code}` : "A verification code was texted to that number.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactVerifyPhoneBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactPhoneNote");
+      note.style.color = "";
+      const code = document.getElementById("contactPhoneCode").value.trim();
+      try {
+        await apiJson("/api/auth/phone/verify", { method: "POST", body: JSON.stringify({ code }) });
+        document.getElementById("contactPhoneCode").value = "";
+        note.textContent = "Phone number verified.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    document.getElementById("contactRemovePhoneBtn").addEventListener("click", async () => {
+      const note = document.getElementById("contactPhoneNote");
+      note.style.color = "";
+      if (!(await ensureRecentAuth())) return;
+      try {
+        await apiJson("/api/auth/phone/remove", { method: "POST", body: JSON.stringify({}) });
+        note.textContent = "Phone number removed.";
+        note.style.color = "var(--emerald-bright)";
+        CURRENT_USER = await PactAPI.me(true);
+        renderContactState();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  function setupNotifications() {
+    const prefs = CURRENT_USER.notificationPreferences;
+    document.getElementById("notifContractActivityEmail").checked = prefs.contractActivity.email;
+    document.getElementById("notifContractActivitySms").checked = prefs.contractActivity.sms;
+    document.getElementById("notifPaymentEventsEmail").checked = prefs.paymentEvents.email;
+    document.getElementById("notifPaymentEventsSms").checked = prefs.paymentEvents.sms;
+    document.getElementById("notifRemindersEmail").checked = prefs.reminders.email;
+    document.getElementById("notifRemindersSms").checked = prefs.reminders.sms;
+    document.getElementById("notifProductUpdatesEmail").checked = prefs.productUpdates.email;
+    document.getElementById("notifQuietHoursEnabled").checked = prefs.quietHours.enabled;
+    document.getElementById("notifQuietHoursStart").value = prefs.quietHours.start;
+    document.getElementById("notifQuietHoursEnd").value = prefs.quietHours.end;
+    document.getElementById("notifDigestEnabled").checked = prefs.digest.enabled;
+
+    document.getElementById("saveNotificationsBtn").addEventListener("click", async () => {
+      const note = document.getElementById("notificationsNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/notifications/preferences", {
+          method: "PUT",
+          body: JSON.stringify({
+            contractActivity: { email: document.getElementById("notifContractActivityEmail").checked, sms: document.getElementById("notifContractActivitySms").checked },
+            paymentEvents: { email: document.getElementById("notifPaymentEventsEmail").checked, sms: document.getElementById("notifPaymentEventsSms").checked },
+            reminders: { email: document.getElementById("notifRemindersEmail").checked, sms: document.getElementById("notifRemindersSms").checked },
+            productUpdates: { email: document.getElementById("notifProductUpdatesEmail").checked },
+            quietHours: {
+              enabled: document.getElementById("notifQuietHoursEnabled").checked,
+              start: document.getElementById("notifQuietHoursStart").value || "21:00",
+              end: document.getElementById("notifQuietHoursEnd").value || "08:00",
+            },
+            digest: { enabled: document.getElementById("notifDigestEnabled").checked },
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Notification preferences saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
+
+  async function setupPrivacy() {
+    document.getElementById("privacyShowPhoto").checked = CURRENT_USER.privacyShowPhoto;
+    document.getElementById("privacyShowJobTitle").checked = CURRENT_USER.privacyShowJobTitle;
+
+    document.getElementById("savePrivacyBtn").addEventListener("click", async () => {
+      const note = document.getElementById("privacyNote");
+      note.style.color = "";
+      try {
+        const data = await apiJson("/api/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            privacyShowPhoto: document.getElementById("privacyShowPhoto").checked,
+            privacyShowJobTitle: document.getElementById("privacyShowJobTitle").checked,
+          }),
+        });
+        CURRENT_USER = data.user;
+        note.textContent = "Privacy settings saved.";
+        note.style.color = "var(--emerald-bright)";
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+
+    try {
+      const { acceptances } = await apiJson("/api/terms/history");
+      const list = document.getElementById("termsHistoryList");
+      list.innerHTML = acceptances.length
+        ? acceptances.map((a) => `<p style="margin-bottom:6px;">${a.terms_version} — accepted ${fmt(a.accepted_at)}</p>`).join("")
+        : "<p style=\"color:var(--silver);\">No recorded acceptances.</p>";
+    } catch (err) {
+      document.getElementById("termsHistoryList").textContent = "Could not load terms history.";
+    }
+  }
+
   // ---- business ----
   let CURRENT_ORG = null;
   let ALL_BIZ_CONTRACTS = [];
@@ -2046,6 +3167,7 @@
     document.getElementById("bizInviteRow").style.display = canManage ? "" : "none";
 
     await renderBizMembers();
+    await renderOwnershipTransfer();
     await renderBizContracts();
 
     document.getElementById("bizInviteBtn").addEventListener("click", async () => {
@@ -2099,12 +3221,14 @@
         <span style="font-size:0.85rem;">${escapeHtmlBiz(m.name)} <span style="color:var(--silver);">&lt;${escapeHtmlBiz(m.email)}&gt;</span></span>
         <span style="display:flex;gap:8px;align-items:center;">
           ${canEditThisRow
-            ? `<select data-role-select="${m.id}" style="width:auto;padding:4px 8px;font-size:0.8rem;">
-                 <option value="member" ${m.role === "member" ? "selected" : ""}>Member</option>
-                 <option value="admin" ${m.role === "admin" ? "selected" : ""}>Admin</option>
-                 ${CURRENT_ORG.myRole === "owner" ? `<option value="owner" ${m.role === "owner" ? "selected" : ""}>Owner</option>` : ""}
-               </select>
-               <button class="icon-btn" title="Remove" data-remove-member="${m.id}">&times;</button>`
+            ? m.role === "owner"
+              ? `<span class="mini-tag">owner</span>`
+              : `<select data-role-select="${m.id}" style="width:auto;padding:4px 8px;font-size:0.8rem;">
+                   <option value="member" ${m.role === "member" ? "selected" : ""}>Member</option>
+                   <option value="admin" ${m.role === "admin" ? "selected" : ""}>Admin</option>
+                 </select>
+                 ${CURRENT_ORG.myRole === "owner" ? `<button class="btn btn-ghost-dark btn-sm" data-transfer-to="${m.id}" style="padding:2px 10px;font-size:0.76rem;">Make Owner</button>` : ""}
+                 <button class="icon-btn" title="Remove" data-remove-member="${m.id}">&times;</button>`
             : `<span class="mini-tag">${m.role}</span>`}
         </span>`;
       wrap.appendChild(row);
@@ -2134,6 +3258,47 @@
         }
       });
     });
+    wrap.querySelectorAll("[data-transfer-to]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Start transferring ownership to this member? They'll need to confirm with their own password" + (CURRENT_USER.mfaEnabled ? " and code" : "") + " before anything changes, and you stay owner until they do.")) return;
+        if (!(await ensureRecentAuth())) return;
+        try {
+          await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership`, { method: "POST", body: JSON.stringify({ memberId: btn.dataset.transferTo }) });
+          await renderOwnershipTransfer();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  async function renderOwnershipTransfer() {
+    const box = document.getElementById("bizTransferBox");
+    const { transfer } = await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership`);
+    if (!transfer) { box.style.display = "none"; return; }
+    box.style.display = "";
+    if (transfer.isRecipient) {
+      box.innerHTML = `
+        <p style="font-size:0.85rem;">The current owner wants to make you the owner of this business.</p>
+        <button class="btn btn-gold btn-sm" id="bizAcceptTransferBtn">Accept Ownership</button>`;
+      document.getElementById("bizAcceptTransferBtn").addEventListener("click", async () => {
+        if (!(await ensureRecentAuth())) return;
+        try {
+          await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership/accept`, { method: "POST", body: JSON.stringify({}) });
+          await setupBusiness();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    } else {
+      box.innerHTML = `
+        <p style="font-size:0.85rem;">Ownership transfer to ${escapeHtmlBiz(transfer.toName)} is pending their acceptance.</p>
+        <button class="btn btn-ghost-dark btn-sm" id="bizCancelTransferBtn" style="border-color:var(--ruby);color:var(--ruby-bright);">Cancel Transfer</button>`;
+      document.getElementById("bizCancelTransferBtn").addEventListener("click", async () => {
+        await apiJson(`/api/organizations/${CURRENT_ORG.id}/transfer-ownership/cancel`, { method: "POST", body: JSON.stringify({}) });
+        await renderOwnershipTransfer();
+      });
+    }
   }
 
   async function renderBizContracts() {
@@ -2343,6 +3508,59 @@
     });
   }
 
+  // The recent-authentication gate's frontend half — mirrors
+  // ensureEsignConsent() above. Server-side, the matching sensitive route
+  // is also wrapped in requireRecentAuth (middleware/reauth.js), so this
+  // modal is a UX nicety, not the actual security boundary: a direct API
+  // call without it still gets refused with needsReauth:true.
+  function ensureRecentAuth() {
+    return new Promise(async (resolve) => {
+      const { hasRecentAuth, mfaRequired } = await apiJson("/api/auth/reauth/status");
+      if (hasRecentAuth) { resolve(true); return; }
+      const modal = document.getElementById("reauthModal");
+      const passwordInput = document.getElementById("reauthPassword");
+      const mfaField = document.getElementById("reauthMfaField");
+      const mfaInput = document.getElementById("reauthMfaCode");
+      const continueBtn = document.getElementById("reauthContinueBtn");
+      const errBox = document.getElementById("reauthError");
+      let settled = false;
+      passwordInput.value = "";
+      mfaInput.value = "";
+      mfaField.style.display = mfaRequired ? "" : "none";
+      errBox.classList.remove("show");
+      modal.classList.add("show");
+      passwordInput.focus();
+      document.getElementById("closeReauthModal").onclick = () => {
+        modal.classList.remove("show");
+        if (!settled) { settled = true; resolve(false); }
+      };
+      continueBtn.onclick = async () => {
+        errBox.classList.remove("show");
+        if (!passwordInput.value) {
+          errBox.textContent = "Enter your password.";
+          errBox.classList.add("show");
+          return;
+        }
+        continueBtn.disabled = true;
+        continueBtn.textContent = "Verifying…";
+        try {
+          await apiJson("/api/auth/reauth", {
+            method: "POST",
+            body: JSON.stringify({ password: passwordInput.value, mfaCode: mfaInput.value }),
+          });
+          modal.classList.remove("show");
+          if (!settled) { settled = true; resolve(true); }
+        } catch (err) {
+          errBox.textContent = err.message;
+          errBox.classList.add("show");
+        } finally {
+          continueBtn.disabled = false;
+          continueBtn.textContent = "Continue";
+        }
+      };
+    });
+  }
+
   // ---- boot ----
   (async () => {
     CURRENT_USER = await PactAPI.me();
@@ -2351,18 +3569,8 @@
       return;
     }
     await ensureTermsAccepted();
-    document.getElementById("settingsEmail").textContent = CURRENT_USER.email;
-    document.getElementById("settingsJoined").textContent = new Date(CURRENT_USER.created_at.replace(" ", "T") + "Z").toLocaleDateString();
-    document.getElementById("settingsAccountType").textContent = CURRENT_USER.accountType === "business" ? "Business" : "Personal";
-    if (CURRENT_USER.accountType !== "business" && (CURRENT_USER.legalFirstName || CURRENT_USER.legalLastName)) {
-      document.getElementById("settingsLegalNameRow").style.display = "";
-      document.getElementById("settingsLegalName").textContent = `${CURRENT_USER.legalFirstName || ""} ${CURRENT_USER.legalLastName || ""}`.trim();
-    }
-    if (CURRENT_USER.accountType !== "business" && CURRENT_USER.dateOfBirth) {
-      document.getElementById("settingsDobRow").style.display = "";
-      document.getElementById("settingsDob").textContent = new Date(CURRENT_USER.dateOfBirth + "T00:00:00Z").toLocaleDateString();
-    }
     document.getElementById("downloadDataBtn").addEventListener("click", async (e) => {
+      if (!(await ensureRecentAuth())) return;
       const btn = e.target;
       btn.disabled = true;
       btn.textContent = "Preparing…";
@@ -2390,7 +3598,7 @@
     document.getElementById("contractSearch").addEventListener("input", debounce(() => renderArchiveInContractsList(), 300));
 
     apiJson("/api/templates/states").then(({ states }) => {
-      ["uploadState", "archiveUploadState", "archiveGoverningState"].forEach(id => {
+      ["uploadState", "archiveUploadState", "archiveGoverningState", "defaultGoverningState"].forEach(id => {
         const sel = document.getElementById(id);
         states.forEach(s => {
           const opt = document.createElement("option");
@@ -2417,6 +3625,18 @@
     setupPasswordChange();
     await setupMfa();
     setupCloseAccount();
+    setupSettingsSubNav();
+    await setupProfile();
+    setupProfilePhoto();
+    await setupCompleteness();
+    setupSavedSignature();
+    setupDefaults();
+    setupA11y();
+    await setupContactsManager();
+    await setupSecurityActivity();
+    setupContactRecovery();
+    setupNotifications();
+    await setupPrivacy();
 
     const openId = new URLSearchParams(window.location.search).get("contract");
     if (openId) {

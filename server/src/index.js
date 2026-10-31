@@ -23,6 +23,7 @@ app.use(cookieParser());
 app.use(attachUser);
 
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/profile", require("./routes/profile"));
 app.use("/api/templates", require("./routes/templates"));
 app.use("/api/contracts", require("./routes/contracts"));
 app.use("/api/sign", require("./routes/sign"));
@@ -38,6 +39,8 @@ app.use("/api/attorney-review", require("./routes/attorney-review"));
 app.use("/api/terms", require("./routes/terms"));
 app.use("/api/esign-consent", require("./routes/esign-consent"));
 app.use("/api/mfa", require("./routes/mfa"));
+app.use("/api/notifications", require("./routes/notifications"));
+app.use("/api/contacts", require("./routes/contacts"));
 app.use("/api/internal", require("./routes/internal"));
 
 // dotfiles: "allow" — express.static hides dot-directories by default,
@@ -55,5 +58,6 @@ app.listen(PORT, () => {
   console.log(`[pact] Billing (Stripe):      ${process.env.STRIPE_SECRET_KEY ? "connected" : "not configured"}`);
   console.log(`[pact] Identity verification: ${process.env.STRIPE_SECRET_KEY ? "connected" : "not configured"}`);
   console.log(`[pact] Email (SMTP):          ${process.env.SMTP_HOST ? "connected" : "not configured"}`);
+  console.log(`[pact] SMS (Twilio):          ${process.env.TWILIO_ACCOUNT_SID ? "connected" : "not configured"}`);
   console.log(`[pact] Scheduled job trigger: ${process.env.INTERNAL_JOB_SECRET ? "configured" : "not configured — /api/internal/* routes will refuse all requests"}`);
 });

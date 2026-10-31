@@ -36,4 +36,14 @@ router.post("/run-archive-purge", requireInternalSecret, (req, res) => {
   res.json({ ok: true, ...run() });
 });
 
+router.post("/run-mfa-recovery-completions", requireInternalSecret, (req, res) => {
+  const { run } = require("../../scripts/send-mfa-recovery-completions");
+  res.json({ ok: true, ...run() });
+});
+
+router.post("/run-notification-digests", requireInternalSecret, (req, res) => {
+  const { run } = require("../../scripts/send-notification-digests");
+  res.json({ ok: true, ...run() });
+});
+
 module.exports = router;

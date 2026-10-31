@@ -440,6 +440,119 @@ CREATE TABLE IF NOT EXISTS renewal_reminders_sent (
   sent_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (subject_type, subject_id, interval_days)
 );
+
+-- A real, revocable login session — replaces the old model where the JWT
+-- cookie alone was the entire session (stateless, 30 days, no way to list
+-- or kill one without rotating JWT_SECRET for everyone). The JWT now just
+-- carries this row's id (see auth-utils.js signToken) and this table is
+-- the actual source of truth: attachUser looks the session up on every
+-- request the same way it already re-checks account_status, so a revoked
+-- session stops working immediately with no separate blacklist needed.
+-- reauth_at backs the "recent authentication" gate in middleware/reauth.js
+-- — a sensitive action checks that this session re-proved the password
+-- (+ MFA) within the last 10 minutes before it's allowed to run.
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ip_address TEXT,
+  user_agent TEXT,
+  reauth_at TEXT,
+  revoked_at TEXT
+);
+
+-- Account-level security audit trail — distinct from audit_log above,
+-- which is scoped to a single contract (contract_id NOT NULL) and can't
+-- represent "user changed their password" or "user exported their data,"
+-- neither of which touches any one contract. Every sensitive action in
+-- middleware/reauth.js's gate, win or lose, writes one row here.
+CREATE TABLE IF NOT EXISTS account_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  result TEXT NOT NULL CHECK (result IN ('success', 'failure')),
+  detail TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- "Report photo" (spec 1.1) — logged for later manual review. This app
+-- has no admin takedown UI yet, so a report today does not itself hide
+-- anything; it's a durable record a human can act on by hand (or a future
+-- admin tool can query) rather than the report silently going nowhere.
+CREATE TABLE IF NOT EXISTS photo_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reported_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reporter_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- The "lost MFA entirely, no backup codes" path (spec Phase 5) — never an
+-- instant bypass. status moves awaiting_verification -> awaiting_delay
+-- (once Stripe Identity confirms who they are) -> completed (once
+-- eligible_at passes with nothing cancelling it, see services/
+-- mfa-recovery.js's completeMfaRecoveries) or cancelled at any point
+-- before that (the owner objects via the cancel link in the notice, or
+-- simply logs in normally with a real MFA code, which cancels it
+-- automatically). At most one open (non-terminal) request per account —
+-- enforced in code, not a constraint here.
+CREATE TABLE IF NOT EXISTS mfa_recovery_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  identity_verification_id INTEGER REFERENCES identity_verifications(id),
+  status TEXT NOT NULL DEFAULT 'awaiting_verification' CHECK (status IN ('awaiting_verification', 'awaiting_delay', 'completed', 'cancelled')),
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  verified_at TEXT,
+  eligible_at TEXT,
+  completed_at TEXT,
+  cancelled_at TEXT,
+  cancel_reason TEXT
+);
+
+-- Queued items for users who've turned on the daily digest (spec Phase
+-- 6) — an optional-category notification lands here instead of sending
+-- immediately, and services/notification-digest.js's sweep turns each
+-- user's queued rows into one summary email and clears them.
+CREATE TABLE IF NOT EXISTS pending_digest_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- "Trusted counterparties / address book" (spec 1.4 #8) — saved contacts
+-- for faster contract sending. Purely a per-owner convenience list, not
+-- itself a relationship to anything; a saved contact need not have a
+-- Pact account at all (same as any counterparty).
+CREATE TABLE IF NOT EXISTS saved_contacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- "Transfer account ownership (requires password + MFA of both owner
+-- and recipient)" (spec 1.4 #4) — a two-party handshake, not a
+-- unilateral admin action: from_user_id must be freshly reauthed to
+-- create this row, and to_user_id must independently and separately be
+-- freshly reauthed to accept it. At most one pending transfer per
+-- organization — enforced in code, not a constraint here, same as
+-- mfa_recovery_requests.
+CREATE TABLE IF NOT EXISTS org_ownership_transfers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  from_user_id INTEGER NOT NULL REFERENCES users(id),
+  to_user_id INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'cancelled')),
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  accepted_at TEXT,
+  cancelled_at TEXT
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing
@@ -526,6 +639,92 @@ for (const stmt of [
   // fields, nothing reads them to drive logic.
   "ALTER TABLE contracts ADD COLUMN closed_reason TEXT",
   "ALTER TABLE contracts ADD COLUMN reopened_reason TEXT",
+  // Profile fields (spec 1.2). job_title/company apply to individual
+  // accounts only (a business account's identity lives in organizations);
+  // left nullable/unused for business accounts rather than enforced, same
+  // as legal_first_name/legal_last_name above being individual-only.
+  "ALTER TABLE users ADD COLUMN job_title TEXT",
+  "ALTER TABLE users ADD COLUMN company TEXT",
+  "ALTER TABLE users ADD COLUMN bio TEXT",
+  "ALTER TABLE users ADD COLUMN website TEXT",
+  "ALTER TABLE users ADD COLUMN timezone TEXT",
+  "ALTER TABLE users ADD COLUMN preferred_language TEXT NOT NULL DEFAULT 'en'",
+  "ALTER TABLE users ADD COLUMN date_format TEXT NOT NULL DEFAULT 'MDY'",
+  // Base filename shared by both re-encoded sizes on disk (services/
+  // profile-photo.js writes "<photo_file_ref>-full.webp" and "-thumb.webp"
+  // outside the web root) — NULL means "no photo, show the initials
+  // fallback." Never the original upload: that's processed and discarded,
+  // never stored, per spec 1.1.
+  "ALTER TABLE users ADD COLUMN photo_file_ref TEXT",
+  // Primary email change (spec Phase 4) — at most one pending/revertible
+  // change tracked per account at a time. pending_email is NULL once there
+  // is nothing awaiting verification. email_change_old_email is the value
+  // to revert to if the cancel link is used; it (and the cancel window)
+  // stay set for 7 days after confirmation, well after pending_email has
+  // already cleared, which is why this isn't just "the previous value of
+  // users.email" — that's already overwritten by the time cancel matters.
+  "ALTER TABLE users ADD COLUMN pending_email TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_requested_at TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_confirmed_at TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_old_email TEXT",
+  "ALTER TABLE users ADD COLUMN email_change_cancel_expires_at TEXT",
+  // Recovery email — distinct from and must differ from the primary
+  // email; only counts once verified.
+  "ALTER TABLE users ADD COLUMN recovery_email TEXT",
+  "ALTER TABLE users ADD COLUMN recovery_email_verified_at TEXT",
+  "ALTER TABLE users ADD COLUMN pending_recovery_email TEXT",
+  // Phone — optional, SMS-verified, stored in E.164. pending_phone_code_
+  // hash never stores the code itself (spec 1.3: never log/store a
+  // verification code in the clear) — same hashing function as passwords.
+  // consent_at/consent_ip/consent_version are the TCPA consent record
+  // (Part 2 of the spec) captured at the moment the code is requested.
+  "ALTER TABLE users ADD COLUMN phone TEXT",
+  "ALTER TABLE users ADD COLUMN phone_verified_at TEXT",
+  "ALTER TABLE users ADD COLUMN pending_phone TEXT",
+  "ALTER TABLE users ADD COLUMN pending_phone_code_hash TEXT",
+  "ALTER TABLE users ADD COLUMN pending_phone_code_expires_at TEXT",
+  "ALTER TABLE users ADD COLUMN phone_consent_at TEXT",
+  "ALTER TABLE users ADD COLUMN phone_consent_ip TEXT",
+  "ALTER TABLE users ADD COLUMN phone_consent_version TEXT",
+  // Per-category notification preferences, quiet hours and the digest
+  // toggle (spec Phase 6) — one JSON blob rather than a column per
+  // category/channel, parsed by services/notification-prefs.js, which
+  // also fills in defaults for any field a stored value is missing (so
+  // adding a new category later doesn't need its own migration). NULL
+  // here just means "defaults", same as other nullable JSON-ish columns
+  // in this schema (mfa_backup_codes, etc.). Security alerts and legal/
+  // transactional notices are NOT a key in this object at all — they're
+  // never gated, so there's nothing for them to store.
+  "ALTER TABLE users ADD COLUMN notification_preferences TEXT",
+  // Public-profile visibility (spec 1.4 #6) — both default to visible;
+  // display name and verification badge are never optional, and email/
+  // phone/DOB/address are never shown on the public profile regardless
+  // of these toggles (see routes/profile.js's /public/:id route).
+  "ALTER TABLE users ADD COLUMN privacy_show_photo INTEGER NOT NULL DEFAULT 1",
+  "ALTER TABLE users ADD COLUMN privacy_show_job_title INTEGER NOT NULL DEFAULT 1",
+  // Saved signature (spec 1.4 #3) — typed only, matching the rest of
+  // this app's signing flow (routes/contracts.js and routes/sign.js's
+  // `typedSignature` has never been anything but plain text; there is
+  // no drawn/canvas-capture infrastructure anywhere here to extend).
+  // Purely a prefill convenience for the signing form — every signature
+  // still goes through the same applySignature() call with its own
+  // fresh timestamp and the same explicit consent checkbox, saved or not.
+  "ALTER TABLE users ADD COLUMN saved_signature_name TEXT",
+  "ALTER TABLE users ADD COLUMN saved_signature_initials TEXT",
+  // Default contract preferences (spec 1.4 #5) — prefills for a new
+  // contract and its payment terms. default_governing_state is also a
+  // real server-side fallback: routes/contracts.js's POST / now accepts
+  // an omitted `state` and falls back to this before rejecting the
+  // request, not just a client-side prefill.
+  "ALTER TABLE users ADD COLUMN default_governing_state TEXT",
+  "ALTER TABLE users ADD COLUMN default_currency TEXT",
+  "ALTER TABLE users ADD COLUMN default_payment_terms TEXT",
+  // Accessibility settings (spec 1.4 #7) — language already existed
+  // (preferred_language, Phase 2). These three are booleans the client
+  // reads on every page load to toggle CSS, not server-side behavior.
+  "ALTER TABLE users ADD COLUMN a11y_large_text INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN a11y_reduced_motion INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN a11y_high_contrast INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(stmt);

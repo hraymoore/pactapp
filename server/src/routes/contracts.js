@@ -14,6 +14,7 @@ const { snapshotVersion, listVersions, resolveComparable, diffVersions } = requi
 const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const payments = require("../services/payments");
+const { notifyUser } = require("../services/notify");
 const { clearRemindersForSubject } = require("../services/renewals");
 const { billingConfigured, createPaymentRequestIntent, getStripe } = require("../services/billing-provider");
 const fs = require("fs");
@@ -34,6 +35,18 @@ function handleUpload(req, res, next) {
   });
 }
 
+// A contract_parties row is keyed by email at invite time (the invited
+// person may not have an account yet), but email is not a stable
+// identifier — a user can change it later (spec Phase 4). Backfilling
+// user_id here, the moment an account match exists, means every access
+// check below can also match on user_id and so survives the inviter's OR
+// the invitee's email changing after the fact, instead of silently
+// losing access to a contract they're already a party to.
+function resolvePartyUserId(email) {
+  const match = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
+  return match ? match.id : null;
+}
+
 // Resolves how req.user relates to a contract: 'owner', 'edit' (a named
 // signing party, an explicit edit share, or an org admin/owner), 'view' (an
 // explicit view-only share, or a fellow org member browsing the shared
@@ -43,8 +56,8 @@ function handleUpload(req, res, next) {
 function resolveAccess(contract, user) {
   if (contract.owner_id === user.id) return "owner";
   const isParty = !!db
-    .prepare("SELECT id FROM contract_parties WHERE contract_id = ? AND email = ?")
-    .get(contract.id, user.email);
+    .prepare("SELECT id FROM contract_parties WHERE contract_id = ? AND (email = ? OR user_id = ?)")
+    .get(contract.id, user.email, user.id);
   if (isParty) return "edit";
   const share = db
     .prepare("SELECT permission FROM contract_shares WHERE contract_id = ? AND shared_with_user_id = ?")
@@ -86,7 +99,7 @@ router.get("/audit", (req, res) => {
       `SELECT a.*, c.name as contract_name FROM audit_log a
        JOIN contracts c ON c.id = a.contract_id
        WHERE c.owner_id = @uid
-          OR c.id IN (SELECT contract_id FROM contract_parties WHERE email = @email)
+          OR c.id IN (SELECT contract_id FROM contract_parties WHERE email = @email OR user_id = @uid)
        ORDER BY a.created_at DESC
        LIMIT 50`
     )
@@ -97,7 +110,7 @@ router.get("/audit", (req, res) => {
 router.get("/", (req, res) => {
   const { status, genre, state } = req.query;
   const clauses = [
-    "(owner_id = @uid OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email) OR id IN (SELECT contract_id FROM contract_shares WHERE shared_with_user_id = @uid))",
+    "(owner_id = @uid OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email OR user_id = @uid) OR id IN (SELECT contract_id FROM contract_shares WHERE shared_with_user_id = @uid))",
   ];
   const params = { uid: req.user.id, email: req.user.email };
   if (status && status !== "All") {
@@ -144,7 +157,12 @@ function requirePaidTier(req, res) {
 }
 
 router.post("/", (req, res) => {
-  const { name, templateId, counterpartyName, counterpartyEmail, state, organizationId } = req.body || {};
+  const { name, templateId, counterpartyName, counterpartyEmail, organizationId } = req.body || {};
+  // Default governing state (spec 1.4 #5) — omitting `state` falls back
+  // to the account's saved default rather than rejecting the request;
+  // an explicitly-sent state (even one that happens to match the
+  // default) still goes through the same validation below either way.
+  const state = req.body && req.body.state ? req.body.state : req.user.defaultGoverningState;
   if (!name || !name.trim()) return res.status(400).json({ error: "Contract name is required." });
   if (!isValidStateCode(state)) {
     return res.status(400).json({ error: "Select the state whose laws will govern this contract." });
@@ -178,9 +196,10 @@ router.post("/", (req, res) => {
 
   if (counterpartyName && counterpartyEmail) {
     const token = crypto.randomBytes(24).toString("hex");
+    const normalizedCounterpartyEmail = counterpartyEmail.trim().toLowerCase();
     db.prepare(
-      "INSERT INTO contract_parties (contract_id, name, email, role, sign_token) VALUES (?, ?, ?, 'counterparty', ?)"
-    ).run(contractId, counterpartyName.trim(), counterpartyEmail.trim().toLowerCase(), token);
+      "INSERT INTO contract_parties (contract_id, user_id, name, email, role, sign_token) VALUES (?, ?, ?, ?, 'counterparty', ?)"
+    ).run(contractId, resolvePartyUserId(normalizedCounterpartyEmail), counterpartyName.trim(), normalizedCounterpartyEmail, token);
   }
 
   const contract = db.prepare("SELECT * FROM contracts WHERE id = ?").get(contractId);
@@ -242,8 +261,12 @@ router.get("/:id", (req, res) => {
   const contract = loadAuthorizedContract(req, res);
   if (!contract) return;
   logView(contract.id, { userId: req.user.id, name: req.user.name, email: req.user.email });
+  // user_id is included so the frontend can link a party to their public
+  // profile (GET /api/profile/public/:userId) when they're a resolved Pact
+  // account — it's null for a counterparty entered by email who never had
+  // (or hasn't yet linked) an account, which just renders as plain text.
   const parties = db
-    .prepare("SELECT id, name, email, role, signed_at FROM contract_parties WHERE contract_id = ?")
+    .prepare("SELECT id, name, email, role, signed_at, user_id FROM contract_parties WHERE contract_id = ?")
     .all(contract.id);
   const audit = db
     .prepare("SELECT * FROM audit_log WHERE contract_id = ? ORDER BY created_at DESC")
@@ -359,9 +382,10 @@ router.post("/:id/send", (req, res) => {
       return res.status(400).json({ error: "Counterparty name and email are required to send this contract." });
     }
     const token = crypto.randomBytes(24).toString("hex");
+    const normalizedCounterpartyEmail = counterpartyEmail.trim().toLowerCase();
     db.prepare(
-      "INSERT INTO contract_parties (contract_id, name, email, role, sign_token) VALUES (?, ?, ?, 'counterparty', ?)"
-    ).run(contract.id, counterpartyName.trim(), counterpartyEmail.trim().toLowerCase(), token);
+      "INSERT INTO contract_parties (contract_id, user_id, name, email, role, sign_token) VALUES (?, ?, ?, ?, 'counterparty', ?)"
+    ).run(contract.id, resolvePartyUserId(normalizedCounterpartyEmail), counterpartyName.trim(), normalizedCounterpartyEmail, token);
     counterparty = db
       .prepare("SELECT * FROM contract_parties WHERE contract_id = ? AND role = 'counterparty'")
       .get(contract.id);
@@ -399,8 +423,8 @@ router.post("/:id/sign", (req, res) => {
   }
 
   const party = db
-    .prepare("SELECT * FROM contract_parties WHERE contract_id = ? AND email = ?")
-    .get(contract.id, req.user.email);
+    .prepare("SELECT * FROM contract_parties WHERE contract_id = ? AND (email = ? OR user_id = ?)")
+    .get(contract.id, req.user.email, req.user.id);
   if (!party) return res.status(403).json({ error: "You are not a party to this contract." });
 
   const forwardedFor = req.headers["x-forwarded-for"];
@@ -618,10 +642,12 @@ router.post("/:id/payment-request", async (req, res) => {
       createdByIp: req.socket.remoteAddress || null,
     });
     logAudit(contract.id, req.user, "payment_requested", `${req.user.name} requested payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()}.`);
-    sendMail({
-      to: payerUser.email,
+    notifyUser({
+      user: payerUser,
+      category: "paymentEvents",
       subject: `Payment requested: ${contract.name}`,
       text: `${req.user.name} requested a payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()} on "${contract.name}". Open the contract on Pact to pay.`,
+      smsBody: `Pact: ${req.user.name} requested a payment of ${(amountCents / 100).toFixed(2)} ${terms.currency.toUpperCase()} on "${contract.name}".`,
     });
     res.status(201).json({ clientSecret: intent.client_secret, paymentIntentId: intent.id, amountCents, currency: terms.currency, applicationFeeCents });
   } catch (err) {

@@ -4,6 +4,7 @@ const path = require("path");
 const db = require("../db");
 const { logAudit } = require("./signing");
 const { sendMail } = require("./mailer");
+const { notifyUser } = require("./notify");
 const { renderPaymentCertificatePdf } = require("./pdf");
 const { contentHash } = require("./contract-factory");
 
@@ -18,8 +19,16 @@ const STATUS_LABEL = {
   disputed: "Disputed",
 };
 
+// user_id first, not just email — a party's email can change after
+// they're added (see routes/contracts.js's resolvePartyUserId and the
+// Phase 4 email-change work), and user_id survives that where an email
+// lookup wouldn't.
 function findPartyUser(party) {
   if (!party) return null;
+  if (party.user_id) {
+    const byId = db.prepare("SELECT * FROM users WHERE id = ?").get(party.user_id);
+    if (byId) return byId;
+  }
   return db.prepare("SELECT * FROM users WHERE email = ?").get(party.email) || null;
 }
 
@@ -288,9 +297,18 @@ function reopenIfDisputed(contractId) {
   }
 }
 
-function emailBothParties(contractId, { subject, text }) {
+// "Payment events" (spec Phase 6) — gated by preference for whichever
+// party has a real Pact account to have a preference on. The owner
+// always does; an unlinked counterparty (no account yet) has no
+// preferences to check, so they just get the email directly, the same
+// as before this existed.
+function emailBothParties(contractId, { subject, text, smsBody }) {
   const { owner, counterparty } = getContractParties(contractId);
-  [owner, counterparty].filter(Boolean).forEach((p) => sendMail({ to: p.email, subject, text }));
+  for (const party of [owner, counterparty].filter(Boolean)) {
+    const user = findPartyUser(party);
+    if (user) notifyUser({ user, category: "paymentEvents", subject, text, smsBody });
+    else sendMail({ to: party.email, subject, text });
+  }
 }
 
 // Builds and stores the Payment Certificate PDF for one successful
@@ -376,10 +394,12 @@ function handlePaymentIntentFailed(paymentIntent, stripeEventId) {
   const payerUserId = paymentIntent.metadata.payerUserId ? Number(paymentIntent.metadata.payerUserId) : null;
   const payer = payerUserId ? db.prepare("SELECT * FROM users WHERE id = ?").get(payerUserId) : null;
   if (payer) {
-    sendMail({
-      to: payer.email,
+    notifyUser({
+      user: payer,
+      category: "paymentEvents",
       subject: `Payment failed: ${contract.name}`,
       text: `Your payment on "${contract.name}" did not go through. Open the contract on Pact to try again.`,
+      smsBody: `Pact: your payment on "${contract.name}" didn't go through.`,
     });
   }
 }

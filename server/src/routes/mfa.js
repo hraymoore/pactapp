@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { requireRecentAuth } = require("../middleware/reauth");
 const { verifyPassword } = require("../auth-utils");
 const {
   generateSecret,
@@ -11,6 +12,9 @@ const {
   generateBackupCodes,
   hashBackupCodes,
 } = require("../services/mfa");
+const { logAccountAudit } = require("../services/account-audit");
+const { clientIp } = require("../services/terms");
+const { passwordRecheckLimiter } = require("../middleware/rate-limit");
 
 router.use(express.json());
 
@@ -47,22 +51,42 @@ router.post("/enroll/verify", requireAuth, (req, res) => {
   db.prepare(
     "UPDATE users SET mfa_enabled = 1, mfa_enabled_at = datetime('now'), mfa_backup_codes = ? WHERE id = ?"
   ).run(JSON.stringify(hashBackupCodes(backupCodes)), req.user.id);
+  logAccountAudit({ userId: req.user.id, action: "mfa_enabled", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
+  res.json({ ok: true, backupCodes });
+});
+
+// Backup codes are meant to be saved somewhere durable (spec 1.4's
+// "account recovery contact kit"), but if that somewhere gets lost too,
+// this mints a fresh set of 10 and immediately invalidates every old one
+// — a half-used, partially-leaked list is exactly the situation this
+// exists for.
+router.post("/backup-codes/regenerate", requireAuth, requireRecentAuth, (req, res) => {
+  const row = db.prepare("SELECT mfa_enabled FROM users WHERE id = ?").get(req.user.id);
+  if (!row.mfa_enabled) return res.status(400).json({ error: "Two-factor authentication isn't on." });
+  const backupCodes = generateBackupCodes();
+  db.prepare("UPDATE users SET mfa_backup_codes = ? WHERE id = ?").run(JSON.stringify(hashBackupCodes(backupCodes)), req.user.id);
+  logAccountAudit({ userId: req.user.id, action: "mfa_backup_codes_regenerated", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ ok: true, backupCodes });
 });
 
 // Disabling requires the account password, same trust boundary as
 // close-account and change-password — MFA is a security control, so
 // turning it off can't be a bare unauthenticated-session click.
-router.post("/disable", requireAuth, (req, res) => {
+// Phase 8 fix: this password check previously had no rate limiting at
+// all (unlike /login and /reauth), so a stolen session cookie gave an
+// attacker unlimited password-guessing attempts against it.
+router.post("/disable", requireAuth, passwordRecheckLimiter, (req, res) => {
   const { password } = req.body || {};
   if (!password) return res.status(400).json({ error: "Enter your password to confirm." });
   const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user.id);
   if (!verifyPassword(password, row.password_hash)) {
+    logAccountAudit({ userId: req.user.id, action: "mfa_disabled", result: "failure", detail: "Incorrect password", ip: clientIp(req), userAgent: req.headers["user-agent"] });
     return res.status(401).json({ error: "Password is incorrect." });
   }
   db.prepare(
     "UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_enabled_at = NULL, mfa_backup_codes = NULL WHERE id = ?"
   ).run(req.user.id);
+  logAccountAudit({ userId: req.user.id, action: "mfa_disabled", result: "success", ip: clientIp(req), userAgent: req.headers["user-agent"] });
   res.json({ ok: true });
 });
 

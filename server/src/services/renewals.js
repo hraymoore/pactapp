@@ -1,7 +1,8 @@
 const db = require("../db");
-const { sendMail, mailerConfigured } = require("./mailer");
+const { mailerConfigured } = require("./mailer");
 const { logAudit } = require("./signing");
 const { logArchiveAudit } = require("./archive");
+const { notifyUser } = require("./notify");
 
 // Fires once per threshold crossed, not once per fixed window — a daily
 // job checks "is this subject's date within N days and have we not yet
@@ -49,7 +50,7 @@ function getUpcomingRenewals(user) {
        FROM contracts
        WHERE expires_at IS NOT NULL
          AND (owner_id = @uid
-              OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email)
+              OR id IN (SELECT contract_id FROM contract_parties WHERE email = @email OR user_id = @uid)
               OR id IN (SELECT contract_id FROM contract_shares WHERE shared_with_user_id = @uid))`
     )
     .all({ uid: user.id, email: user.email });
@@ -91,7 +92,9 @@ function runReminderSweep() {
       type: "contract",
       rows: db
         .prepare(
-          `SELECT c.id, c.name, c.expires_at, c.auto_renews, u.name as owner_name, u.email as owner_email FROM contracts c
+          `SELECT c.id, c.name, c.expires_at, c.auto_renews, u.id as owner_id, u.name as owner_name, u.email as owner_email,
+                  u.phone as owner_phone, u.phone_verified_at as owner_phone_verified_at, u.notification_preferences as owner_notification_preferences
+           FROM contracts c
            JOIN users u ON u.id = c.owner_id
            WHERE c.expires_at IS NOT NULL`
         )
@@ -101,7 +104,9 @@ function runReminderSweep() {
       type: "archive_item",
       rows: db
         .prepare(
-          `SELECT a.id, a.title as name, a.expiration_date as expires_at, a.auto_renews, u.name as owner_name, u.email as owner_email FROM archive_items a
+          `SELECT a.id, a.title as name, a.expiration_date as expires_at, a.auto_renews, u.id as owner_id, u.name as owner_name, u.email as owner_email,
+                  u.phone as owner_phone, u.phone_verified_at as owner_phone_verified_at, u.notification_preferences as owner_notification_preferences
+           FROM archive_items a
            JOIN users u ON u.id = a.owner_user_id
            WHERE a.expiration_date IS NOT NULL AND a.deleted_at IS NULL`
         )
@@ -127,10 +132,18 @@ function runReminderSweep() {
       if (applicable.length === 0) continue;
       const intervalDays = Math.min(...applicable);
 
-      sendMail({
-        to: row.owner_email,
+      notifyUser({
+        user: {
+          id: row.owner_id,
+          email: row.owner_email,
+          phone: row.owner_phone,
+          phone_verified_at: row.owner_phone_verified_at,
+          notification_preferences: row.owner_notification_preferences,
+        },
+        category: "reminders",
         subject: `Pact: "${row.name}" ${remaining < 0 ? "has expired" : "expires soon"} (${row.expires_at})`,
         text: emailBodyFor(type, row.name, row.expires_at, row.auto_renews, intervalDays),
+        smsBody: `Pact: "${row.name}" ${remaining < 0 ? "has expired" : "expires soon"} (${row.expires_at}).`,
       });
       if (!mailerConfigured()) {
         console.log(`[pact] (SMTP not configured) Would send ${intervalDays}-day reminder to ${row.owner_email} for ${type} #${row.id} "${row.name}".`);

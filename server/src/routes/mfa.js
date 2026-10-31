@@ -14,6 +14,7 @@ const {
 } = require("../services/mfa");
 const { logAccountAudit } = require("../services/account-audit");
 const { clientIp } = require("../services/terms");
+const { passwordRecheckLimiter } = require("../middleware/rate-limit");
 
 router.use(express.json());
 
@@ -71,7 +72,10 @@ router.post("/backup-codes/regenerate", requireAuth, requireRecentAuth, (req, re
 // Disabling requires the account password, same trust boundary as
 // close-account and change-password — MFA is a security control, so
 // turning it off can't be a bare unauthenticated-session click.
-router.post("/disable", requireAuth, (req, res) => {
+// Phase 8 fix: this password check previously had no rate limiting at
+// all (unlike /login and /reauth), so a stolen session cookie gave an
+// attacker unlimited password-guessing attempts against it.
+router.post("/disable", requireAuth, passwordRecheckLimiter, (req, res) => {
   const { password } = req.body || {};
   if (!password) return res.status(400).json({ error: "Enter your password to confirm." });
   const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user.id);

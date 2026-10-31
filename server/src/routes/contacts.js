@@ -7,7 +7,14 @@ const router = express.Router();
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
 
-const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Phase 8 fix: the original /^[^\s@]+@[^\s@]+\.[^\s@]+$/ allowed any
+// non-whitespace character through, including <, >, and " — a
+// space-free payload like "<img/src=x/onerror=alert(1)>@evil.com"
+// passed as a "valid email" and was stored verbatim, available for a
+// stored-XSS payload wherever a saved contact gets rendered. Excluding
+// the HTML-special characters outright closes that off at the source,
+// on top of the dashboard's own output-escaping fix.
+const EMAIL_FORMAT = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/;
 
 router.use(express.json());
 router.use(requireAuth);

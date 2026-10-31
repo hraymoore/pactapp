@@ -39,7 +39,7 @@ const {
   listActiveSessions,
 } = require("../services/sessions");
 const { logAccountAudit, listAccountAudit } = require("../services/account-audit");
-const { authAttemptLimiter } = require("../middleware/rate-limit");
+const { authAttemptLimiter, mfaVerifyLimiter, passwordRecheckLimiter } = require("../middleware/rate-limit");
 const { checkPasswordBreached } = require("../services/password-breach");
 const { describeUserAgent } = require("../services/user-agent");
 const { smsConfigured, sendSms } = require("../services/sms");
@@ -225,7 +225,11 @@ router.post("/login", authAttemptLimiter, (req, res) => {
 // already verified moments ago; a matching TOTP (or one-time backup) code
 // proves the second factor. Only then does the real session cookie get
 // issued.
-router.post("/mfa/verify-login", (req, res) => {
+// Phase 8 fix: the password step (/login above) is already behind
+// authAttemptLimiter; this second-factor step (TOTP or backup code) was
+// not, so an attacker already past the password could guess codes here
+// with no IP-based throttling at all.
+router.post("/mfa/verify-login", mfaVerifyLimiter, (req, res) => {
   const { challengeToken, smsChallengeToken, code } = req.body || {};
   const ip = clientIp(req);
   const userAgent = req.headers["user-agent"];
@@ -560,7 +564,11 @@ router.get("/security-log", requireAuth, (req, res) => {
 
 // ---- Phase 4: email, phone, recovery email ----
 
-const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Phase 8: tightened alongside routes/contacts.js's identical regex to
+// exclude HTML-special characters, defense-in-depth against the same
+// class of stored-content risk even though primary/recovery email are
+// currently only ever rendered via textContent, never innerHTML.
+const EMAIL_FORMAT = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/;
 const EMAIL_CHANGE_CANCEL_WINDOW_DAYS = 7;
 const PHONE_CODE_TTL_MS = 10 * 60 * 1000;
 const PHONE_FORMAT = /^\+[1-9]\d{6,14}$/; // E.164
@@ -857,7 +865,9 @@ router.post("/phone/remove", requireAuth, requireRecentAuth, (req, res) => {
 // is nulled out, anonymized, or cascade-deleted. Any real data purge is a
 // separate, later, scheduled retention job that reads closed_at — closing
 // an account never triggers one directly.
-router.post("/close", requireAuth, async (req, res) => {
+// Phase 8 fix: same gap as /mfa/disable — this password check had no
+// rate limiting, so a stolen session cookie gave unlimited guesses.
+router.post("/close", requireAuth, passwordRecheckLimiter, async (req, res) => {
   const { password } = req.body || {};
   if (!password) return res.status(400).json({ error: "Enter your password to confirm." });
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);

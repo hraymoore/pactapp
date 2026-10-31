@@ -32,4 +32,25 @@ const authAttemptLimiter = makeLimiter({
   message: "Too many attempts from this network. Wait a few minutes and try again.",
 });
 
-module.exports = { makeLimiter, authAttemptLimiter };
+// Phase 8: the MFA second-factor step and the two inline password
+// re-checks below (mfa/disable, auth/close) each had NO rate limiting at
+// all. They needed their OWN counters, not a reuse of authAttemptLimiter
+// — sharing that single instance would make every MFA-enabled login cycle
+// (a /login call AND a /mfa/verify-login call) cost two units of the one
+// budget meant for password-spraying across many accounts, so a handful
+// of ordinary repeated logins from one IP (a shared office network, a
+// flaky connection retried a few times) could lock out that whole IP's
+// /login too. Same tuning, independently counted.
+const mfaVerifyLimiter = makeLimiter({
+  windowMinutes: 15,
+  max: 20,
+  message: "Too many attempts from this network. Wait a few minutes and try again.",
+});
+
+const passwordRecheckLimiter = makeLimiter({
+  windowMinutes: 15,
+  max: 20,
+  message: "Too many attempts from this network. Wait a few minutes and try again.",
+});
+
+module.exports = { makeLimiter, authAttemptLimiter, mfaVerifyLimiter, passwordRecheckLimiter };

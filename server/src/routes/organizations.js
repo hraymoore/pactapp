@@ -236,7 +236,11 @@ router.put("/:id/members/:memberId", requireMfaForOrgAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete("/:id/members/:memberId", (req, res) => {
+// Phase 8 fix: removing a member is as much "role management" as the
+// POST (invite) and PUT (change role) routes above, both of which
+// already require MFA on a paid-tier admin's account — this route had
+// been left off that gate.
+router.delete("/:id/members/:memberId", requireMfaForOrgAdmin, (req, res) => {
   const org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(req.params.id);
   if (!org) return res.status(404).json({ error: "Organization not found." });
   try {

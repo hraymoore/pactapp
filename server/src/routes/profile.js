@@ -191,14 +191,20 @@ router.delete("/photo", (req, res) => {
   res.json({ ok: true });
 });
 
-// Any logged-in Pact user can view another's photo this way — matching
-// how their name/email are already visible once sharing a contract, with
-// no further relationship check layered on here. A fully relationship-
-// scoped "who can see my profile" view is the spec's own separate,
-// later feature (1.4.6, "Public vs. private profile view"), not this one.
+// Phase 8 fix: this used to serve any user's photo bytes to any other
+// logged-in user unconditionally, which completely bypassed
+// privacy_show_photo — the public-profile JSON endpoint (GET /public/
+// :userId below) already withholds photoFileRef when that's off, but a
+// caller who already knows/guesses the target's id could still fetch the
+// raw file straight from here regardless of the JSON. Now mirrors that
+// same rule: the owner can always see their own photo; anyone else only
+// gets it if privacy_show_photo is on.
 router.get("/photo/:userId/:size", (req, res) => {
-  const row = db.prepare("SELECT photo_file_ref FROM users WHERE id = ?").get(req.params.userId);
+  const row = db.prepare("SELECT photo_file_ref, privacy_show_photo FROM users WHERE id = ?").get(req.params.userId);
   if (!row || !row.photo_file_ref) return res.status(404).json({ error: "No photo." });
+  if (String(req.params.userId) !== String(req.user.id) && !row.privacy_show_photo) {
+    return res.status(404).json({ error: "No photo." });
+  }
   const file = req.params.size === "thumb" ? thumbPath(row.photo_file_ref) : fullPath(row.photo_file_ref);
   res.sendFile(file, (err) => {
     if (err && !res.headersSent) res.status(404).json({ error: "Photo file not found." });

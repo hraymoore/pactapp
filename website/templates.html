@@ -86,6 +86,33 @@
   </div>
 </section>
 
+<section class="section">
+  <div class="wrap" style="max-width:680px;">
+    <div class="eyebrow center" style="display:flex;justify-content:center;">Template requests</div>
+    <h2 class="center">Found a template somewhere else? Suggest it</h2>
+    <p class="center" style="margin:0 auto 30px;">Send a link or describe what it covers — genuinely useful suggestions get turned into a real Pact template, written fresh in our own words (not copy-pasted, regardless of the source's license).</p>
+
+    <div id="suggestLoggedOut" class="card center" style="display:none;">
+      <p style="margin:0 0 14px;">Create a free profile to suggest a template.</p>
+      <a href="signup.html" class="btn btn-gold btn-sm">Create Your Free Profile</a>
+    </div>
+
+    <div id="suggestForm" class="card" style="display:none;">
+      <div class="field"><label for="reqTitle">Template name</label><input id="reqTitle" type="text" maxlength="120" placeholder="e.g. Songwriter Split Sheet, Pet Custody Agreement"></div>
+      <div class="field"><label for="reqGenre">Which category is this? (optional)</label><input id="reqGenre" type="text" maxlength="60" placeholder="e.g. Music &amp; Entertainment"></div>
+      <div class="field"><label for="reqSourceUrl">Link to the example you found (optional)</label><input id="reqSourceUrl" type="url" placeholder="https://…"></div>
+      <div class="field"><label for="reqNotes">What should it cover? (optional, but helpful)</label><textarea id="reqNotes" rows="3" maxlength="2000" placeholder="Fields, sections, or anything specific the example had"></textarea></div>
+      <button class="btn btn-gold" id="submitReqBtn">Submit Suggestion</button>
+      <p id="suggestNote" style="margin-top:12px;font-size:0.85rem;"></p>
+    </div>
+
+    <div id="myRequestsWrap" style="display:none;margin-top:30px;">
+      <h3 style="font-size:1rem;">Your suggestions</h3>
+      <div id="myRequestsList" style="font-size:0.88rem;"></div>
+    </div>
+  </div>
+</section>
+
 <footer class="footer">
   <div class="wrap">
     <div class="footer-grid">
@@ -301,7 +328,77 @@
         }
       } catch (err) { /* not fatal — creation just defaults to personal */ }
     }
+
+    await setupTemplateRequests(user);
   })();
+
+  function escapeHtml(s) { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+
+  const REQUEST_STATUS_LABEL = {
+    pending: "Pending review",
+    drafting: "Being drafted",
+    ready_for_review: "Under review",
+    published: "Published!",
+    rejected: "Not added",
+  };
+  const REQUEST_STATUS_COLOR = {
+    pending: "var(--silver)",
+    drafting: "var(--gold-bright)",
+    ready_for_review: "var(--gold-bright)",
+    published: "var(--emerald-bright)",
+    rejected: "var(--ruby-bright)",
+  };
+
+  async function renderMyRequests() {
+    const { requests } = await apiJson("/api/template-requests/mine");
+    const wrap = document.getElementById("myRequestsWrap");
+    wrap.style.display = requests.length ? "" : "none";
+    const list = document.getElementById("myRequestsList");
+    list.innerHTML = requests
+      .map((r) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);">
+          <span>${escapeHtml(r.title)}${r.publishedTemplateName ? ` — now "${escapeHtml(r.publishedTemplateName)}"` : ""}</span>
+          <span class="mini-tag" style="color:${REQUEST_STATUS_COLOR[r.status] || "var(--silver)"};">${REQUEST_STATUS_LABEL[r.status] || r.status}</span>
+        </div>`)
+      .join("");
+  }
+
+  async function setupTemplateRequests(user) {
+    if (!user) {
+      document.getElementById("suggestLoggedOut").style.display = "";
+      return;
+    }
+    document.getElementById("suggestForm").style.display = "";
+    await renderMyRequests();
+
+    document.getElementById("submitReqBtn").addEventListener("click", async () => {
+      const note = document.getElementById("suggestNote");
+      note.textContent = "";
+      const title = document.getElementById("reqTitle").value.trim();
+      if (!title) { note.textContent = "Give the template a name first."; note.style.color = "var(--ruby-bright)"; return; }
+      try {
+        await apiJson("/api/template-requests", {
+          method: "POST",
+          body: JSON.stringify({
+            title,
+            genreSuggestion: document.getElementById("reqGenre").value.trim(),
+            sourceUrl: document.getElementById("reqSourceUrl").value.trim(),
+            notes: document.getElementById("reqNotes").value.trim(),
+          }),
+        });
+        note.textContent = "Thanks — we'll take a look.";
+        note.style.color = "var(--emerald-bright)";
+        document.getElementById("reqTitle").value = "";
+        document.getElementById("reqGenre").value = "";
+        document.getElementById("reqSourceUrl").value = "";
+        document.getElementById("reqNotes").value = "";
+        await renderMyRequests();
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+      }
+    });
+  }
 </script>
 </body>
 </html>

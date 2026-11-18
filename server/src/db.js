@@ -440,6 +440,33 @@ CREATE TABLE IF NOT EXISTS renewal_reminders_sent (
   sent_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (subject_type, subject_id, interval_days)
 );
+
+-- A user's suggestion for a new template, found elsewhere (a link to a
+-- real-world example, or a description of one) or just a gap they hit.
+-- draft_body/draft_description hold whatever's being worked on before
+-- publish — generated via Pact AI, written by hand by whoever reviews the
+-- queue, or both — and are never shown to the requester until published,
+-- so a draft-in-progress doesn't leak admin-review content. Publishing
+-- inserts a real row into templates and records its id here so the
+-- requester's own history can link straight to it.
+CREATE TABLE IF NOT EXISTS template_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  requested_by_user_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  genre_suggestion TEXT,
+  source_url TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'drafting', 'ready_for_review', 'published', 'rejected')),
+  draft_body TEXT,
+  draft_description TEXT,
+  draft_genre TEXT,
+  draft_min_tier TEXT,
+  draft_keywords TEXT,
+  admin_notes TEXT,
+  published_template_id INTEGER REFERENCES templates(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrations for columns added after the initial CREATE TABLE (existing

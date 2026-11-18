@@ -5,10 +5,11 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 
 const db = require("./db");
-const { seedTemplates } = require("./seed-templates");
+const { seedTemplates, applyTemplateContentUpdates } = require("./seed-templates");
 const { attachUser } = require("./middleware/auth");
 
 seedTemplates(db);
+applyTemplateContentUpdates(db);
 
 const app = express();
 app.disable("x-powered-by");
@@ -24,6 +25,7 @@ app.use(attachUser);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/templates", require("./routes/templates"));
+app.use("/api/template-requests", require("./routes/template-requests"));
 app.use("/api/contracts", require("./routes/contracts"));
 app.use("/api/sign", require("./routes/sign"));
 app.use("/api/ai", require("./routes/ai"));

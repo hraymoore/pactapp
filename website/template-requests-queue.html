@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Template Requests Queue — Pact</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0c0f">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="mark">P</span> Pact</a>
+    <div class="nav-links"></div>
+    <div class="nav-actions">
+      <a href="dashboard.html" class="btn btn-ghost-dark btn-sm">Back to Dashboard</a>
+    </div>
+  </div>
+</nav>
+
+<div class="section" style="padding-top:50px;">
+  <div class="wrap">
+    <div class="eyebrow">Internal</div>
+    <h1 style="margin-bottom:6px;">Template Requests Queue</h1>
+    <p style="max-width:600px;">Every suggested template, across every profile. Gated by <code>TEMPLATE_REQUEST_ADMIN_EMAIL</code> — there's no staff/admin role system yet, so this page is the whole access control.</p>
+
+    <div id="notAuthorized" class="card" style="display:none;max-width:520px;margin-top:24px;">
+      <div class="icon icon-ruby">🔒</div>
+      <h3>Not authorized</h3>
+      <p>This page is only visible to the email set as <code>TEMPLATE_REQUEST_ADMIN_EMAIL</code> on the server. If that's supposed to be you, make sure you're logged in with that exact email.</p>
+    </div>
+
+    <div id="queueWrap" style="display:none;margin-top:24px;">
+      <p id="emptyQueue" style="display:none;">No template requests yet.</p>
+      <div id="queueList"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  function fmt(ts) {
+    if (!ts) return "—";
+    return new Date(ts.replace(" ", "T") + "Z").toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  }
+
+  function escapeHtml(s) { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+
+  const STATUS_COLOR = {
+    pending: "var(--silver)", drafting: "var(--gold-bright)", ready_for_review: "var(--gold-bright)",
+    published: "var(--emerald-bright)", rejected: "var(--ruby-bright)",
+  };
+  const TIER_OPTIONS = ["free", "starter", "everyday", "pro", "business"];
+  const TIER_LABEL = { free: "Free", starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+
+  async function renderQueue() {
+    const { requests } = await apiJson("/api/template-requests/queue");
+    document.getElementById("emptyQueue").style.display = requests.length ? "none" : "";
+    const wrap = document.getElementById("queueList");
+    wrap.innerHTML = "";
+    requests.forEach((r) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.marginBottom = "16px";
+      const published = r.status === "published";
+      const rejected = r.status === "rejected";
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:flex-start;">
+          <div>
+            <h3 style="margin-bottom:4px;">${escapeHtml(r.title)}</h3>
+            <p style="margin:0;font-size:0.85rem;">${escapeHtml(r.requester_name)} &lt;${escapeHtml(r.requester_email)}&gt; &middot; requested ${fmt(r.created_at)}</p>
+          </div>
+          <span class="mini-tag" style="color:${STATUS_COLOR[r.status] || "var(--silver)"};">${r.status.replace(/_/g, " ")}</span>
+        </div>
+        ${r.genre_suggestion ? `<p style="margin-top:10px;font-size:0.85rem;">Suggested category: ${escapeHtml(r.genre_suggestion)}</p>` : ""}
+        ${r.source_url ? `<p style="margin-top:6px;font-size:0.85rem;"><a href="${encodeURI(r.source_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold-bright);">Source link ↗</a></p>` : ""}
+        ${r.notes ? `<p style="margin-top:10px;font-size:0.88rem;">"${escapeHtml(r.notes)}"</p>` : ""}
+
+        ${!published && !rejected ? `
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-dark);">
+          <button class="btn btn-ghost-dark btn-sm" data-ai-draft="${r.id}">Generate AI Draft</button>
+          <p data-ai-note="${r.id}" style="margin-top:8px;font-size:0.82rem;"></p>
+
+          <div class="field" style="margin-top:14px;"><label>Body</label><textarea data-draft-body="${r.id}" rows="8" placeholder="Fill in by hand, or generate an AI draft above, then edit.">${escapeHtml(r.draft_body)}</textarea></div>
+          <div class="field"><label>Description (shown on the template library)</label><input data-draft-description="${r.id}" type="text" value="${escapeHtml(r.draft_description)}"></div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;">
+            <div class="field" style="max-width:260px;flex:1;"><label>Genre</label><input data-draft-genre="${r.id}" type="text" value="${escapeHtml(r.draft_genre)}" placeholder="e.g. Music &amp; Entertainment"></div>
+            <div class="field" style="max-width:200px;"><label>Minimum tier</label>
+              <select data-draft-tier="${r.id}">
+                <option value="">—</option>
+                ${TIER_OPTIONS.map((t) => `<option value="${t}" ${r.draft_min_tier === t ? "selected" : ""}>${TIER_LABEL[t]}</option>`).join("")}
+              </select>
+            </div>
+          </div>
+          <div class="field"><label>Keywords (search terms, space-separated)</label><input data-draft-keywords="${r.id}" type="text" value="${escapeHtml(r.draft_keywords)}"></div>
+          <div class="field"><label>Admin notes (internal, or shown if rejected)</label><textarea data-admin-notes="${r.id}" rows="2">${escapeHtml(r.admin_notes)}</textarea></div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+            <button class="btn btn-ghost-dark btn-sm" data-save-draft="${r.id}">Save Draft</button>
+            <button class="btn btn-gold btn-sm" data-publish="${r.id}">Publish</button>
+            <button class="btn btn-ghost-dark btn-sm" data-reject="${r.id}" style="border-color:var(--ruby);color:var(--ruby-bright);">Reject</button>
+          </div>
+          <p data-save-note="${r.id}" style="margin-top:8px;font-size:0.82rem;"></p>
+        </div>` : published
+          ? `<p style="margin-top:14px;font-size:0.85rem;color:var(--emerald-bright);">Published as a live template.</p>`
+          : `<p style="margin-top:14px;font-size:0.85rem;color:var(--ruby-bright);">Rejected${r.admin_notes ? `: ${escapeHtml(r.admin_notes)}` : "."}</p>`}
+      `;
+      wrap.appendChild(card);
+    });
+
+    wrap.querySelectorAll("[data-ai-draft]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.aiDraft;
+        const note = wrap.querySelector(`[data-ai-note="${id}"]`);
+        btn.disabled = true;
+        note.textContent = "Drafting…";
+        note.style.color = "var(--silver)";
+        try {
+          const { request } = await apiJson(`/api/template-requests/${id}/draft`, { method: "POST", body: JSON.stringify({}) });
+          wrap.querySelector(`[data-draft-body="${id}"]`).value = request.draft_body || "";
+          note.textContent = "Draft generated — review and edit before publishing.";
+          note.style.color = "var(--emerald-bright)";
+        } catch (err) {
+          note.textContent = err.message;
+          note.style.color = "var(--ruby-bright)";
+        }
+        btn.disabled = false;
+      });
+    });
+
+    wrap.querySelectorAll("[data-save-draft]").forEach((btn) => {
+      btn.addEventListener("click", async () => { await saveDraft(btn.dataset.saveDraft); });
+    });
+
+    wrap.querySelectorAll("[data-publish]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.publish;
+        const note = wrap.querySelector(`[data-save-note="${id}"]`);
+        try {
+          await saveDraft(id, { silent: true });
+          await apiJson(`/api/template-requests/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
+          await renderQueue();
+        } catch (err) {
+          note.textContent = err.message;
+          note.style.color = "var(--ruby-bright)";
+        }
+      });
+    });
+
+    wrap.querySelectorAll("[data-reject]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.reject;
+        const reason = prompt("Reason (optional) — the requester will see this:");
+        if (reason === null) return;
+        await apiJson(`/api/template-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ adminNotes: reason }) });
+        await renderQueue();
+      });
+    });
+
+    async function saveDraft(id, opts) {
+      const note = wrap.querySelector(`[data-save-note="${id}"]`);
+      const payload = {
+        draftBody: wrap.querySelector(`[data-draft-body="${id}"]`).value,
+        draftDescription: wrap.querySelector(`[data-draft-description="${id}"]`).value,
+        draftGenre: wrap.querySelector(`[data-draft-genre="${id}"]`).value,
+        draftMinTier: wrap.querySelector(`[data-draft-tier="${id}"]`).value,
+        draftKeywords: wrap.querySelector(`[data-draft-keywords="${id}"]`).value,
+        adminNotes: wrap.querySelector(`[data-admin-notes="${id}"]`).value,
+      };
+      try {
+        await apiJson(`/api/template-requests/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+        if (!(opts && opts.silent)) {
+          note.textContent = "Saved.";
+          note.style.color = "var(--emerald-bright)";
+        }
+      } catch (err) {
+        note.textContent = err.message;
+        note.style.color = "var(--ruby-bright)";
+        throw err;
+      }
+    }
+  }
+
+  (async () => {
+    const user = await PactAPI.me();
+    if (!user) { window.location.href = "login.html?next=template-requests-queue.html"; return; }
+    try {
+      await renderQueue();
+      document.getElementById("queueWrap").style.display = "";
+    } catch (err) {
+      document.getElementById("notAuthorized").style.display = "";
+    }
+  })();
+</script>
+</body>
+</html>

@@ -99,6 +99,16 @@ seeded (72 templates) automatically on first boot via Node's built-in
   intake only, not a two-sided marketplace: there's no attorney role, licensing match, or
   assignment system. Set `ATTORNEY_REVIEW_ADMIN_EMAIL` to your own login email to unlock
   `/attorney-queue.html` (every request, across every user) and get emailed on each new one.
+- **Template requests** (`routes/template-requests.js`, `services/template-requests.js`) — any
+  logged-in profile can suggest a template on `/templates.html` (a name, an optional link to an
+  example they found, and notes on what it should cover). Nothing is copied from a linked source
+  automatically — "Generate AI Draft" on the queue page below asks Pact AI to write an original
+  template from scratch using the request as a reference, or the draft can be written by hand.
+  Either way, a human reviews/edits the draft body, description, genre and tier before Publish
+  inserts it as a real row in `templates` — there's no path from a submitted link straight into
+  the live template library. Set `TEMPLATE_REQUEST_ADMIN_EMAIL` to your own login email to unlock
+  `/template-requests-queue.html` (every request, across every user) and get emailed on each new
+  one; the requester gets emailed back once their suggestion is published or rejected.
 
 ## What needs a key to go live
 

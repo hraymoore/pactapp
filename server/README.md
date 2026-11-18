@@ -112,6 +112,7 @@ canned response) until its key is set in `.env`:
 | Identity verification | `STRIPE_SECRET_KEY` (+ `STRIPE_IDENTITY_ENABLED`) | `501` — "Identity verification is not connected yet" |
 | Email (signing invitations) | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | Signing link is returned in the API response to share manually |
 | Contract payments (Stripe Connect) | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | `501` — "Billing is not connected yet" on every payment route |
+| Contract payments on the homepage | `SHOW_PAYMENTS_HOMEPAGE=true` | Section stays hidden — see below |
 | Archive uploads | `MALWARE_SCAN_API_KEY`, `ARCHIVE_ENCRYPTION_KEY` | `501` on every upload — files are refused, not stored unscanned/unencrypted |
 
 **Identity verification is deliberately routed through Stripe Identity
@@ -198,6 +199,15 @@ end to end:
 Connect structure avoids money-transmitter licensing exposure for Pact in
 every state where users will actually transact — see Terms of Service
 Section 10a.
+
+**`SHOW_PAYMENTS_HOMEPAGE`** (default off) controls whether the marketing
+homepage (`index.html`) mentions contract payments at all —
+`GET /api/payments/config` reports it alongside `configured`/
+`publishableKey`. It is independent of `STRIPE_SECRET_KEY`/
+`billingConfigured()`, which is true in test mode too: set it to `"true"`
+only once live (non-test) Stripe keys are actually in place, so the
+homepage never advertises a feature real users can't yet use for real
+money.
 
 ## Archive uploads
 

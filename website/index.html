@@ -166,6 +166,27 @@
   </div>
 </section>
 
+<!--
+  Hidden by default — see GET /api/payments/config's showPaymentsHomepage
+  (server/README.md, SHOW_PAYMENTS_HOMEPAGE). Flipped on only once live
+  Stripe keys are actually in place; this inline style is the default,
+  fail-closed state if the config fetch below ever fails or is slow.
+-->
+<section class="section" id="paymentsSection" style="display:none;">
+  <div class="wrap center">
+    <div class="eyebrow" style="display:flex;justify-content:center;">Payments</div>
+    <h2>Pay or get paid, right inside the contract</h2>
+    <p style="max-width:560px;margin:0 auto 40px;">Once a contract is signed, either party can settle it through Pact — no separate invoice, no chasing a check.</p>
+    <div class="grid grid-3">
+      <div class="card"><div class="icon icon-gold">💳</div><h3>Pay by card</h3><p style="color:var(--gold-bright);">The payer enters a card on the contract. Stripe processes the charge and sends it to the payee's Stripe account — card details never touch Pact's servers. Fees are shown before you pay or request payment.</p></div>
+      <div class="card"><div class="icon icon-emerald">🧾</div><h3>Paid in Full, time-stamped</h3><p style="color:var(--gold-bright);">A successful payment is recorded with the date and time, and the contract shows "Paid in Full." That's a payment status — it isn't a sign-off on the work itself.</p></div>
+      <div class="card"><div class="icon icon-ruby">🔒</div><h3>Closes itself when it's paid</h3><p style="color:var(--gold-bright);">If both parties agreed to it when they signed, Pact closes the contract automatically once it's paid in full.</p></div>
+    </div>
+    <p style="max-width:560px;margin:40px auto 0;font-size:0.9rem;">Every profile, including Free, can pay a contract sent to them. Requesting payment needs a Starter plan or higher.</p>
+    <a href="pricing.html" class="btn btn-ghost-light" style="margin-top:16px;">Compare tiers →</a>
+  </div>
+</section>
+
 <section class="section">
   <div class="wrap center">
     <h2>Start with a free Pact profile</h2>
@@ -223,6 +244,13 @@
   fetch("/api/templates/stats").then(r => r.json()).then(({ templateCount, genreCount }) => {
     document.getElementById("heroTemplateCount").textContent = `${templateCount}+`;
     document.getElementById("heroGenreCount").textContent = genreCount;
+  }).catch(() => {});
+
+  // Stays hidden (the section's own inline style) unless the server says
+  // live payments are actually ready to advertise — see server/README.md's
+  // SHOW_PAYMENTS_HOMEPAGE. A failed/slow fetch just leaves it hidden.
+  fetch("/api/payments/config").then(r => r.json()).then(({ showPaymentsHomepage }) => {
+    if (showPaymentsHomepage) document.getElementById("paymentsSection").style.display = "";
   }).catch(() => {});
 </script>
 </body>

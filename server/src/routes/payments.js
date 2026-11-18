@@ -8,8 +8,19 @@ router.use(express.json());
 
 // The frontend needs a publishable key to mount Stripe's Payment Element —
 // never the secret key, which never leaves the server.
+//
+// showPaymentsHomepage is a separate, manual switch for the marketing
+// homepage's payments section — it is NOT inferred from whether Stripe is
+// configured (billingConfigured() is true in test mode too). It defaults
+// to off and is meant to be flipped on by whoever enables live Stripe
+// keys, not by this code, since the decision of whether live payments are
+// actually ready to advertise is a human one.
 router.get("/config", (req, res) => {
-  res.json({ configured: billingConfigured(), publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null });
+  res.json({
+    configured: billingConfigured(),
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
+    showPaymentsHomepage: process.env.SHOW_PAYMENTS_HOMEPAGE === "true",
+  });
 });
 
 router.use(requireAuth);

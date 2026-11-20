@@ -15,6 +15,7 @@ const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
 const payments = require("../services/payments");
 const { clearRemindersForSubject } = require("../services/renewals");
+const amendments = require("../services/amendments");
 const { billingConfigured, createPaymentRequestIntent, getStripe } = require("../services/billing-provider");
 const fs = require("fs");
 const path = require("path");
@@ -318,6 +319,112 @@ router.get("/:id/versions/compare", (req, res) => {
     from: { key: fromSide.key, savedByName: fromSide.savedByName, at: fromSide.at },
     to: { key: toSide.key, savedByName: toSide.savedByName, at: toSide.at },
     diff: diffVersions(fromSide.body, toSide.body),
+  });
+});
+
+// ---- Amendments & addenda — a formal signed change to an already-
+// executed contract, distinct from the unrestricted post-signature edit
+// PUT /:id already allows. Any signing party can propose one; it only
+// takes effect once every party has signed it (see services/
+// amendments.js), same all-or-nothing rule as executing the original
+// contract. ----
+
+router.post("/:id/amendments", (req, res) => {
+  const contract = loadAuthorizedContract(req, res, { requireEdit: true });
+  if (!contract) return;
+  if (!hasEsignConsent(req.user.id)) {
+    return res.status(403).json({
+      error: "Read and consent to Pact's Electronic Signature Disclosure before proposing an amendment.",
+      needsEsignConsent: true,
+    });
+  }
+  try {
+    const amendment = amendments.proposeAmendment(contract, req.user, req.body || {});
+    res.status(201).json({ amendment });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.get("/:id/amendments", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  res.json({ amendments: amendments.listAmendments(contract.id) });
+});
+
+router.get("/:id/amendments/:amendmentId", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const amendment = amendments.getAmendment(contract.id, req.params.amendmentId);
+  if (!amendment) return res.status(404).json({ error: "Amendment not found." });
+  res.json({ amendment, diff: amendments.diffAmendmentAgainstCurrent(contract, amendment) });
+});
+
+router.post("/:id/amendments/:amendmentId/sign", async (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  if (!hasEsignConsent(req.user.id)) {
+    return res.status(403).json({
+      error: "Read and consent to Pact's Electronic Signature Disclosure before signing an amendment.",
+      needsEsignConsent: true,
+    });
+  }
+  const { typedSignature, consent } = req.body || {};
+  if (!consent) return res.status(400).json({ error: "You must consent to signing electronically." });
+  if (!typedSignature || !typedSignature.trim()) {
+    return res.status(400).json({ error: "Type your full legal name to sign." });
+  }
+  const amendment = amendments.getAmendment(contract.id, req.params.amendmentId);
+  if (!amendment) return res.status(404).json({ error: "Amendment not found." });
+  const party = db.prepare("SELECT * FROM contract_parties WHERE contract_id = ? AND email = ?").get(contract.id, req.user.email);
+  if (!party) return res.status(403).json({ error: "You are not a party to this contract." });
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const ip = (forwardedFor ? forwardedFor.split(",")[0].trim() : null) || req.socket.remoteAddress || "unknown";
+  try {
+    const { allSigned } = await amendments.signAmendment(amendment, party, { typedSignature, ip });
+    res.json({ ok: true, allSigned });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/amendments/:amendmentId/reject", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const amendment = amendments.getAmendment(contract.id, req.params.amendmentId);
+  if (!amendment) return res.status(404).json({ error: "Amendment not found." });
+  const party = db.prepare("SELECT * FROM contract_parties WHERE contract_id = ? AND email = ?").get(contract.id, req.user.email);
+  if (!party) return res.status(403).json({ error: "You are not a party to this contract." });
+  try {
+    amendments.rejectAmendment(amendment, party, req.body || {});
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/amendments/:amendmentId/withdraw", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const amendment = amendments.getAmendment(contract.id, req.params.amendmentId);
+  if (!amendment) return res.status(404).json({ error: "Amendment not found." });
+  try {
+    amendments.withdrawAmendment(amendment, req.user);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.get("/:id/amendments/:amendmentId/certificate", (req, res) => {
+  const contract = loadAuthorizedContract(req, res);
+  if (!contract) return;
+  const amendment = amendments.getAmendment(contract.id, req.params.amendmentId);
+  if (!amendment || !amendment.certificate) return res.status(404).json({ error: "Certificate not available." });
+  const filePath = path.join(amendments.CERT_DIR, amendment.certificate.pdf_file_ref);
+  res.download(filePath, `${amendment.amendment_type}-${contract.id}-${amendment.id}.pdf`, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: "Certificate file no longer available." });
   });
 });
 

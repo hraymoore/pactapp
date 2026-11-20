@@ -399,9 +399,29 @@ p { margin: 0 0 1em; color: var(--silver); }
 .reveal.in { opacity: 1; transform: translateY(0); }
 .logo-strip { display: flex; gap: 40px; flex-wrap: wrap; align-items: center; font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; color: var(--silver); }
 
+.dash-mobile-toggle { display: none; }
+
 @media (max-width: 860px) {
   .dash-shell { grid-template-columns: 1fr; }
-  .dash-side { display: none; }
+  /* Collapsed to an off-canvas drawer, not just hidden outright — every
+     dash-nav link (Settings included) was previously unreachable below
+     this width, with no toggle anywhere to bring it back. */
+  .dash-side {
+    display: block; position: fixed; inset: 68px 0 0 0; z-index: 50;
+    overflow-y: auto; transform: translateX(-100%); transition: transform .25s ease;
+  }
+  .dash-side.open { transform: translateX(0); }
+  /* Stays above .dash-side (z-index 50) and pinned in place, so it's
+     still visible and clickable to close the drawer once it's open —
+     without this it sits in normal flow right where the open drawer's
+     own overlay covers it, making the only way to open the menu also
+     the thing blocking you from closing it again. */
+  .dash-mobile-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 20px;
+    background: var(--obsidian-2); border: 1px solid var(--border-dark); border-radius: var(--radius-s);
+    color: var(--silver); font-size: 0.88rem; padding: 11px 14px;
+    position: sticky; top: 0; z-index: 51;
+  }
   .contract-row { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
 }

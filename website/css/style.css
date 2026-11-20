@@ -148,9 +148,19 @@ p { margin: 0 0 1em; color: var(--silver); }
 /* ---------- Nav ---------- */
 .nav {
   position: sticky; top: 0; z-index: 100;
+  border-bottom: 1px solid var(--border-dark);
+}
+/* The blur lives on a pseudo-element rather than directly on .nav: a
+   backdrop-filter on .nav itself would make .nav a containing block for
+   its position:fixed descendants (the mobile .nav-links panel below),
+   confining that panel's "fixed" inset to .nav's own ~70px-tall box
+   instead of the viewport — which is what made the open mobile menu
+   render as a sliver overlapping the hero instead of a full opaque
+   dropdown. */
+.nav::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
   background: rgba(11, 12, 15, 0.82);
   backdrop-filter: blur(14px) saturate(140%);
-  border-bottom: 1px solid var(--border-dark);
 }
 .nav .wrap { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; color: var(--silver); }

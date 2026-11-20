@@ -47,6 +47,7 @@
 </nav>
 
 <div class="dash-shell">
+  <button class="dash-mobile-toggle" id="dashMobileToggle" aria-label="Open menu" aria-expanded="false">☰ Menu</button>
   <aside class="dash-side">
     <div class="who">
       <div class="avatar" data-user-avatar style="width:44px;height:44px;font-size:1rem;">P</div>
@@ -1604,6 +1605,18 @@
   }
 
   // ---- nav section switching ----
+  const dashSide = document.querySelector(".dash-side");
+  const dashMobileToggle = document.getElementById("dashMobileToggle");
+  function setMobileNavOpen(open) {
+    dashSide.classList.toggle("open", open);
+    dashMobileToggle.setAttribute("aria-expanded", String(open));
+    dashMobileToggle.textContent = open ? "✕ Close" : "☰ Menu";
+  }
+  function closeMobileNav() { setMobileNavOpen(false); }
+  dashMobileToggle.addEventListener("click", () => {
+    setMobileNavOpen(!dashSide.classList.contains("open"));
+  });
+
   document.querySelectorAll(".dash-nav a[data-section]").forEach(a => {
     a.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1612,6 +1625,7 @@
       ["contracts", "renewals", "archive", "business", "purchases", "ai", "audit", "settings"].forEach(id => {
         document.getElementById("sec-" + id).style.display = (id === a.dataset.section) ? "" : "none";
       });
+      closeMobileNav();
     });
   });
 

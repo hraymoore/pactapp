@@ -330,6 +330,15 @@ p { margin: 0 0 1em; color: var(--silver); }
   color: var(--silver); font-size: 0.95rem;
 }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--gold); }
+.password-field { position: relative; }
+.password-field input { padding-right: 50px; }
+.password-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--silver); font-size: 0.76rem;
+  font-family: var(--font-mono); letter-spacing: 0.03em; cursor: pointer;
+  padding: 6px 8px; border-radius: var(--radius-s);
+}
+.password-toggle:hover, .password-toggle:focus { outline: none; color: var(--gold-bright); }
 .form-note { font-size: 0.82rem; color: var(--silver); text-align: center; margin-top: 18px; }
 .form-note a { color: var(--gold-bright); }
 .alert { padding: 12px 14px; border-radius: var(--radius-s); font-size: 0.85rem; margin-bottom: 16px; display: none; }

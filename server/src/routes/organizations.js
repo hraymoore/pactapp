@@ -29,6 +29,17 @@ function requireMfaForOrgAdmin(req, res, next) {
   next();
 }
 
+// Matches pricing.html's "Team members" row exactly (Free 1, Starter 1,
+// Everyday 3, Professional 10, Enterprise Unlimited) — the organization's
+// seat cap tracks whatever tier its OWNER is on (owner_user_id), since
+// that's the account that's actually paying for the plan, not whichever
+// admin happens to send a given invite. null means no cap.
+const TEAM_MEMBER_LIMITS = { free: 1, starter: 1, everyday: 3, pro: 10, business: null };
+const TIER_LABEL = { free: "Free", starter: "Starter", everyday: "Everyday", pro: "Professional", business: "Enterprise" };
+function teamMemberLimitFor(tier) {
+  return Object.prototype.hasOwnProperty.call(TEAM_MEMBER_LIMITS, tier) ? TEAM_MEMBER_LIMITS[tier] : 1;
+}
+
 // The organizations the current user belongs to, with their role in each —
 // almost always one, but nothing stops someone being a member of several.
 router.get("/", (req, res) => {
@@ -81,14 +92,26 @@ router.get("/:id", (req, res) => {
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
+  // seatLabel ("User 1", "User 2", ...) is a display-only ordinal by join
+  // order — nothing is persisted or keyed off it, and it has no bearing on
+  // who actually signs a contract: e-signatures and the audit trail always
+  // use the real name/email on the users row. It's purely a roster-view
+  // convenience, e.g. for a business that doesn't want individual employee
+  // names surfaced in every internal list.
   const members = db
     .prepare(
       `SELECT m.id, m.role, m.created_at, u.id as user_id, u.name, u.email
        FROM organization_members m JOIN users u ON u.id = m.user_id
        WHERE m.organization_id = ? ORDER BY m.created_at ASC`
     )
-    .all(org.id);
-  res.json({ organization: orgWithRole(org, req.user.id), members });
+    .all(org.id)
+    .map((m, i) => ({ ...m, seatLabel: `User ${i + 1}` }));
+  const owner = db.prepare("SELECT tier FROM users WHERE id = ?").get(org.owner_user_id);
+  res.json({
+    organization: orgWithRole(org, req.user.id),
+    members,
+    teamMemberLimit: teamMemberLimitFor(owner.tier),
+  });
 });
 
 router.put("/:id", (req, res) => {
@@ -183,6 +206,19 @@ router.post("/:id/members", requireMfaForOrgAdmin, (req, res) => {
     return res.status(403).json({ error: "Only the owner can grant the admin role." });
   }
   if (!email) return res.status(400).json({ error: "Email is required." });
+
+  const owner = db.prepare("SELECT tier FROM users WHERE id = ?").get(org.owner_user_id);
+  const limit = teamMemberLimitFor(owner.tier);
+  if (limit !== null) {
+    const { n: memberCount } = db.prepare("SELECT COUNT(*) as n FROM organization_members WHERE organization_id = ?").get(org.id);
+    if (memberCount >= limit) {
+      return res.status(403).json({
+        error: `The ${TIER_LABEL[owner.tier] || owner.tier} plan allows up to ${limit} team member${limit === 1 ? "" : "s"}. Upgrade to add more.`,
+        teamMemberLimitReached: true,
+        limit,
+      });
+    }
+  }
 
   const target = db.prepare("SELECT * FROM users WHERE email = ? AND account_status = 'active'").get(email.trim().toLowerCase());
   if (!target) {

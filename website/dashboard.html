@@ -202,7 +202,10 @@
         </div>
 
         <div class="card" style="margin-top:20px;">
-          <h3>Members</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <h3 style="margin-bottom:0;">Members</h3>
+            <span class="mini-tag" id="bizSeatCount"></span>
+          </div>
           <div id="bizMemberList"></div>
           <div id="bizInviteRow" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-dark);">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -211,6 +214,7 @@
               <button class="btn btn-gold" id="bizInviteBtn">Invite</button>
             </div>
             <p id="bizInviteError" class="alert alert-ruby" style="margin-top:12px;"></p>
+            <p id="bizSeatLimitNote" style="display:none;margin-top:12px;font-size:0.85rem;">This plan's team is at capacity. <a href="pricing.html" style="color:var(--gold-bright);">Upgrade for more seats →</a></p>
           </div>
         </div>
 
@@ -2101,16 +2105,25 @@
   }
 
   async function renderBizMembers() {
-    const { members } = await apiJson(`/api/organizations/${CURRENT_ORG.id}`);
+    const { members, teamMemberLimit } = await apiJson(`/api/organizations/${CURRENT_ORG.id}`);
     const canManage = CURRENT_ORG.myRole === "owner" || CURRENT_ORG.myRole === "admin";
     const wrap = document.getElementById("bizMemberList");
     wrap.innerHTML = "";
+
+    const atCapacity = teamMemberLimit !== null && members.length >= teamMemberLimit;
+    document.getElementById("bizSeatCount").textContent = teamMemberLimit === null
+      ? `${members.length} member${members.length === 1 ? "" : "s"}`
+      : `${members.length} of ${teamMemberLimit} seat${teamMemberLimit === 1 ? "" : "s"}`;
+    document.getElementById("bizInviteEmail").disabled = atCapacity;
+    document.getElementById("bizInviteRole").disabled = atCapacity;
+    document.getElementById("bizInviteBtn").disabled = atCapacity;
+    document.getElementById("bizSeatLimitNote").style.display = atCapacity ? "" : "none";
     members.forEach(m => {
       const row = document.createElement("div");
       row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-dark);";
       const canEditThisRow = canManage && m.user_id !== CURRENT_USER.id;
       row.innerHTML = `
-        <span style="font-size:0.85rem;">${escapeHtmlBiz(m.name)} <span style="color:var(--silver);">&lt;${escapeHtmlBiz(m.email)}&gt;</span></span>
+        <span style="font-size:0.85rem;"><strong>${escapeHtmlBiz(m.seatLabel)}</strong> <span style="color:var(--silver);">(${escapeHtmlBiz(m.name)} &lt;${escapeHtmlBiz(m.email)}&gt;)</span></span>
         <span style="display:flex;gap:8px;align-items:center;">
           ${canEditThisRow
             ? `<select data-role-select="${m.id}" style="width:auto;padding:4px 8px;font-size:0.8rem;">

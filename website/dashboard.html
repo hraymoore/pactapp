@@ -1483,7 +1483,9 @@
   function openSignModal(id, name) {
     signingId = id;
     document.getElementById("signModalTitle").textContent = name;
-    document.getElementById("ownerTypedSignature").value = CURRENT_USER.name;
+    const contract = ALL_CONTRACTS.find(c => c.id === id);
+    const mySelf = contract && contract.parties.find(p => p.email === CURRENT_USER.email);
+    document.getElementById("ownerTypedSignature").value = (mySelf && mySelf.name) || CURRENT_USER.name;
     document.getElementById("ownerConsent").checked = false;
     document.getElementById("signResult").style.display = "none";
     signModal.classList.add("show");

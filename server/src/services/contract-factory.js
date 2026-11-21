@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const db = require("../db");
 const { logAudit } = require("./signing");
 const { stateName } = require("../us-states");
+const { businessPartyLabel } = require("./organizations");
 
 function contentHash(body) {
   return crypto.createHash("sha256").update(body, "utf8").digest("hex");
@@ -44,13 +45,20 @@ function createContractFromTemplate({ ownerId, ownerName, ownerEmail, name, temp
     );
   const contractId = info.lastInsertRowid;
 
+  // Enterprise/business accounts get this snapshotted as "Legal Name on
+  // behalf of Business Name" at creation time (see businessPartyLabel) —
+  // snapshotted, not a live join, same as ownerName/ownerEmail already
+  // are, so a later account rename never rewrites how an existing
+  // contract reads.
+  const partyName = businessPartyLabel(ownerId, organizationId) || ownerName;
+
   db.prepare(
     "INSERT INTO contract_parties (contract_id, user_id, name, email, role, signed_at) VALUES (?, ?, ?, ?, 'owner', NULL)"
-  ).run(contractId, ownerId, ownerName, ownerEmail);
+  ).run(contractId, ownerId, partyName, ownerEmail);
 
   logAudit(
     contractId,
-    { name: ownerName, email: ownerEmail },
+    { name: partyName, email: ownerEmail },
     "created",
     sourceNote || `Contract "${name}" created${template ? " from a template" : ""}.`
   );

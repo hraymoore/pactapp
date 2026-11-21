@@ -9,7 +9,7 @@ const { applySignature, logAudit, logView } = require("../services/signing");
 const { contentHash, createContractFromTemplate } = require("../services/contract-factory");
 const { upload, UPLOAD_DIR } = require("../services/uploads");
 const { isValidStateCode } = require("../us-states");
-const { getMembership } = require("../services/organizations");
+const { getMembership, businessPartyLabel } = require("../services/organizations");
 const { snapshotVersion, listVersions, resolveComparable, diffVersions } = require("../services/versions");
 const { computeHealthScore } = require("../services/contract-health");
 const { hasConsented: hasEsignConsent } = require("../services/esign-consent");
@@ -222,9 +222,10 @@ router.post("/upload", handleUpload, (req, res) => {
     .run(req.user.id, name, genre, body, contentHash(body), state, organizationId);
   const contractId = info.lastInsertRowid;
 
+  const partyName = businessPartyLabel(req.user.id, organizationId) || req.user.name;
   db.prepare(
     "INSERT INTO contract_parties (contract_id, user_id, name, email, role, signed_at) VALUES (?, ?, ?, ?, 'owner', NULL)"
-  ).run(contractId, req.user.id, req.user.name, req.user.email);
+  ).run(contractId, req.user.id, partyName, req.user.email);
 
   db.prepare(
     `INSERT INTO contract_attachments

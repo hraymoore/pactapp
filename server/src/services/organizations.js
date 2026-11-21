@@ -37,4 +37,41 @@ function requireMembership(organizationId, userId, roles) {
   return membership;
 }
 
-module.exports = { isValidEinFormat, normalizeEin, getMembership, requireMembership };
+// Enterprise-tier businesses get the owner party on their contracts
+// branded as "Legal Name on behalf of Business Name" rather than just one
+// or the other — this is an Enterprise-only distinction (the pricing page
+// draws the same line for unlimited seats); Professional and below, which
+// also support team members, keep the plain account name. Returns null
+// when the tier/account conditions aren't met, so callers can fall back
+// to the plain name unchanged.
+function businessPartyLabel(userId, organizationId) {
+  const user = db
+    .prepare("SELECT id, name, account_type, legal_first_name, legal_last_name FROM users WHERE id = ?")
+    .get(userId);
+  if (!user) return null;
+
+  let org;
+  if (user.account_type === "business") {
+    // A business account always owns exactly one organization, created at
+    // signup — use it even when the contract wasn't explicitly tied to an
+    // organizationId, since there's nothing ambiguous to resolve.
+    org = db.prepare("SELECT * FROM organizations WHERE owner_user_id = ?").get(user.id);
+  } else if (organizationId) {
+    org = db.prepare("SELECT * FROM organizations WHERE id = ?").get(organizationId);
+  }
+  if (!org) return null;
+
+  const owner = db.prepare("SELECT tier FROM users WHERE id = ?").get(org.owner_user_id);
+  if (!owner || owner.tier !== "business") return null;
+
+  const legalName =
+    user.account_type === "business"
+      ? org.point_of_contact || user.name
+      : user.legal_first_name && user.legal_last_name
+      ? `${user.legal_first_name} ${user.legal_last_name}`
+      : user.name;
+
+  return `${legalName} on behalf of ${org.name}`;
+}
+
+module.exports = { isValidEinFormat, normalizeEin, getMembership, requireMembership, businessPartyLabel };

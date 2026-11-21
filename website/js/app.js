@@ -162,6 +162,33 @@ function wireNavToggle() {
   links.querySelectorAll("a").forEach(a => a.addEventListener("click", () => links.classList.remove("open")));
 }
 
+// Wraps every password field on the page with a Show/Hide toggle so a
+// typo is visible before submitting — signup and change-password have no
+// second "confirm" field to catch one, so this is the only safety net
+// before a wrong password locks someone out or triggers a reset.
+function wirePasswordToggles() {
+  document.querySelectorAll('input[type="password"]').forEach((input) => {
+    if (input.closest(".password-field")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "password-field";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "password-toggle";
+    btn.textContent = "Show";
+    btn.setAttribute("aria-label", "Show password");
+    btn.addEventListener("click", () => {
+      const revealing = input.type === "password";
+      input.type = revealing ? "text" : "password";
+      btn.textContent = revealing ? "Hide" : "Show";
+      btn.setAttribute("aria-label", revealing ? "Hide password" : "Show password");
+    });
+    wrap.appendChild(btn);
+  });
+}
+
 function wireReveal() {
   const els = document.querySelectorAll(".reveal");
   if (!("IntersectionObserver" in window)) { els.forEach(e => e.classList.add("in")); return; }
@@ -175,6 +202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await paintNav();
   wireNavToggle();
   wireReveal();
+  wirePasswordToggles();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("[pact] service worker failed:", err));

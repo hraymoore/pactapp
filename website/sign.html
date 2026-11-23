@@ -62,6 +62,30 @@
         <button type="submit" class="btn btn-gold btn-block">Sign This Contract</button>
       </form>
       <p style="font-size:0.78rem;text-align:center;margin-top:16px;">Your name, IP address and the exact time of signing are recorded as part of Pact's audit trail.</p>
+
+      <div id="amendmentsSection" style="display:none;margin-top:28px;padding-top:20px;border-top:1px solid var(--border-dark);">
+        <div class="eyebrow" style="justify-content:center;display:flex;margin-bottom:10px;">Amendments &amp; addenda</div>
+        <div id="amendmentsList"></div>
+        <div id="amendmentDiffBox" style="display:none;margin-top:14px;">
+          <div class="doc-card">
+            <div class="doc-head"><div class="dots"><span></span><span></span><span></span></div><span class="ts">Proposed change</span></div>
+            <pre id="amendmentDiffContent" style="white-space:pre-wrap;font-family:var(--font-mono);font-size:0.85rem;margin:0;max-height:300px;overflow:auto;"></pre>
+          </div>
+          <button class="btn btn-ghost-dark btn-sm" id="closeAmendmentDiffBtn" style="margin-top:10px;">Close</button>
+        </div>
+        <div id="amendmentSignForm" style="display:none;margin-top:16px;">
+          <div class="field">
+            <label for="amendTypedSignature">Type your full legal name to sign</label>
+            <input id="amendTypedSignature" type="text" placeholder="e.g. Sam Rivera" style="font-family:var(--font-display);font-style:italic;font-size:1.1rem;">
+          </div>
+          <div class="field" style="display:flex;align-items:flex-start;gap:10px;">
+            <input id="amendConsent" type="checkbox" style="width:auto;margin-top:4px;">
+            <label for="amendConsent" style="margin:0;font-family:var(--font-body);letter-spacing:0;text-transform:none;">I consent to sign this electronically and understand it carries the same legal weight as a handwritten signature.</label>
+          </div>
+          <button type="button" class="btn btn-gold btn-block" id="confirmAmendSignBtn">Sign This Amendment</button>
+        </div>
+        <p id="amendmentError" class="alert alert-ruby" style="margin-top:10px;"></p>
+      </div>
     </div>
   </div>
 </div>
@@ -88,6 +112,7 @@
         document.getElementById("contractBody").textContent = data.contract.body;
         document.getElementById("signBody").style.display = "";
         document.getElementById("typedSignature").value = data.party.name || "";
+        myPartyEmail = data.party.email;
 
         if (data.party.signed_at) {
           document.getElementById("signForm").style.display = "none";
@@ -95,12 +120,150 @@
           done.textContent = `You already signed this contract on ${new Date(data.party.signed_at).toLocaleString()}.`;
           done.classList.add("show");
         }
+
+        await renderAmendments();
       } catch (err) {
         document.getElementById("contractTitle").textContent = "Can't load this contract";
         errorBox.textContent = err.message;
         errorBox.classList.add("show");
       }
     })();
+
+    let selectedAmendmentId = null;
+    let myPartyEmail = null;
+
+    document.getElementById("closeAmendmentDiffBtn").addEventListener("click", () => {
+      document.getElementById("amendmentDiffBox").style.display = "none";
+    });
+
+    // Amendments proposed on this contract after it was fully signed —
+    // there are none until the first one is proposed, which is the common
+    // case, so this section stays hidden for most visits here.
+    async function renderAmendments() {
+      const r = await fetch(`/api/sign/${token}/amendments`);
+      const data = await r.json();
+      if (!r.ok) return;
+      const section = document.getElementById("amendmentsSection");
+      const wrap = document.getElementById("amendmentsList");
+      wrap.innerHTML = "";
+      document.getElementById("amendmentSignForm").style.display = "none";
+      document.getElementById("amendmentDiffBox").style.display = "none";
+      if (data.amendments.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+      section.style.display = "";
+
+      const STATUS_LABEL = { pending: "Awaiting signatures", signed: "Executed", rejected: "Rejected", withdrawn: "Withdrawn" };
+
+      data.amendments.forEach(a => {
+        const mySig = a.signatures.find(s => s.party_email === myPartyEmail);
+        const myNote = mySig && mySig.signed_at ? "You signed this."
+          : mySig && mySig.rejected_at ? "You rejected this."
+          : "";
+        const card = document.createElement("div");
+        card.style.cssText = "border:1px solid var(--border-dark);border-radius:8px;padding:12px;margin-bottom:10px;text-align:left;";
+        card.innerHTML = `
+          <strong style="font-size:0.9rem;">${a.amendment_type === "addendum" ? "Addendum" : "Amendment"}: ${a.title}</strong>
+          <span style="float:right;font-family:var(--font-mono);font-size:0.75rem;color:var(--silver);">${STATUS_LABEL[a.status] || a.status}</span>
+          <p style="margin:6px 0;font-size:0.85rem;color:var(--silver);">${a.summary}</p>
+          ${myNote ? `<p style="margin:0 0 6px;font-size:0.8rem;color:var(--gold-bright);">${myNote}</p>` : ""}
+        `;
+        const actions = document.createElement("div");
+        actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;";
+
+        const viewBtn = document.createElement("button");
+        viewBtn.type = "button";
+        viewBtn.className = "btn btn-ghost-dark btn-sm";
+        viewBtn.textContent = "View proposed changes";
+        viewBtn.addEventListener("click", async () => {
+          const dr = await fetch(`/api/sign/${token}/amendments/${a.id}`);
+          const ddata = await dr.json();
+          if (!dr.ok) return;
+          const esc = (s) => s.replace(/</g, "&lt;");
+          document.getElementById("amendmentDiffContent").innerHTML = ddata.diff.map(p =>
+            p.added ? `<span style="background:rgba(15,107,76,0.25);color:var(--emerald-bright);">${esc(p.value)}</span>`
+            : p.removed ? `<span style="background:rgba(156,31,59,0.25);color:var(--ruby-bright);text-decoration:line-through;">${esc(p.value)}</span>`
+            : `<span>${esc(p.value)}</span>`
+          ).join("");
+          document.getElementById("amendmentDiffBox").style.display = "";
+        });
+        actions.appendChild(viewBtn);
+
+        if (a.status === "pending" && mySig && !mySig.signed_at && !mySig.rejected_at) {
+          const signBtn = document.createElement("button");
+          signBtn.type = "button";
+          signBtn.className = "btn btn-gold btn-sm";
+          signBtn.textContent = "Sign";
+          signBtn.addEventListener("click", () => {
+            selectedAmendmentId = a.id;
+            document.getElementById("amendmentSignForm").style.display = "";
+            document.getElementById("amendmentSignForm").scrollIntoView({ behavior: "smooth", block: "nearest" });
+          });
+          actions.appendChild(signBtn);
+
+          const rejectBtn = document.createElement("button");
+          rejectBtn.type = "button";
+          rejectBtn.className = "btn btn-ghost-dark btn-sm";
+          rejectBtn.textContent = "Reject";
+          rejectBtn.addEventListener("click", async () => {
+            const reason = prompt("Optional reason for rejecting (shown to the other parties):") || "";
+            try {
+              const rr = await fetch(`/api/sign/${token}/amendments/${a.id}/reject`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason }),
+              });
+              const rdata = await rr.json();
+              if (!rr.ok) throw new Error(rdata.error || "Failed to reject.");
+              await renderAmendments();
+            } catch (err) {
+              const errBox = document.getElementById("amendmentError");
+              errBox.textContent = err.message;
+              errBox.classList.add("show");
+            }
+          });
+          actions.appendChild(rejectBtn);
+        }
+
+        if (a.status === "signed" && a.certificate) {
+          const certLink = document.createElement("a");
+          certLink.className = "btn btn-ghost-dark btn-sm";
+          certLink.textContent = "Download Certificate";
+          certLink.href = `/api/sign/${token}/amendments/${a.id}/certificate`;
+          certLink.target = "_blank";
+          actions.appendChild(certLink);
+        }
+
+        card.appendChild(actions);
+        wrap.appendChild(card);
+      });
+    }
+
+    document.getElementById("confirmAmendSignBtn").addEventListener("click", async () => {
+      const errBox = document.getElementById("amendmentError");
+      errBox.classList.remove("show");
+      const typedSignature = document.getElementById("amendTypedSignature").value.trim();
+      const consent = document.getElementById("amendConsent").checked;
+      if (!consent) { errBox.textContent = "You must consent to signing electronically."; errBox.classList.add("show"); return; }
+      if (!typedSignature) { errBox.textContent = "Type your full legal name to sign."; errBox.classList.add("show"); return; }
+      try {
+        const r = await fetch(`/api/sign/${token}/amendments/${selectedAmendmentId}/sign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ typedSignature, consent }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Signing failed.");
+        document.getElementById("amendmentSignForm").style.display = "none";
+        document.getElementById("amendTypedSignature").value = "";
+        document.getElementById("amendConsent").checked = false;
+        await renderAmendments();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.add("show");
+      }
+    });
 
     document.getElementById("signForm").addEventListener("submit", async (e) => {
       e.preventDefault();

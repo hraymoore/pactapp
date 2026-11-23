@@ -154,12 +154,7 @@ p { margin: 0 0 1em; color: var(--silver); }
 }
 .nav .wrap { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; color: var(--silver); }
-.brand .mark {
-  width: 34px; height: 34px; border-radius: 9px;
-  background: linear-gradient(135deg, var(--gold-bright), var(--ruby) 55%, var(--emerald));
-  display: flex; align-items: center; justify-content: center;
-  color: #0b0c0f; font-weight: 800; font-family: var(--font-body);
-}
+.brand img { flex-shrink: 0; }
 .nav-links { display: flex; align-items: center; gap: 30px; }
 .nav-links a { font-size: 0.92rem; color: var(--silver); transition: color .15s; }
 .nav-links a:hover, .nav-links a.active { color: var(--gold-bright); }

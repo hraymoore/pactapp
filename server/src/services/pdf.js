@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 
 const PAGE_SIZE = [612, 792];
@@ -6,10 +8,19 @@ const GOLD = rgb(0.8, 0.64, 0.29);
 const INK = rgb(0.08, 0.08, 0.1);
 const MUTED = rgb(0.4, 0.4, 0.45);
 
+// PNG, not the SVG the web pages use — pdf-lib can only embed raster
+// images, and PNG also matches the "no SVG in emails/PDFs" rule from the
+// brand rollout brief (some PDF viewers are as inconsistent with vector
+// formats as email clients are).
+const LOGO_PNG_BYTES = fs.readFileSync(
+  path.join(__dirname, "..", "..", "..", "website", "static", "brand", "icon-192.png")
+);
+
 async function createPdfWriter() {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const logoImage = await doc.embedPng(LOGO_PNG_BYTES);
 
   let page = doc.addPage(PAGE_SIZE);
   let y = PAGE_SIZE[1] - MARGIN;
@@ -41,17 +52,27 @@ async function createPdfWriter() {
     y -= gap;
   }
 
+  // Same "PACT" wordmark line every document already opened with — now
+  // with the real logo mark beside it instead of just styled text.
+  function writeBrandHeader({ size = 20, gap = 28 } = {}) {
+    ensureSpace();
+    const logoSize = size + 2;
+    page.drawImage(logoImage, { x: MARGIN, y: y - logoSize + size * 0.8, width: logoSize, height: logoSize });
+    page.drawText("PACT", { x: MARGIN + logoSize + 8, y, size, font: bold, color: GOLD });
+    y -= gap;
+  }
+
   function spacer(amount = 8) {
     y -= amount;
   }
 
-  return { doc, font, bold, writeLine, spacer };
+  return { doc, font, bold, writeLine, writeBrandHeader, spacer };
 }
 
 async function renderContractPdf({ contract, parties, audit }) {
-  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+  const { doc, bold, writeLine, writeBrandHeader, spacer } = await createPdfWriter();
 
-  writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
+  writeBrandHeader();
   writeLine(contract.name, { size: 16, f: bold, gap: 22 });
   writeLine(`Status: ${contract.status.toUpperCase()}  |  Exported: ${new Date().toISOString()}`, {
     size: 9,
@@ -101,9 +122,9 @@ async function renderContractPdf({ contract, parties, audit }) {
 // parties, no signature block and no audit trail — nothing to fill in or
 // sign, since that requires the $7.99 editable purchase or a subscription.
 async function renderBlankTemplatePdf(template) {
-  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+  const { doc, bold, writeLine, writeBrandHeader, spacer } = await createPdfWriter();
 
-  writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
+  writeBrandHeader();
   writeLine(template.name, { size: 16, f: bold, gap: 22 });
   writeLine(`Blank template  |  Genre: ${template.genre}  |  Exported: ${new Date().toISOString()}`, {
     size: 9,
@@ -136,9 +157,9 @@ async function renderBlankTemplatePdf(template) {
 // printed here so a later side-by-side comparison can catch an altered
 // copy of this PDF).
 async function renderPaymentCertificatePdf(certData) {
-  const { doc, bold, writeLine, spacer } = await createPdfWriter();
+  const { doc, bold, writeLine, writeBrandHeader, spacer } = await createPdfWriter();
 
-  writeLine("PACT", { size: 20, f: bold, color: GOLD, gap: 28 });
+  writeBrandHeader();
   writeLine("Payment Certificate", { size: 16, f: bold, gap: 22 });
   writeLine(`Contract: ${certData.contractName}  (Pact ID #${certData.contractId})`, { size: 10.5, gap: 16 });
 

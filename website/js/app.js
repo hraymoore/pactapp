@@ -158,8 +158,18 @@ function wireNavToggle() {
   const toggle = document.querySelector(".nav-toggle");
   const links = document.querySelector(".nav-links");
   if (!toggle || !links) return;
-  toggle.addEventListener("click", () => links.classList.toggle("open"));
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    links.classList.toggle("open");
+  });
   links.querySelectorAll("a").forEach(a => a.addEventListener("click", () => links.classList.remove("open")));
+  // A dropdown, not a full-screen panel, so it should close like one:
+  // tapping anywhere else on the page dismisses it instead of lingering.
+  document.addEventListener("click", (e) => {
+    if (links.classList.contains("open") && !links.contains(e.target) && e.target !== toggle) {
+      links.classList.remove("open");
+    }
+  });
 }
 
 // Wraps every password field on the page with a Show/Hide toggle so a

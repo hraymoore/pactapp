@@ -178,8 +178,23 @@ p { margin: 0 0 1em; color: var(--silver); }
 }
 
 @media (max-width: 880px) {
-  .nav-links { position: fixed; inset: 68px 0 0 0; background: var(--obsidian); flex-direction: column; padding: 30px; gap: 22px; transform: translateX(100%); transition: transform .25s ease; }
-  .nav-links.open { transform: translateX(0); }
+  /* A real dropdown anchored under the toggle, not a full-screen panel —
+     position: absolute (not fixed) so it isn't broken by .nav's own
+     backdrop-filter, which creates a containing block that made the old
+     fixed-position overlay collapse to a near-invisible box with the
+     hero content showing straight through it. */
+  .nav-links {
+    position: absolute; top: calc(100% + 8px); right: 20px; left: auto;
+    flex-direction: column; align-items: stretch; gap: 2px;
+    background: #050507; border: 1px solid var(--border-dark);
+    border-radius: var(--radius-m); box-shadow: var(--shadow);
+    padding: 10px; min-width: 200px;
+    opacity: 0; visibility: hidden; transform: translateY(-6px);
+    transition: opacity .15s ease, transform .15s ease, visibility .15s;
+  }
+  .nav-links.open { opacity: 1; visibility: visible; transform: translateY(0); }
+  .nav-links a { padding: 11px 14px; border-radius: var(--radius-s); }
+  .nav-links a:hover, .nav-links a.active { background: rgba(231, 199, 119, 0.1); }
   .nav-toggle { display: block; }
 }
 

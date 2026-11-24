@@ -14,7 +14,7 @@
 //
 // Bump CACHE_NAME whenever the shell asset list below changes, so old
 // entries don't linger under a stale key.
-const CACHE_NAME = "pact-shell-v4";
+const CACHE_NAME = "pact-shell-v5";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -26,9 +26,9 @@ const SHELL_ASSETS = [
   "/css/style.css",
   "/js/app.js",
   "/manifest.json",
-  "/static/brand/pact-logo.svg?v=3",
-  "/static/brand/icon-192.png?v=3",
-  "/static/brand/icon-512.png?v=3",
+  "/static/brand/pact-logo.svg?v=4",
+  "/static/brand/icon-192.png?v=4",
+  "/static/brand/icon-512.png?v=4",
 ];
 
 self.addEventListener("install", (event) => {
